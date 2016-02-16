@@ -15,7 +15,6 @@ import spray.http.HttpResponse
 import spray.routing._
 import upickle._
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
-import scala.annotation.{ClassfileAnnotation, StaticAnnotation, Annotation}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Properties
@@ -23,7 +22,7 @@ import scala.util.Properties
 object Server extends SimpleRoutingApp with Api{
   implicit val system = ActorSystem()
   import system.dispatcher
-  val clientFiles = Seq("/client-opt.js")
+  val clientFiles = Seq("/client-fastopt.js")
 
   private object AutowireServer
       extends autowire.Server[String, upickle.Reader, upickle.Writer] {
@@ -107,6 +106,31 @@ object Server extends SimpleRoutingApp with Api{
     Await.result(Compiler.autocomplete(txt, flag, offset), 100.seconds)
   }
 
+  val errorStart = """^Main.scala:(\d+): (\w+):(.*)""".r
+  val errorEnd = """ *\^ *$""".r
+  def parseErrors(log: String): Seq[EditorAnnotation] = {
+    val deltaRow = Shared.prelude.count(_ == '\n')
+    val lines = log.split('\n').toSeq.map(_.replaceAll("[\\n\\r]", ""))
+    val (annotations, _) = lines.foldLeft((Seq.empty[EditorAnnotation], Option.empty[EditorAnnotation])) { case ((acc, current), line) =>
+      line match {
+        case errorStart(lineNo, severity, msg) =>
+          val ann = EditorAnnotation(lineNo.toInt - deltaRow - 1, 0, Seq(msg), severity)
+          (acc, Some(ann))
+        case errorEnd() if current.isDefined =>
+          // drop last line from error message, it's the line of code
+          val ann = current.map(ann => ann.copy(col = line.length, text = ann.text.init)).get
+          (acc :+ ann, None)
+        case errLine if current.isDefined =>
+          (acc, current.map(ann => ann.copy(text = ann.text :+ errLine)))
+        case _ =>
+          (acc, current)
+      }
+    }
+    println(s"Errors: $annotations")
+    annotations
+  }
+
+
   def compileStuff(code: String, processor: Seq[VirtualScalaJSIRFile] => String) = {
 
     val output = mutable.Buffer.empty[String]
@@ -116,6 +140,7 @@ object Server extends SimpleRoutingApp with Api{
       output.append(_)
     )
 
-    (output.mkString, res.map(processor))
+    val logSpam = output.mkString
+    (logSpam, parseErrors(logSpam), res.map(processor))
   }
 }

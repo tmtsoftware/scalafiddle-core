@@ -1,8 +1,8 @@
 #editor {
-    margin: 10px;
+    margin: 0;
     position: absolute;
     top: 0;
-    bottom: 20%;
+    bottom: 0;
     left: 0;
     right: 50%;
     box-sizing: border-box;
@@ -10,6 +10,7 @@
 
 }
 #logspam{
+    display: none;
     margin: 0;
     position: absolute;
     top: 80%;
@@ -21,12 +22,13 @@
     box-sizing: border-box;
     padding: 2px 4px;
     border-top: 1px solid #333333;
+    z-index: 1;
 }
 #sandbox {
     margin: 0;
     position: absolute;
     top: 0;
-    bottom: 20%;
+    bottom: 0;
     left: 50%;
     right: 0;
     border-left: 1px solid #333333;
@@ -40,10 +42,10 @@
 
 body, pre {
     overflow: hidden;
-    background-color: rgb(20, 20, 20);
+    background-color: #ffffff;
     color: #B3B8BC;
-    font-size: 12px;
-    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
+    font-size: 14px;
+    font-family: Hasklig, Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
 }
 
 a:link{
@@ -63,4 +65,10 @@ html, body, #spinner-holder{
 }
 .ace-line{
     white-space: nowrap;
+}
+
+.ace_editor {
+    font-size: 14px;
+    font-family: Hasklig, Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
+    text-rendering: optimizeLegibility;
 }

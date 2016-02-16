@@ -1,6 +1,6 @@
 package fiddle
 
-import scala.annotation.ClassfileAnnotation
+case class EditorAnnotation(row: Int, col: Int, text: Seq[String], tpe: String)
 
 object Shared{
   val prelude =
@@ -24,13 +24,13 @@ object Shared{
 
   val gistId = "9443f8e0ecc68d1058ad"
 
-  val url = "http://www.scala-js-fiddle.com"
-//  val url = "http://localhost:8080"
+  //val url = "http://www.scala-js-fiddle.com"
+  val url = ""
 }
 
 trait Api{
-  def fastOpt(txt: String): (String, Option[String])
-  def fullOpt(txt: String): (String, Option[String])
+  def fastOpt(txt: String): (String, Seq[EditorAnnotation], Option[String])
+  def fullOpt(txt: String): (String, Seq[EditorAnnotation], Option[String])
   def export(compiled: String, source: String): String
   def `import`(compiled: String, source: String): String
   def completeStuff(txt: String, flag: String, offset: Int): List[(String, String)]

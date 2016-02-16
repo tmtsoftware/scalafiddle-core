@@ -1,5 +1,9 @@
 package fiddle
+
+import java.net.URLDecoder
+
 import acyclic.file
+import org.scalajs.dom.raw.Location
 import scala.scalajs.js
 import scala.scalajs.js.Dynamic.{literal => lit, _}
 import org.scalajs.dom
@@ -50,7 +54,7 @@ object Checker{
   }
 
   def scheduleResets() = {
-    dom.setInterval(() => Checker.reset(1000), 100)
+    dom.window.setInterval(() => Checker.reset(1000), 100)
   }
 }
 
@@ -70,7 +74,7 @@ object Post extends autowire.Client[String, upickle.Reader, upickle.Writer]{
 class Client(){
 
   Client.scheduleResets()
-  val command = Channel[Future[(String, Option[String])]]()
+  val command = Channel[Future[(String, Seq[EditorAnnotation], Option[String])]]()
 
   def exec(s: String) = {
     Client.clear()
@@ -114,10 +118,10 @@ class Client(){
   val landing = fiddle.Shared.url + "/gist/" + fiddle.Shared.gistId + "/LandingPage.scala"
   logln("- ", a(href:=landing, "Click here"), " to find out more.")
 
-  def compile(res: Future[(String, Option[String])]): Future[Option[String]] = {
-    res.map { case (logspam, result) =>
+  def compile(res: Future[(String, Seq[EditorAnnotation], Option[String])]): Future[Option[String]] = {
 
-
+    res.map { case (logspam, annotations, result) =>
+      editor.setAnnotations(annotations)
       logln(logspam)
       result match{
         case Some(c) =>
@@ -135,9 +139,10 @@ class Client(){
     }
   }
 
-  def showJavascript(compiled: Future[(String, Option[String])]) = {
-    compiled.collect{ case (logspam, Some(code)) =>
+  def showJavascript(compiled: Future[(String, Seq[EditorAnnotation], Option[String])]) = {
+    compiled.collect{ case (logspam, annotations, Some(code)) =>
       Client.clear()
+      editor.setAnnotations(annotations)
       Page.output.innerHTML = Page.highlight(code, "ace/mode/javascript")
     }
   }
@@ -193,11 +198,23 @@ class Client(){
 object Client{
   implicit val RedLogger = new Logger(logError)
 
-  dom.onerror = {(event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
+  dom.window.onerror = {(event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
     dom.console.log("dom.onerror")
     Client.logError(event.toString())
   }
 
+  def parseUriParameters(search: String): Map[String, String] = {
+    search.drop(1).split('&').filter(_.nonEmpty).map { part =>
+      val pair = part.split("=")
+      val key = URLDecoder.decode(pair(0), "UTF-8")
+      val value = if(pair.length > 1) URLDecoder.decode(pair(1), "UTF-8") else ""
+      key -> value
+    }.toMap
+  }
+
+  dom.console.log(s"Search = ${dom.window.location.search}")
+  val queryParams = parseUriParameters(dom.window.location.search)
+  dom.console.log(s"Query parameters: $queryParams")
 
   @JSExport
   def logError(s: String): Unit = {
@@ -206,8 +223,8 @@ object Client{
   @JSExport
   def clearTimeouts() = {
     for(i <- -100000 until 100000){
-      dom.clearInterval(i)
-      dom.clearTimeout(i)
+      dom.window.clearInterval(i)
+      dom.window.clearTimeout(i)
     }
     Client.scheduleResets()
   }
@@ -259,6 +276,6 @@ object Client{
 
   }
   def scheduleResets() = {
-    dom.setInterval(() => Checker.reset(1000), 100)
+    dom.window.setInterval(() => Checker.reset(1000), 100)
   }
 }

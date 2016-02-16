@@ -1,12 +1,13 @@
 package fiddle
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import js.{Dynamic => Dyn}
+import scala.scalajs.js.{Dynamic => Dyn, JSON}
 import scala.scalajs.js.Dynamic._
+import scala.scalajs.js.JSConverters._
 import JsVal.jsVal2jsAny
 import scala.concurrent.Future
 import scala.async.Async.{async, await}
-import Page._
+
 /**
  * Everything related to setting up the Ace editor to
  * do exactly what we want.
@@ -29,7 +30,24 @@ class Editor(bindings: Seq[(String, String, () => Any)],
 
     // needed for firefox on mac
     editor.completer.cancelContextMenu()
+  }
 
+  def setAnnotations(annotations: Seq[EditorAnnotation]): Unit = {
+    editor.getSession().clearAnnotations()
+    if(annotations.nonEmpty) {
+      editor.renderer.setShowGutter(true)
+      val aceAnnotations = annotations.map { ann =>
+        JsVal.obj(
+          "row" -> ann.row,
+          "col" -> ann.col,
+          "text" -> ann.text.mkString("\n"),
+          "type" -> ann.tpe
+        ).value
+      }.toJSArray
+      editor.getSession().setAnnotations(aceAnnotations)
+    } else {
+      editor.renderer.setShowGutter(false)
+    }
   }
 
   val editor: js.Dynamic = {
@@ -68,14 +86,16 @@ class Editor(bindings: Seq[(String, String, () => Any)],
 object Editor{
   def initEditorIn(id: String) = {
     val editor = global.ace.edit(id)
-    editor.setTheme("ace/theme/twilight")
+    editor.setTheme("ace/theme/eclipse")
     editor.renderer.setShowGutter(false)
+    editor.renderer.setOption("showFoldWidgets", false)
     editor.setShowPrintMargin(false)
     editor
   }
   lazy val initEditor: js.Dynamic = {
     val editor = initEditorIn("editor")
     editor.getSession().setMode("ace/mode/scala")
+    editor.getSession().setOption("useWorker", false)
     editor.getSession().setValue(Page.source.textContent)
     editor
   }

@@ -16,6 +16,19 @@ import scala.util.Random
  * scala-compile and scalajs-tools
  */
 object Classpath {
+  val libs = Seq(
+    "/scala-library-2.11.7.jar",
+    "/scala-reflect-2.11.7.jar",
+    "/scalajs-library_2.11-0.6.7.jar",
+    "/scalajs-dom_sjs0.6_2.11-0.9.0.jar",
+    "/scalatags_sjs0.6_2.11-0.4.5.jar",
+    "/scalarx_sjs0.6_2.11-0.2.7.jar",
+    "/scala-async_2.11-0.9.1.jar",
+    "/scalaxy-loops_2.11-0.1.1.jar",
+    "/runtime_sjs0.6_2.11-0.1-SNAPSHOT.jar",
+    "/page_sjs0.6_2.11-0.1-SNAPSHOT.jar",
+    "/shared_sjs0.6_2.11-0.1-SNAPSHOT.jar"
+  )
   /**
    * In memory cache of all the jars used in the compiler. This takes up some
    * memory but is better than reaching all over the filesystem every time we
@@ -23,28 +36,14 @@ object Classpath {
    */
   lazy val loadedFiles = {
     println("Loading files...")
-    val jarFiles = for {
-      name <- Seq(
-        "/scala-library-2.11.7.jar",
-        "/scala-reflect-2.11.7.jar",
-        "/scalajs-library_2.11-0.6.6.jar",
-        "/scalajs-dom_sjs0.6_2.11-0.8.2.jar",
-        "/scalatags_sjs0.6_2.11-0.4.5.jar",
-        "/scalarx_sjs0.6_2.11-0.2.7.jar",
-        "/scala-async_2.11-0.9.1.jar",
-        "/scalaxy-loops_2.11-0.1.1.jar",
-        "/runtime_sjs0.6_2.11-0.1-SNAPSHOT.jar",
-        "/page_sjs0.6_2.11-0.1-SNAPSHOT.jar",
-        "/shared_sjs0.6_2.11-0.1-SNAPSHOT.jar"
-      )
-    } yield {
+    val jarFiles = libs.par.map { name =>
       val stream = getClass.getResourceAsStream(name)
       println("Loading file" + name + ": " + stream)
       if (stream == null) {
         throw new Exception(s"Classpath loading failed, jar $name not found")
       }
       name -> Streamable.bytes(stream)
-    }
+    }.seq
 
     val bootFiles = for {
       prop <- Seq(/*"java.class.path", */"sun.boot.class.path")
@@ -60,7 +59,7 @@ object Classpath {
   /**
    * The loaded files shaped for Scalac to use
    */
-  lazy val scalac = for((name, bytes) <- loadedFiles) yield {
+  lazy val scalac = (for((name, bytes) <- loadedFiles.par) yield {
     println(s"Loading $name for Scalac")
     val in = new ZipInputStream(new ByteArrayInputStream(bytes))
     val entries = Iterator
@@ -85,7 +84,7 @@ object Classpath {
     }
     println(dir.size)
     dir
-  }
+  }).seq
   /**
    * The loaded files shaped for Scala-Js-Tools to use
    */

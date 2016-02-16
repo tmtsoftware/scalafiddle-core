@@ -4,11 +4,11 @@ import scalatags.Text.all._
 import scalatags.Text.tags2
 object Static{
   val aceFiles = Seq(
-    "/META-INF/resources/webjars/ace/01.08.2014/src-min/ace.js",
-    "/META-INF/resources/webjars/ace/01.08.2014/src-min/ext-language_tools.js",
-    "/META-INF/resources/webjars/ace/01.08.2014/src-min/ext-static_highlight.js",
-    "/META-INF/resources/webjars/ace/01.08.2014/src-min/mode-scala.js",
-    "/META-INF/resources/webjars/ace/01.08.2014/src-min/theme-twilight.js"
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/ace.js",
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/ext-language_tools.js",
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/ext-static_highlight.js",
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/mode-scala.js",
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-eclipse.js"
   )
 
   def page(arg: String, srcFiles: Seq[String], source: String = "", compiled: String = "", analytics: Boolean = true) =
@@ -47,22 +47,6 @@ object Static{
             color:="lightgrey",
             paddingLeft:="2px",
             boxSizing:="border-box"
-          )(
-            div(id:="spinner-holder")(
-              div(display:="table-cell", verticalAlign:="middle", height:="100%")(
-                div(style:="text-align: center")(
-                  h1("Loading Scala-Js-Fiddle"),
-                  div(
-                    img(src:="/Shield.svg", height:="200px")
-                  ),
-                  br,
-                  div(
-                    img(src:="/spinner.gif")
-                  ),
-                  p("This takes a while the first time. Please be patient =)")
-                )
-              )
-            )
           )
         )
       ),
