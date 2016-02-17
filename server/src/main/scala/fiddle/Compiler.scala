@@ -1,4 +1,5 @@
 package fiddle
+
 import acyclic.file
 import scala.tools.nsc.Settings
 import scala.reflect.io
@@ -13,7 +14,6 @@ import concurrent.ExecutionContext.Implicits.global
 import scala.reflect.internal.util.{BatchSourceFile, OffsetPosition}
 import scala.tools.nsc.interactive.{InteractiveAnalyzer, Response}
 import scala.tools.nsc
-import scala.io.Source
 
 import org.scalajs.core.tools.sem.Semantics
 import org.scalajs.core.tools.io._
@@ -25,27 +25,67 @@ import scala.tools.nsc.util.ClassPath.JavaContext
 import scala.collection.mutable
 import scala.tools.nsc.typechecker.Analyzer
 
+case class Template(pre: String, post: String) {
+  def fullSource(src: String) = pre + src + post
+}
+
 /**
- * Handles the interaction between scala-js-fiddle and
- * scalac/scalajs-tools to compile and optimize code submitted by users.
- */
-object Compiler{
+  * Handles the interaction between scala-js-fiddle and
+  * scalac/scalajs-tools to compile and optimize code submitted by users.
+  */
+object Compiler {
   val blacklist = Seq("<init>")
 
   val semantics = org.scalajs.core.tools.sem.Semantics.Defaults
 
+  val templates = Map[String, Template](
+    "default" -> Template(
+      """
+        |import scalatags.JsDom.all._
+        |import org.scalajs.dom
+        |import fiddle.Page
+        |import Page.{red, green, blue, yellow, orange, println}
+        |import scalajs.js
+        |object ScalaJSExample extends js.JSApp {
+        |  def main() = {
+        |
+      """.stripMargin,
+      """
+        |  }
+        |}
+      """.stripMargin
+    ),
+    "sjs" -> Template(
+      """
+        |import scalatags.JsDom.all._
+        |import org.scalajs.dom
+        |import fiddle.Page
+        |import Page.{red, green, blue, yellow, orange, println}
+        |import scalajs.js
+        |
+      """.stripMargin,
+      """
+      """.stripMargin
+    ),
+    "raw" -> Template(
+      """
+      """.stripMargin,
+      """
+      """.stripMargin
+    )
+  )
   /**
-   * Converts Scalac's weird Future type
-   * into a standard scala.concurrent.Future
-   */
+    * Converts Scalac's weird Future type
+    * into a standard scala.concurrent.Future
+    */
   def toFuture[T](func: Response[T] => Unit): Future[T] = {
     val r = new Response[T]
-    Future { func(r) ; r.get.left.get }
+    Future {func(r); r.get.left.get}
   }
 
   /**
-   * Converts a bunch of bytes into Scalac's weird VirtualFile class
-   */
+    * Converts a bunch of bytes into Scalac's weird VirtualFile class
+    */
   def makeFile(src: Array[Byte]) = {
     val singleFile = new io.VirtualFile("Main.scala")
     val output = singleFile.output
@@ -55,7 +95,7 @@ object Compiler{
   }
 
   def inMemClassloader = {
-    new ClassLoader(this.getClass.getClassLoader){
+    new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
       override def findClass(name: String): Class[_] = {
         println("Looking for Class " + name)
@@ -64,12 +104,12 @@ object Compiler{
           name,
           Classpath.scalac
             .map(_.lookupPathUnchecked(fileName, false))
-            .find(_ != null).map{f =>
+            .find(_ != null).map { f =>
             val data = f.toByteArray
             this.defineClass(name, data, 0, data.length)
           }
         )
-        res match{
+        res match {
           case None =>
             println("Not Found Class " + name)
             throw new ClassNotFoundException()
@@ -80,35 +120,36 @@ object Compiler{
       }
     }
   }
+
   /**
-   * Mixed in to make a Scala compiler run entirely in-memory,
-   * loading its classpath and running macros from pre-loaded
-   * in-memory files
-   */
-  trait InMemoryGlobal { g: scala.tools.nsc.Global =>
+    * Mixed in to make a Scala compiler run entirely in-memory,
+    * loading its classpath and running macros from pre-loaded
+    * in-memory files
+    */
+  trait InMemoryGlobal {
+    g: scala.tools.nsc.Global =>
     def ctx: JavaContext
     def dirs: Vector[DirectoryClassPath]
     override lazy val plugins = List[Plugin](new org.scalajs.core.compiler.ScalaJSPlugin(this))
-    override lazy val platform: ThisPlatform = new JavaPlatform{
+    override lazy val platform: ThisPlatform = new JavaPlatform {
       val global: g.type = g
       override def classPath = new JavaClassPath(dirs, ctx)
     }
-
   }
 
   /**
-   * Code to initialize random bits and pieces that are needed
-   * for the Scala compiler to function, common between the
-   * normal and presentation compiler
-   */
-  def initGlobalBits(logger: String => Unit)= {
+    * Code to initialize random bits and pieces that are needed
+    * for the Scala compiler to function, common between the
+    * normal and presentation compiler
+    */
+  def initGlobalBits(logger: String => Unit) = {
     val vd = new io.VirtualDirectory("(memory)", None)
     val jCtx = new JavaContext()
     val jDirs = Classpath.scalac.map(new DirectoryClassPath(_, jCtx)).toVector
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
-    val writer = new Writer{
+    val writer = new Writer {
       var inner = ByteString()
       def write(cbuf: Array[Char], off: Int, len: Int): Unit = {
         inner = inner ++ ByteString.fromArray(cbuf.map(_.toByte), off, len)
@@ -121,13 +162,20 @@ object Compiler{
     }
     val reporter = new ConsoleReporter(settings, scala.Console.in, new PrintWriter(writer))
     (settings, reporter, vd, jCtx, jDirs)
-
   }
 
-  def autocomplete(code: String, flag: String, pos: Int): Future[List[(String, String)]] = async {
+  def getTemplate(template: String) = {
+    templates.get(template) match {
+      case Some(t) => t
+      case None => throw new IllegalArgumentException(s"Invalid template $template")
+    }
+  }
+  def autocomplete(templateId: String, code: String, flag: String, pos: Int): Future[List[(String, String)]] = async {
+    val template = getTemplate(templateId)
     // global can be reused, just create new runs for new compiler invocations
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(_ => ())
-    val compiler = new nsc.interactive.Global(settings, reporter) with InMemoryGlobal { g =>
+    val compiler = new nsc.interactive.Global(settings, reporter) with InMemoryGlobal {
+      g =>
       def ctx = jCtx
       def dirs = jDirs
       override lazy val analyzer = new {
@@ -138,17 +186,17 @@ object Compiler{
       }
     }
 
-    val file      = new BatchSourceFile(makeFile(Shared.prelude.getBytes ++ code.getBytes), Shared.prelude + code)
-    val position  = new OffsetPosition(file, pos + Shared.prelude.length)
+    val file = new BatchSourceFile(makeFile(template.fullSource(code).getBytes), template.fullSource(code))
+    val position = new OffsetPosition(file, pos + template.pre.length)
 
     await(toFuture[Unit](compiler.askReload(List(file), _)))
 
-    val maybeMems = await(toFuture[List[compiler.Member]](flag match{
+    val maybeMems = await(toFuture[List[compiler.Member]](flag match {
       case "scope" => compiler.askScopeCompletion(position, _: compiler.Response[List[compiler.Member]])
       case "member" => compiler.askTypeCompletion(position, _: compiler.Response[List[compiler.Member]])
     }))
 
-    val res = compiler.ask{() =>
+    val res = compiler.ask { () =>
       def sig(x: compiler.Member) = {
         Seq(
           x.sym.signatureString,
@@ -163,17 +211,19 @@ object Compiler{
     res
   }
 
-  def compile(src: Array[Byte], logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {
+  def compile(templateId: String, src: String, logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {
 
-    val singleFile = makeFile(Shared.prelude.getBytes ++ src)
+    val template = getTemplate(templateId)
+    val singleFile = makeFile(template.fullSource(src).getBytes("UTF-8"))
 
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
-    val compiler = new nsc.Global(settings, reporter) with InMemoryGlobal{ g =>
+    val compiler = new nsc.Global(settings, reporter) with InMemoryGlobal {
+      g =>
       def ctx = jCtx
       def dirs = jDirs
       override lazy val analyzer = new {
         val global: g.type = g
-      } with Analyzer{
+      } with Analyzer {
         val cl = inMemClassloader
         override def findMacroClassLoader() = cl
       }
@@ -184,11 +234,11 @@ object Compiler{
 
     if (vd.iterator.isEmpty) None
     else {
-      val things = for{
+      val things = for {
         x <- vd.iterator.to[collection.immutable.Traversable]
         if x.name.endsWith(".sjsir")
       } yield {
-        val f =  new MemVirtualSerializedScalaJSIRFile(x.path)
+        val f = new MemVirtualSerializedScalaJSIRFile(x.path)
         f.content = x.toByteArray
         f: VirtualScalaJSIRFile
       }
@@ -206,15 +256,15 @@ object Compiler{
     link(userFiles, fullOpt = true)
 
   def link(userFiles: Seq[VirtualScalaJSIRFile],
-      fullOpt: Boolean): VirtualJSFile = {
+    fullOpt: Boolean): VirtualJSFile = {
     val semantics =
       if (fullOpt) Semantics.Defaults.optimized
       else Semantics.Defaults
 
     val linker = Linker(
-        semantics = semantics,
-        withSourceMap = false,
-        useClosureCompiler = fullOpt)
+      semantics = semantics,
+      withSourceMap = false,
+      useClosureCompiler = fullOpt)
 
     val output = WritableMemVirtualJSFile("output.js")
     linker.link(Classpath.scalajs ++ userFiles, output, Logger)
@@ -222,4 +272,5 @@ object Compiler{
   }
 
   object Logger extends ScalaConsoleLogger
+
 }

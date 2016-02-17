@@ -1,4 +1,4 @@
-#editor {
+#editorWrap {
     margin: 0;
     position: absolute;
     top: 0;
@@ -9,7 +9,27 @@
     padding-left: 3px;
 
 }
-#logspam{
+
+#editor {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.label {
+    margin: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0.5em;
+    background-color: rgba(230, 230, 230, 0.5);
+    color: #aaa;
+    z-index: 999;
+    text-align: right;
+    font-family: Raleway, Helvetica, Arial, sans-serif;
+}
+
+#logspam {
     display: none;
     margin: 0;
     position: absolute;
@@ -24,6 +44,7 @@
     border-top: 1px solid #333333;
     z-index: 1;
 }
+
 #sandbox {
     margin: 0;
     position: absolute;
@@ -33,7 +54,8 @@
     right: 0;
     border-left: 1px solid #333333;
 }
-#output{
+
+#output {
     position: absolute;
     width: 100%;
     max-height: 100%;
@@ -48,22 +70,24 @@ body, pre {
     font-family: Hasklig, Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
 }
 
-a:link{
-    color:#46BDDF;
+a:link {
+    color: #46BDDF;
 }
 
-a:visited{
-    color:#E57255;
+a:visited {
+    color: #E57255;
 }
 
-html, body, #spinner-holder{
+html, body, #spinner-holder {
     height: 100%;
     width: 100%;
 }
-#spinner-holder{
+
+#spinner-holder {
     display: table;
 }
-.ace-line{
+
+.ace-line {
     white-space: nowrap;
 }
 
@@ -71,4 +95,82 @@ html, body, #spinner-holder{
     font-size: 14px;
     font-family: Hasklig, Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
     text-rendering: optimizeLegibility;
+}
+
+.label svg {
+    margin-bottom: 0.2em;
+    margin-top: 0.2em;
+}
+
+.run-icon {
+    fill: lime;
+    fill-opacity: 0;
+    stroke: #aaa;
+    stroke-width: 1;
+    shape-rendering: geometricPrecision;
+}
+
+.run-icon.active {
+    animation-name: blink;
+    animation-duration: 1s;
+    animation-direction: alternate;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+.run-icon:hover {
+    animation-name: blink;
+    animation-duration: 0.3s;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.reset-icon {
+    fill: hsla(360, 0%, 63%, 1);
+}
+
+.reset-icon:hover {
+    animation-name: resaturate_red;
+    animation-duration: 0.3s;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.help-icon {
+    fill: #aaa;
+}
+
+.help-icon:hover {
+    animation-name: resaturate_blue;
+    animation-duration: 0.3s;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+
+@keyframes blink {
+    0% {
+        fill-opacity: 0;
+    }
+    100% {
+        fill-opacity: 1;
+    }
+}
+
+@keyframes resaturate_red {
+    0% {
+        fill: hsla(360, 0%, 63%, 1);
+    }
+    100% {
+        fill: hsla(360, 100%, 51%, 1);
+    }
+}
+
+@keyframes resaturate_blue {
+    0% {
+        fill: hsla(232, 0%, 50%, 1)
+    }
+    100% {
+        fill: hsla(232, 100%, 50%, 1)
+    }
 }

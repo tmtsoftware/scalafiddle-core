@@ -50,6 +50,10 @@ class Editor(bindings: Seq[(String, String, () => Any)],
     }
   }
 
+  def focus(): Unit = {
+    editor.focus()
+  }
+
   val editor: js.Dynamic = {
     val editor = Editor.initEditor
 

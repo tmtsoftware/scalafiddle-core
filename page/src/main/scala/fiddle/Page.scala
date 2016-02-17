@@ -12,7 +12,6 @@ import scalatags.JsDom.all._
  */
 @JSExport
 object Page{
-  val fiddlePrelude = Shared.prelude
   val fiddleUrl = Shared.url
   val fiddleGistId = Shared.gistId
 

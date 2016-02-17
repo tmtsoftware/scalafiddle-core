@@ -1,4 +1,5 @@
 package fiddle
+
 import acyclic.file
 import spray.http._
 import spray.http.HttpHeaders._
@@ -19,13 +20,13 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Properties
 
-object Server extends SimpleRoutingApp with Api{
+object Server extends SimpleRoutingApp with Api {
   implicit val system = ActorSystem()
   import system.dispatcher
   val clientFiles = Seq("/client-fastopt.js")
 
   private object AutowireServer
-      extends autowire.Server[String, upickle.Reader, upickle.Writer] {
+    extends autowire.Server[String, upickle.Reader, upickle.Writer] {
     def write[Result: Writer](r: Result) = upickle.write(r)
     def read[Result: Reader](p: String) = upickle.read[Result](p)
 
@@ -38,11 +39,11 @@ object Server extends SimpleRoutingApp with Api{
     }
 
     val simpleCache = routeCache()
-//    println("Power On Self Test")
-//    val res = Compiler.compile(fiddle.Shared.default.getBytes, println)
-//    val optimized = res.get |> Compiler.fullOpt |> Compiler.export
-//    assert(optimized.contains("Looks like"))
-//    println("Power On Self Test complete: " + optimized.length + " bytes")
+    //    println("Power On Self Test")
+    //    val res = Compiler.compile(fiddle.Shared.default.getBytes, println)
+    //    val optimized = res.get |> Compiler.fullOpt |> Compiler.export
+    //    assert(optimized.contains("Looks like"))
+    //    println("Power On Self Test complete: " + optimized.length + " bytes")
 
     val p = Properties.envOrElse("PORT", "8080").toInt
     startServer("0.0.0.0", port = p) {
@@ -50,48 +51,50 @@ object Server extends SimpleRoutingApp with Api{
         encodeResponse(Gzip) {
           get {
             pathSingleSlash {
-              complete{
+              complete {
                 HttpEntity(
                   MediaTypes.`text/html`,
                   Static.page(
-                    s"Client().gistMain([])",
+                    s"Client().main()",
                     clientFiles,
                     "Loading gist..."
                   )
                 )
               }
-            } ~
-            path("gist" / Segments){ i =>
-              complete{
-                HttpEntity(
-                  MediaTypes.`text/html`,
-                  Static.page(
-                    s"Client().gistMain(${write(i)})",
-                    clientFiles,
-                    "Loading gist..."
-                  )
-                )
+            } ~ path("compile") {
+              parameters('source, 'opt, 'template ?) { (source, opt, template) =>
+                val res = opt match {
+                  case "fast" =>
+                    val result = upickle.write(fastOpt(template.getOrElse("default"), source))
+                    HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                  case "full" =>
+                    val result = upickle.write(fullOpt(template.getOrElse("default"), source))
+                    HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                  case _ =>
+                    HttpResponse(StatusCodes.BadRequest)
+                }
+                complete(res)
               }
             } ~
-            getFromResourceDirectory("")
+              getFromResourceDirectory("")
           } ~
-          post {
-            path("api" / Segments){ s =>
-              extract(_.request.entity.asString) { e =>
-                complete {
-                  AutowireServer.routes(
-                    autowire.Core.Request(s, upickle.read[Map[String, String]](e))
-                  )
+            post {
+              path("api" / Segments) { s =>
+                extract(_.request.entity.asString) { e =>
+                  complete {
+                    AutowireServer.routes(
+                      autowire.Core.Request(s, upickle.read[Map[String, String]](e))
+                    )
+                  }
                 }
               }
             }
-          }
         }
       }
     }
   }
-  def fastOpt(txt: String) = compileStuff(txt, _ |> Compiler.fastOpt |> Compiler.export)
-  def fullOpt(txt: String) = compileStuff(txt, _ |> Compiler.fullOpt |> Compiler.export)
+  def fastOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fastOpt |> Compiler.export)
+  def fullOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fullOpt |> Compiler.export)
   def export(compiled: String, source: String) = {
     renderCode(compiled, Nil, source, "Page().exportMain(); ScalaJSExample().main();", analytics = false)
   }
@@ -102,19 +105,18 @@ object Server extends SimpleRoutingApp with Api{
     Static.page(bootFunc, srcFiles, source, compiled, analytics)
   }
 
-  def completeStuff(txt: String, flag: String, offset: Int): List[(String, String)] = {
-    Await.result(Compiler.autocomplete(txt, flag, offset), 100.seconds)
+  def completeStuff(template: String, txt: String, flag: String, offset: Int): List[(String, String)] = {
+    Await.result(Compiler.autocomplete(template, txt, flag, offset), 100.seconds)
   }
 
   val errorStart = """^Main.scala:(\d+): (\w+):(.*)""".r
   val errorEnd = """ *\^ *$""".r
-  def parseErrors(log: String): Seq[EditorAnnotation] = {
-    val deltaRow = Shared.prelude.count(_ == '\n')
+  def parseErrors(preRows: Int, log: String): Seq[EditorAnnotation] = {
     val lines = log.split('\n').toSeq.map(_.replaceAll("[\\n\\r]", ""))
     val (annotations, _) = lines.foldLeft((Seq.empty[EditorAnnotation], Option.empty[EditorAnnotation])) { case ((acc, current), line) =>
       line match {
         case errorStart(lineNo, severity, msg) =>
-          val ann = EditorAnnotation(lineNo.toInt - deltaRow - 1, 0, Seq(msg), severity)
+          val ann = EditorAnnotation(lineNo.toInt - preRows - 1, 0, Seq(msg), severity)
           (acc, Some(ann))
         case errorEnd() if current.isDefined =>
           // drop last line from error message, it's the line of code
@@ -131,16 +133,15 @@ object Server extends SimpleRoutingApp with Api{
   }
 
 
-  def compileStuff(code: String, processor: Seq[VirtualScalaJSIRFile] => String) = {
-
+  def compileStuff(templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String) = {
+    println(s"Using template $templateId")
     val output = mutable.Buffer.empty[String]
 
-    val res = Compiler.compile(
-      code.getBytes,
-      output.append(_)
-    )
+    val res = Compiler.compile(templateId, code, output.append(_))
+    val template = Compiler.getTemplate(templateId)
 
+    val preRows = template.pre.count(_ == '\n')
     val logSpam = output.mkString
-    (logSpam, parseErrors(logSpam), res.map(processor))
+    (logSpam, parseErrors(preRows, logSpam), res.map(processor))
   }
 }

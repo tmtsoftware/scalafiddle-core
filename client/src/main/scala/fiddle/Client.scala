@@ -2,39 +2,36 @@ package fiddle
 
 import java.net.URLDecoder
 
-import acyclic.file
-import org.scalajs.dom.raw.Location
-import scala.scalajs.js
-import scala.scalajs.js.Dynamic.{literal => lit, _}
+import autowire._
+import fiddle.Client.RedLogger
+import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
+import org.scalajs.dom.ext.Ajax
+import org.scalajs.dom.raw.{HTMLElement, MouseEvent, SVGElement}
+import upickle._
+
+import scala.async.Async.{async, await}
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.runNow
-import scala.async.Async.{async, await}
-import scalatags.JsDom.all._
+import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
-import org.scalajs.dom.ext.{AjaxException, Ajax}
-import Page._
-import JsVal.jsVal2jsAny
-import Client.RedLogger
-import scala.Some
-import upickle._
-import autowire._
+
 @JSExport("Checker")
-object Checker{
+object Checker {
   /**
-   * Deadline by which the user code must complete execution.
-   */
+    * Deadline by which the user code must complete execution.
+    */
   private[this] var endTime = 0.0
   /**
-   * Switch to flip to once you have run out of time to make
-   * `check` fail every single time, ensuring you get thrown out
-   * of the user code
-   */
+    * Switch to flip to once you have run out of time to make
+    * `check` fail every single time, ensuring you get thrown out
+    * of the user code
+    */
   private[this] var dead = false
   /**
-   * Used to avoid doing an expensive `currentTimeMillis` check on every call,
-   * and instead doing one every N calls.
-   */
+    * Used to avoid doing an expensive `currentTimeMillis` check on every call,
+    * and instead doing one every N calls.
+    */
   private[this] var count = 0
   @JSExport
   def check(): Unit = {
@@ -58,10 +55,9 @@ object Checker{
   }
 }
 
-object Post extends autowire.Client[String, upickle.Reader, upickle.Writer]{
+object Post extends autowire.Client[String, upickle.Reader, upickle.Writer] {
   override def doCall(req: Request): Future[String] = {
     val url = "/api/" + req.path.mkString("/")
-    logln("Calling " + url)
     Ajax.post(
       url = Shared.url + url,
       data = upickle.write(req.args)
@@ -71,7 +67,8 @@ object Post extends autowire.Client[String, upickle.Reader, upickle.Writer]{
   def write[Result: upickle.Writer](r: Result) = upickle.write(r)
 }
 
-class Client(){
+class Client(template: String) {
+  var origSrc = ""
 
   Client.scheduleResets()
   val command = Channel[Future[(String, Seq[EditorAnnotation], Option[String])]]()
@@ -81,22 +78,22 @@ class Client(){
     Client.scheduleResets()
 
     Checker.reset(1000)
-    try{
+    try {
       js.eval(s)
       js.eval("ScalaJSExample().main()")
-
-    }catch{case e: Throwable =>
-      Client.logError(e.getStackTraceString)
-      Client.logError(e.toString())
+    } catch {
+      case e: Throwable =>
+        Client.logError(e.getStackTraceString)
+        Client.logError(e.toString())
     }
   }
   val instrument = "c"
 
-  val compilationLoop = task*async{
+  val compilationLoop = task * async {
     val future = await(command())
     await(compile(future)).foreach(exec)
 
-    while(true){
+    while (true) {
       val future = await(command())
 
       val compiled = await(compile(future))
@@ -105,34 +102,63 @@ class Client(){
   }
 
   val editor: Editor = new Editor(Seq(
-    ("Compile", "Enter", () => command.update(Post[Api].fastOpt(editor.code).call())),
-    ("FullOptimize", "Shift-Enter", () => command.update(Post[Api].fullOpt(editor.code).call())),
+    ("Compile", "Enter", () => fastOpt),
+    ("FullOptimize", "Shift-Enter", () => fullOpt),
     ("Save", "S", save _),
     ("Complete", "Space", () => editor.complete()),
-    ("FastOptimizeJavascript", "J", () => showJavascript(Post[Api].fastOpt(editor.code).call())),
-    ("FullOptimizedJavascript", "Shift-J", () => showJavascript(Post[Api].fullOpt(editor.code).call())),
+    ("FastOptimizeJavascript", "J", () => showJavascript(Post[Api].fastOpt(template, editor.code).call())),
+    ("FullOptimizedJavascript", "Shift-J", () => showJavascript(Post[Api].fullOpt(template, editor.code).call())),
     ("Export", "E", export _)
   ), complete, RedLogger)
 
-  logln("- ", yellow("Cmd/Ctrl-Enter"), " to compile & execute, ", yellow("Cmd/Ctrl-Space"), " for autocomplete.")
+  def beginCompilation(): Unit = {
+    runIcon.classList.add("active")
+    outputTag.innerHTML = "Compiling"
+  }
+
+  def endCompilation(): Unit = {
+    runIcon.classList.remove("active")
+    outputTag.innerHTML = "Output"
+    editor.focus()
+  }
+
+  def fullOpt = {
+    beginCompilation()
+    command.update(Post[Api].fullOpt(template, editor.code).call())
+  }
+
+  def fastOpt = {
+    beginCompilation()
+    command.update(Post[Api].fastOpt(template, editor.code).call())
+  }
+
   val landing = fiddle.Shared.url + "/gist/" + fiddle.Shared.gistId + "/LandingPage.scala"
-  logln("- ", a(href:=landing, "Click here"), " to find out more.")
+
+  // attach handlers to icons
+  val runIcon: SVGElement = dom.document.getElementById("run-icon").asInstanceOf[SVGElement]
+  runIcon.onclick = (e: MouseEvent) => {
+    if (e.shiftKey)
+      fullOpt
+    else
+      fastOpt
+  }
+
+  val resetIcon: SVGElement = dom.document.getElementById("reset-icon").asInstanceOf[SVGElement]
+  resetIcon.onclick = (e: MouseEvent) => {
+    editor.sess.setValue(origSrc)
+    editor.focus()
+  }
+
+  val outputTag: HTMLElement = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
 
   def compile(res: Future[(String, Seq[EditorAnnotation], Option[String])]): Future[Option[String]] = {
 
     res.map { case (logspam, annotations, result) =>
+      endCompilation()
       editor.setAnnotations(annotations)
-      logln(logspam)
-      result match{
-        case Some(c) =>
-          log(green("Success"))
-          logln()
-        case None =>
-          log(red("Failure"))
-          logln()
-      }
       result
     }.recover { case e: Exception =>
+      endCompilation()
       Client.logError(e.getStackTraceString)
       Client.logError(e.toString)
       None
@@ -140,7 +166,7 @@ class Client(){
   }
 
   def showJavascript(compiled: Future[(String, Seq[EditorAnnotation], Option[String])]) = {
-    compiled.collect{ case (logspam, annotations, Some(code)) =>
+    compiled.collect { case (logspam, annotations, Some(code)) =>
       Client.clear()
       editor.setAnnotations(annotations)
       Page.output.innerHTML = Page.highlight(code, "ace/mode/javascript")
@@ -148,27 +174,22 @@ class Client(){
   }
 
   def complete() = async {
-    log("Completing... ")
-
     val code = editor.sess.getValue().asInstanceOf[String]
 
     val intOffset = editor.column + code.split("\n")
-                                        .take(editor.row)
-                                        .map(_.length + 1)
-                                        .sum
+      .take(editor.row)
+      .map(_.length + 1)
+      .sum
 
-    val flag = if(code.take(intOffset).endsWith(".")) "member" else "scope"
+    val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
 
 
-    val res = await(Post[Api].completeStuff(code, flag, intOffset).call())
-    log("Done")
-    logln()
+    val res = await(Post[Api].completeStuff(template, code, flag, intOffset).call())
     res
   }
 
-  def export(): Unit = task*async {
-    logln("Exporting...")
-    await(compile(Post[Api].fullOpt(editor.code).call())).foreach{ code =>
+  def export(): Unit = task * async {
+    await(compile(Post[Api].fullOpt(template, editor.code).call())).foreach { code =>
       Util.Form.post("/export",
         "source" -> editor.code,
         "compiled" -> code
@@ -176,8 +197,8 @@ class Client(){
     }
   }
 
-  def save(): Unit = task*async{
-    await(compile(Post[Api].fullOpt(editor.code).call()))
+  def save(): Unit = task * async {
+    await(compile(Post[Api].fullOpt(template, editor.code).call()))
     val data = JsVal.obj(
       "description" -> "Scala.jsFiddle gist",
       "public" -> true,
@@ -195,10 +216,10 @@ class Client(){
 }
 
 @JSExport("Client")
-object Client{
+object Client {
   implicit val RedLogger = new Logger(logError)
 
-  dom.window.onerror = {(event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
+  dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
     dom.console.log("dom.onerror")
     Client.logError(event.toString())
   }
@@ -207,22 +228,22 @@ object Client{
     search.drop(1).split('&').filter(_.nonEmpty).map { part =>
       val pair = part.split("=")
       val key = URLDecoder.decode(pair(0), "UTF-8")
-      val value = if(pair.length > 1) URLDecoder.decode(pair(1), "UTF-8") else ""
+      val value = if (pair.length > 1) URLDecoder.decode(pair(1), "UTF-8") else ""
       key -> value
     }.toMap
   }
 
-  dom.console.log(s"Search = ${dom.window.location.search}")
   val queryParams = parseUriParameters(dom.window.location.search)
-  dom.console.log(s"Query parameters: $queryParams")
+  val templateId = queryParams.getOrElse("template", "default")
 
+  dom.console.log(s"queryParams: $queryParams, templateId: $templateId")
   @JSExport
   def logError(s: String): Unit = {
-    logln(red(s))
+    dom.console.error(s)
   }
   @JSExport
   def clearTimeouts() = {
-    for(i <- -100000 until 100000){
+    for (i <- -100000 until 100000) {
       dom.window.clearInterval(i)
       dom.window.clearTimeout(i)
     }
@@ -234,48 +255,72 @@ object Client{
   }
 
   @JSExport
-  def gistMain(args: js.Array[String]): Unit = task*async{
-    dom.console.log("gistMain")
+  def gistMain(args: js.Array[String]): Unit = task * async {
     Editor.initEditor
-    val (gistId, fileName) = args.toSeq match{
+    val (gistId, fileName) = args.toSeq match {
       case Nil => (fiddle.Shared.gistId, Some("Oscilloscope.scala"))
       case Seq(g) => (g, None)
       case Seq(g, f) => (g, Some(f))
     }
 
     val src = await(load(gistId, fileName))
-    val client = new Client()
+    val client = new Client(templateId)
     client.editor.sess.setValue(src)
 
-    client.command.update(Post[Api].fullOpt(src).call())
+    client.fastOpt
   }
 
   @JSExport
   def importMain(): Unit = {
     clear()
-    val client = new Client()
+    val client = new Client(templateId)
   }
+
+  @JSExport
+  def main(): Unit = task * async {
+    clear()
+    Editor.initEditor
+    val client = new Client(templateId)
+    // is a gist specified?
+    if (queryParams.contains("gist")) {
+      val (gistId, fileName) = queryParams("gist").span(_ != '/') match {
+        case (id, "") => (id, None)
+        case (id, name) => (id, Some(name.drop(1)))
+      }
+      val src = await(load(gistId, fileName))
+      client.origSrc = src
+      client.editor.sess.setValue(src)
+      client.fastOpt
+    } else if (queryParams.contains("source")) {
+      client.origSrc = queryParams("source")
+      client.editor.sess.setValue(client.origSrc)
+      client.fastOpt
+    }
+  }
+
+  val defaultCode = """
+                  |import scalajs.js
+                  |object ScalaJSExample extends js.JSApp{
+                  |  def main() = {
+                  |    println("Looks like there was an error loading the default Gist!")
+                  |    println("Loading an empty application so you can get started")
+                  |  }
+                  |}
+                """.stripMargin
+
 
   def load(gistId: String, file: Option[String]): Future[String] = {
     val gistUrl = "https://gist.github.com/" + gistId
-    logln(
-      "Loading ",
-      file.fold(span)(s => span(
-        a(href := gistUrl + "#file-" + s.toLowerCase.replace('.', '-'))(s),
-        " from "
-      )),
-      a(href := gistUrl)(gistUrl),
-      "..."
-    )
-    Ajax.get("https://api.github.com/gists/" + gistId).map{ res =>
+    Ajax.get("https://api.github.com/gists/" + gistId).map { res =>
       val result = JsVal.parse(res.responseText)
       val mainFile = result("files").get(file.getOrElse(""))
       val firstFile = result("files").values(0)
       mainFile.getOrElse(firstFile)("content").asString
-    }.recover{case e => fiddle.Shared.default}
-
+    }.recover { case e => defaultCode }
   }
   def scheduleResets() = {
     dom.window.setInterval(() => Checker.reset(1000), 100)
   }
 }
+
+
