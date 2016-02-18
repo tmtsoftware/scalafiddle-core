@@ -109,7 +109,7 @@ object Main extends TestSuite{
       "crasher" - {
         compile(
           """
-            |object ScalaJSExample extends js.JSApp{
+            |object ScalaFiddle extends js.JSApp{
             |  def main(): Unit = {
             |    val xs = Seq(1)
             |    val ys = Seq(2)

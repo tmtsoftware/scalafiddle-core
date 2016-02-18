@@ -1,21 +1,15 @@
 package fiddle
 
-import acyclic.file
-import spray.http._
-import spray.http.HttpHeaders._
-import spray.httpx.encoding.Gzip
-import spray.routing.directives.CachingDirectives._
 import akka.actor.ActorSystem
-import spray.routing.directives.CacheKeyer
-import scala.collection.mutable
-import spray.client.pipelining._
-
-import spray.http.HttpRequest
-import scala.Some
-import spray.http.HttpResponse
-import spray.routing._
-import upickle._
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
+import spray.http.{HttpRequest, HttpResponse, _}
+import spray.httpx.encoding.Gzip
+import spray.routing._
+import spray.routing.directives.CacheKeyer
+import spray.routing.directives.CachingDirectives._
+import upickle._
+
+import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Properties
@@ -96,10 +90,10 @@ object Server extends SimpleRoutingApp with Api {
   def fastOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fastOpt |> Compiler.export)
   def fullOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fullOpt |> Compiler.export)
   def export(compiled: String, source: String) = {
-    renderCode(compiled, Nil, source, "Page().exportMain(); ScalaJSExample().main();", analytics = false)
+    renderCode(compiled, Nil, source, "Page().exportMain(); ScalaFiddle().main();", analytics = false)
   }
   def `import`(compiled: String, source: String) = {
-    renderCode(compiled, clientFiles, source, "Client().importMain(); ScalaJSExample().main();", analytics = true)
+    renderCode(compiled, clientFiles, source, "Client().importMain(); ScalaFiddle().main();", analytics = true)
   }
   def renderCode(compiled: String, srcFiles: Seq[String], source: String, bootFunc: String, analytics: Boolean) = {
     Static.page(bootFunc, srcFiles, source, compiled, analytics)

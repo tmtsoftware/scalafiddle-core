@@ -16,17 +16,33 @@
     height: 100%;
 }
 
+.editorContainer {
+    position: relative;
+    clear: both;
+    width: 100%;
+    height: 100%;
+}
+
 .label {
     margin: 0;
     position: absolute;
     top: 0;
     right: 0;
     padding: 0.5em;
-    background-color: rgba(230, 230, 230, 0.5);
+    background-color: rgba(230, 230, 230, 0.8);
     color: #aaa;
     z-index: 999;
     text-align: right;
     font-family: Raleway, Helvetica, Arial, sans-serif;
+}
+
+.normal {
+    color: #333;
+    font-family: Raleway, Helvetica, Arial, sans-serif;
+}
+
+#fiddleSelector select {
+    color: #333;
 }
 
 #logspam {
@@ -60,6 +76,14 @@
     width: 100%;
     max-height: 100%;
     overflow: auto;
+    color : #333;
+    padding-left : 2px;
+    box-sizing : border-box;
+}
+
+#fiddleSelectorDiv {
+    padding: 1px;
+    border-bottom: 1px solid #333333;
 }
 
 body, pre {
@@ -67,7 +91,7 @@ body, pre {
     background-color: #ffffff;
     color: #B3B8BC;
     font-size: 14px;
-    font-family: Hasklig, Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
 }
 
 a:link {
@@ -93,7 +117,7 @@ html, body, #spinner-holder {
 
 .ace_editor {
     font-size: 14px;
-    font-family: Hasklig, Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
     text-rendering: optimizeLegibility;
 }
 
@@ -174,3 +198,27 @@ html, body, #spinner-holder {
         fill: hsla(232, 100%, 50%, 1)
     }
 }
+
+@media only screen and (max-device-width : 768px) {
+    #editorWrap {
+        top: 0;
+        bottom: 50%;
+        left: 0;
+        right: 0;
+    }
+
+    #sandbox {
+        top: 50%;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-top: 1px solid #333333;
+        border-left: 0;
+    }
+
+    .label svg {
+        margin-bottom: 0.5em;
+        margin-top: 0.5em;
+    }
+}
+

@@ -7,7 +7,7 @@ import fiddle.Client.RedLogger
 import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
 import org.scalajs.dom.ext.Ajax
-import org.scalajs.dom.raw.{HTMLElement, MouseEvent, SVGElement}
+import org.scalajs.dom.raw._
 import upickle._
 
 import scala.async.Async.{async, await}
@@ -67,8 +67,11 @@ object Post extends autowire.Client[String, upickle.Reader, upickle.Writer] {
   def write[Result: upickle.Writer](r: Result) = upickle.write(r)
 }
 
+case class SourceFile(name: String, var code: String)
+
 class Client(template: String) {
-  var origSrc = ""
+  var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
+  var currentSource = sourceFiles.head.name
 
   Client.scheduleResets()
   val command = Channel[Future[(String, Seq[EditorAnnotation], Option[String])]]()
@@ -80,14 +83,13 @@ class Client(template: String) {
     Checker.reset(1000)
     try {
       js.eval(s)
-      js.eval("ScalaJSExample().main()")
+      js.eval("ScalaFiddle().main()")
     } catch {
       case e: Throwable =>
         Client.logError(e.getStackTraceString)
         Client.logError(e.toString())
     }
   }
-  val instrument = "c"
 
   val compilationLoop = task * async {
     val future = await(command())
@@ -105,20 +107,17 @@ class Client(template: String) {
     ("Compile", "Enter", () => fastOpt),
     ("FullOptimize", "Shift-Enter", () => fullOpt),
     ("Save", "S", save _),
-    ("Complete", "Space", () => editor.complete()),
-    ("FastOptimizeJavascript", "J", () => showJavascript(Post[Api].fastOpt(template, editor.code).call())),
-    ("FullOptimizedJavascript", "Shift-J", () => showJavascript(Post[Api].fullOpt(template, editor.code).call())),
-    ("Export", "E", export _)
+    ("Complete", "Space", () => editor.complete())
   ), complete, RedLogger)
 
   def beginCompilation(): Unit = {
     runIcon.classList.add("active")
-    outputTag.innerHTML = "Compiling"
+    showStatus("Compiling")
   }
 
   def endCompilation(): Unit = {
     runIcon.classList.remove("active")
-    outputTag.innerHTML = "Output"
+    showStatus("Output")
     editor.focus()
   }
 
@@ -134,8 +133,13 @@ class Client(template: String) {
 
   val landing = fiddle.Shared.url + "/gist/" + fiddle.Shared.gistId + "/LandingPage.scala"
 
-  // attach handlers to icons
   val runIcon: SVGElement = dom.document.getElementById("run-icon").asInstanceOf[SVGElement]
+  val resetIcon: SVGElement = dom.document.getElementById("reset-icon").asInstanceOf[SVGElement]
+  val outputTag: HTMLElement = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
+  val fiddleSelectorDiv: HTMLElement = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
+  val fiddleSelector: HTMLSelectElement = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
+
+  // attach handlers to icons
   runIcon.onclick = (e: MouseEvent) => {
     if (e.shiftKey)
       fullOpt
@@ -143,13 +147,50 @@ class Client(template: String) {
       fastOpt
   }
 
-  val resetIcon: SVGElement = dom.document.getElementById("reset-icon").asInstanceOf[SVGElement]
   resetIcon.onclick = (e: MouseEvent) => {
-    editor.sess.setValue(origSrc)
+    selectSource(currentSource)
     editor.focus()
   }
 
-  val outputTag: HTMLElement = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
+  fiddleSelector.onchange = (e: Event) => {
+    val sel = fiddleSelector.options(fiddleSelector.selectedIndex).text
+    dom.console.log(s"Fiddle selected $sel")
+    updateSource(editor.code)
+    selectSource(sel)
+  }
+
+  def showStatus(status: String) =
+    outputTag.innerHTML = status
+
+  def setSources(sources: Seq[SourceFile]): Unit = {
+    import scalatags.JsDom.all._
+
+    sourceFiles = sources
+    fiddleSelector.innerHTML = ""
+    sourceFiles.foreach { source =>
+      fiddleSelector.add(option(value := source.name)(source.name).render)
+    }
+    if (sourceFiles.size > 1) {
+      fiddleSelectorDiv.style.display = "block"
+    } else {
+      fiddleSelectorDiv.style.display = "none"
+    }
+    selectSource(sourceFiles.head.name)
+  }
+
+  def selectSource(name: String): Unit = {
+    sourceFiles.find(_.name == name).foreach { src =>
+      currentSource = src.name
+      editor.sess.setValue(src.code)
+    }
+  }
+
+  def updateSource(code: String): Unit = {
+    sourceFiles = sourceFiles.collect {
+      case SourceFile(name, _) if name == currentSource => SourceFile(name, code)
+      case sf => sf
+    }
+  }
 
   def compile(res: Future[(String, Seq[EditorAnnotation], Option[String])]): Future[Option[String]] = {
 
@@ -162,14 +203,6 @@ class Client(template: String) {
       Client.logError(e.getStackTraceString)
       Client.logError(e.toString)
       None
-    }
-  }
-
-  def showJavascript(compiled: Future[(String, Seq[EditorAnnotation], Option[String])]) = {
-    compiled.collect { case (logspam, annotations, Some(code)) =>
-      Client.clear()
-      editor.setAnnotations(annotations)
-      Page.output.innerHTML = Page.highlight(code, "ace/mode/javascript")
     }
   }
 
@@ -188,22 +221,13 @@ class Client(template: String) {
     res
   }
 
-  def export(): Unit = task * async {
-    await(compile(Post[Api].fullOpt(template, editor.code).call())).foreach { code =>
-      Util.Form.post("/export",
-        "source" -> editor.code,
-        "compiled" -> code
-      )
-    }
-  }
-
   def save(): Unit = task * async {
     await(compile(Post[Api].fullOpt(template, editor.code).call()))
     val data = JsVal.obj(
-      "description" -> "Scala.jsFiddle gist",
+      "description" -> "ScalaFiddle gist",
       "public" -> true,
       "files" -> JsVal.obj(
-        "Main.scala" -> JsVal.obj(
+        "ScalaFiddle.scala" -> JsVal.obj(
           "content" -> editor.code
         )
       )
@@ -237,10 +261,12 @@ object Client {
   val templateId = queryParams.getOrElse("template", "default")
 
   dom.console.log(s"queryParams: $queryParams, templateId: $templateId")
+
   @JSExport
   def logError(s: String): Unit = {
     dom.console.error(s)
   }
+
   @JSExport
   def clearTimeouts() = {
     for (i <- -100000 until 100000) {
@@ -254,26 +280,19 @@ object Client {
     Page.clear()
   }
 
-  @JSExport
-  def gistMain(args: js.Array[String]): Unit = task * async {
-    Editor.initEditor
-    val (gistId, fileName) = args.toSeq match {
-      case Nil => (fiddle.Shared.gistId, Some("Oscilloscope.scala"))
-      case Seq(g) => (g, None)
-      case Seq(g, f) => (g, Some(f))
+  val subFiddleRE = """// \$SubFiddle (\w.+)""".r
+  def parseFiddles(srcCode: String): Seq[SourceFile] = {
+    val lines = srcCode.split('\n').toSeq.map(_.replaceAll("[\\n\\r]", ""))
+    val (prevSources, lastSource) = lines.foldLeft((List.empty[SourceFile], SourceFile("ScalaFiddle.scala", ""))) { case ((acc, src), line) =>
+      line match {
+        case subFiddleRE(name) =>
+          val newSrc = SourceFile(name.trim, "")
+          (src :: acc, newSrc)
+        case _ =>
+          (acc, src.copy(code = src.code + line + "\n"))
+      }
     }
-
-    val src = await(load(gistId, fileName))
-    val client = new Client(templateId)
-    client.editor.sess.setValue(src)
-
-    client.fastOpt
-  }
-
-  @JSExport
-  def importMain(): Unit = {
-    clear()
-    val client = new Client(templateId)
+    (lastSource :: prevSources).filter(_.code.replaceAll("\\s", "").nonEmpty).reverse
   }
 
   @JSExport
@@ -283,44 +302,48 @@ object Client {
     val client = new Client(templateId)
     // is a gist specified?
     if (queryParams.contains("gist")) {
-      val (gistId, fileName) = queryParams("gist").span(_ != '/') match {
-        case (id, "") => (id, None)
-        case (id, name) => (id, Some(name.drop(1)))
-      }
-      val src = await(load(gistId, fileName))
-      client.origSrc = src
-      client.editor.sess.setValue(src)
+      val gistId = queryParams("gist")
+      val files = queryParams.get("files").map(_.split(',').toList.filter(_.nonEmpty)).getOrElse(Nil)
+      client.showStatus("Loading")
+      val sources = await(load(gistId, files))
+      client.setSources(sources)
       client.fastOpt
     } else if (queryParams.contains("source")) {
-      client.origSrc = queryParams("source")
-      client.editor.sess.setValue(client.origSrc)
+      val srcCode = queryParams("source")
+      // check for sub-fiddles
+      val sources = parseFiddles(srcCode)
+      client.setSources(sources)
       client.fastOpt
     }
   }
 
-  val defaultCode = """
-                  |import scalajs.js
-                  |object ScalaJSExample extends js.JSApp{
-                  |  def main() = {
-                  |    println("Looks like there was an error loading the default Gist!")
-                  |    println("Loading an empty application so you can get started")
-                  |  }
-                  |}
-                """.stripMargin
+  val defaultCode =
+    """
+      |import scalajs.js
+      |object ScalaFiddle extends js.JSApp {
+      |  def main() = {
+      |    println("Looks like there was an error loading the default Gist!")
+      |    println("Loading an empty application so you can get started")
+      |  }
+      |}
+    """.stripMargin
 
-
-  def load(gistId: String, file: Option[String]): Future[String] = {
+  def load(gistId: String, files: Seq[String]): Future[Seq[SourceFile]] = {
     val gistUrl = "https://gist.github.com/" + gistId
     Ajax.get("https://api.github.com/gists/" + gistId).map { res =>
       val result = JsVal.parse(res.responseText)
-      val mainFile = result("files").get(file.getOrElse(""))
-      val firstFile = result("files").values(0)
-      mainFile.getOrElse(firstFile)("content").asString
-    }.recover { case e => defaultCode }
+      val fileList = if (files.isEmpty) {
+        Seq(result("files").keys.head)
+      } else {
+        files.filter(f => result("files").keys.exists(_.equalsIgnoreCase(f)))
+      }
+      fileList.map { fileName =>
+        SourceFile(fileName, result("files")(fileName)("content").asString)
+      }
+    }.recover { case e => Seq(SourceFile("ScalaFiddle.scala", defaultCode)) }
   }
+
   def scheduleResets() = {
     dom.window.setInterval(() => Checker.reset(1000), 100)
   }
 }
-
-

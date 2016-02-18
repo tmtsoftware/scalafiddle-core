@@ -46,7 +46,7 @@ object Compiler {
         |import fiddle.Page
         |import Page.{red, green, blue, yellow, orange, println}
         |import scalajs.js
-        |object ScalaJSExample extends js.JSApp {
+        |object ScalaFiddle extends js.JSApp {
         |  def main() = {
         |
       """.stripMargin,
@@ -67,12 +67,7 @@ object Compiler {
       """
       """.stripMargin
     ),
-    "raw" -> Template(
-      """
-      """.stripMargin,
-      """
-      """.stripMargin
-    )
+    "raw" -> Template("", "")
   )
   /**
     * Converts Scalac's weird Future type

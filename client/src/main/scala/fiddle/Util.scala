@@ -26,7 +26,7 @@ class JsVal(val value: js.Dynamic){
   def apply(index: Int): JsVal = value.asInstanceOf[js.Array[JsVal]](index)
 
   def keys: Seq[String] = js.Object.keys(value.asInstanceOf[js.Object]).toSeq.map(x => x: String)
-  def values: Seq[JsVal] = keys.toSeq.map(x => JsVal(value.selectDynamic(x)))
+  def values: Seq[JsVal] = keys.map(x => JsVal(value.selectDynamic(x)))
 
   def isDefined: Boolean = !js.isUndefined(value)
   def isNull: Boolean = value eq null

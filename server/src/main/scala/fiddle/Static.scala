@@ -1,10 +1,8 @@
 package fiddle
 
-import acyclic.file
 import scalatags.Text.all._
-import scalatags.Text.tags2
-import scalatags.Text.svgTags.{svg, polygon, circle, path, g, use}
-import scalatags.Text.{svgAttrs => svga}
+import scalatags.Text.svgTags.{svg, use}
+import scalatags.Text.{svgAttrs => svga, tags2}
 object Static {
   val aceFiles = Seq(
     "/META-INF/resources/webjars/ace/1.2.2/src-min/ace.js",
@@ -18,7 +16,8 @@ object Static {
     "<!DOCTYPE html>" + html(
       head(
         meta(charset := "utf-8"),
-        tags2.title("Scala-Js-Fiddle"),
+        meta(name:="viewport", content:="width=device-width, initial-scale=1"),
+        tags2.title("ScalaFiddle"),
 
         for (srcFile <- srcFiles ++ aceFiles) yield script(
           `type` := "text/javascript", src := srcFile
@@ -38,21 +37,20 @@ object Static {
           """
         ))
         else ()
-
       ),
       body(
         raw(
           """
-            |<svg>
+            |<svg xmlns="http://www.w3.org/2000/svg">
             | <symbol id="sym_help" viewBox="0 0 24 24">
-            | <g xmlns="http://www.w3.org/2000/svg" id="help">
-            |   <circle cx=12 cy=12 r=12 fill="white" fill-opacity="0"/>
-            |		<path id="circle" style="fill-rule:evenodd;clip-rule:evenodd;" d="M12.001,2.085c-5.478,0-9.916,4.438-9.916,9.916    c0,5.476,4.438,9.914,9.916,9.914c5.476,0,9.914-4.438,9.914-9.914C21.915,6.523,17.477,2.085,12.001,2.085z M12.002,20.085    c-4.465,0-8.084-3.619-8.084-8.083c0-4.465,3.619-8.084,8.084-8.084c4.464,0,8.083,3.619,8.083,8.084    C20.085,16.466,16.466,20.085,12.002,20.085z"/>
-            |		<g id="question_mark">
-            |			<path id="top" style="fill-rule:evenodd;clip-rule:evenodd;" d="M11.766,6.688c-2.5,0-3.219,2.188-3.219,2.188l1.411,0.854     c0,0,0.298-0.791,0.901-1.229c0.516-0.375,1.625-0.625,2.219,0.125c0.701,0.885-0.17,1.587-1.078,2.719     C11.047,12.531,11,15,11,15h1.969c0,0,0.135-2.318,1.041-3.381c0.603-0.707,1.443-1.338,1.443-2.494S14.266,6.688,11.766,6.688z"/>
-            |			<rect id="bottom" x="11" y="16" style="fill-rule:evenodd;clip-rule:evenodd;" width="2" height="2"/>
-            |		</g>
-            |	</g>
+            |   <g>
+            |     <circle cx=12 cy=12 r=12 fill="white" fill-opacity="0"/>
+            |  		<path id="circle" style="fill-rule:evenodd;clip-rule:evenodd;" d="M12.001,2.085c-5.478,0-9.916,4.438-9.916,9.916    c0,5.476,4.438,9.914,9.916,9.914c5.476,0,9.914-4.438,9.914-9.914C21.915,6.523,17.477,2.085,12.001,2.085z M12.002,20.085    c-4.465,0-8.084-3.619-8.084-8.083c0-4.465,3.619-8.084,8.084-8.084c4.464,0,8.083,3.619,8.083,8.084    C20.085,16.466,16.466,20.085,12.002,20.085z"/>
+            |  		<g>
+            |  			<path style="fill-rule:evenodd;clip-rule:evenodd;" d="M11.766,6.688c-2.5,0-3.219,2.188-3.219,2.188l1.411,0.854     c0,0,0.298-0.791,0.901-1.229c0.516-0.375,1.625-0.625,2.219,0.125c0.701,0.885-0.17,1.587-1.078,2.719     C11.047,12.531,11,15,11,15h1.969c0,0,0.135-2.318,1.041-3.381c0.603-0.707,1.443-1.338,1.443-2.494S14.266,6.688,11.766,6.688z"/>
+            |  			<rect x="11" y="16" style="fill-rule:evenodd;clip-rule:evenodd;" width="2" height="2"/>
+            |  		</g>
+            |  	</g>
             | </symbol>
             | <symbol id="sym_run" viewBox="0 0 21 21">
             |   <polygon points="3,1 18,10 3,19"/>
@@ -70,35 +68,36 @@ object Static {
 
         div(id := "source", display := "none")(source),
         div(id := "editorWrap")(
-          div(cls := "label",
-            div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized")(
-              svg(width := 21, height := 21)(
-                use(svga.xLinkHref := "#sym_run", id := "run-icon", cls := "run-icon")
-              )
-            ),
-            div(title := "Reset")(
-              svg(width := 21, height := 21)(
-                use(svga.xLinkHref := "#sym_reset", id := "reset-icon", cls := "reset-icon")
-              )
-            ),
-            div(title := "Help")(
-              svg(width := 21, height := 21)(
-                use(svga.xLinkHref := "#sym_help", id := "help-icon", cls := "help-icon")
-              )
-            )
+          div(id := "fiddleSelectorDiv", style := "display: none")(
+            span(cls := "normal", "Select fiddle "),
+            select(id := "fiddleSelector")
           ),
-          pre(id := "editor")
+          div(cls := "editorContainer")(
+            div(cls := "label",
+              div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized")(
+                svg(width := 21, height := 21)(
+                  use(svga.xLinkHref := "#sym_run", id := "run-icon", cls := "run-icon")
+                )
+              ),
+              div(title := "Reset")(
+                svg(width := 21, height := 21)(
+                  use(svga.xLinkHref := "#sym_reset", id := "reset-icon", cls := "reset-icon")
+                )
+              ),
+              div(title := "Help")(
+                svg(width := 21, height := 21)(
+                  use(svga.xLinkHref := "#sym_help", id := "help-icon", cls := "help-icon")
+                )
+              )
+            ),
+            pre(id := "editor")
+          )
         ),
         pre(id := "logspam"),
         div(id := "sandbox")(
           div(cls := "label")(span(id := "output-tag", "Output")),
           canvas(id := "canvas", style := "position: absolute"),
-          div(
-            id := "output",
-            color := "lightgrey",
-            paddingLeft := "2px",
-            boxSizing := "border-box"
-          )
+          div(id := "output")
         )
       ),
       script(
