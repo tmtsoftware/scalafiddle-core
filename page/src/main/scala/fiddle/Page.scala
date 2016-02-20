@@ -12,9 +12,6 @@ import scalatags.JsDom.all._
  */
 @JSExport
 object Page{
-  val fiddleUrl = Shared.url
-  val fiddleGistId = Shared.gistId
-
   def red = span(color:="#E95065")
   def blue = span(color:="#46BDDF")
   def green = span(color:="#52D273")

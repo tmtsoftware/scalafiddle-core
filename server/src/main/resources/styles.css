@@ -94,6 +94,10 @@ body, pre {
     font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
 }
 
+pre.error {
+    color: #822;
+}
+
 a:link {
     color: #46BDDF;
 }
@@ -126,15 +130,18 @@ html, body, #spinner-holder {
     margin-top: 0.2em;
 }
 
-.run-icon {
+svg {
+    shape-rendering: geometricPrecision;
+}
+
+#run-icon svg {
     fill: lime;
     fill-opacity: 0;
     stroke: #aaa;
     stroke-width: 1;
-    shape-rendering: geometricPrecision;
 }
 
-.run-icon.active {
+#run-icon.active svg {
     animation-name: blink;
     animation-duration: 1s;
     animation-direction: alternate;
@@ -142,33 +149,38 @@ html, body, #spinner-holder {
     animation-timing-function: linear;
 }
 
-.run-icon:hover {
+#run-icon:hover svg {
     animation-name: blink;
     animation-duration: 0.3s;
     animation-timing-function: linear;
     animation-fill-mode: forwards;
 }
 
-.reset-icon {
+#reset-icon {
+    transition: fill 0.3s ease;
     fill: hsla(360, 0%, 63%, 1);
 }
 
-.reset-icon:hover {
-    animation-name: resaturate_red;
-    animation-duration: 0.3s;
-    animation-timing-function: linear;
-    animation-fill-mode: forwards;
+#reset-icon:hover {
+    fill: hsla(360, 100%, 51%, 1);
 }
 
-.help-icon {
-    fill: #aaa;
+#upload-icon {
+    transition: fill 0.3s ease;
+    fill: hsla(0, 0%, 63%, 1);
 }
 
-.help-icon:hover {
-    animation-name: resaturate_blue;
-    animation-duration: 0.3s;
-    animation-timing-function: linear;
-    animation-fill-mode: forwards;
+#upload-icon:hover {
+    fill: hsla(0, 0%, 15%, 1);
+}
+
+#help-icon {
+    transition: fill 0.3s ease;
+    fill: hsla(232, 0%, 50%, 1)
+}
+
+#help-icon:hover {
+    fill: hsla(232, 100%, 50%, 1)
 }
 
 
@@ -178,24 +190,6 @@ html, body, #spinner-holder {
     }
     100% {
         fill-opacity: 1;
-    }
-}
-
-@keyframes resaturate_red {
-    0% {
-        fill: hsla(360, 0%, 63%, 1);
-    }
-    100% {
-        fill: hsla(360, 100%, 51%, 1);
-    }
-}
-
-@keyframes resaturate_blue {
-    0% {
-        fill: hsla(232, 0%, 50%, 1)
-    }
-    100% {
-        fill: hsla(232, 100%, 50%, 1)
     }
 }
 

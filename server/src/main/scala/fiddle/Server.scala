@@ -2,6 +2,7 @@ package fiddle
 
 import akka.actor.ActorSystem
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
+import spray.http.HttpHeaders.RawHeader
 import spray.http.{HttpRequest, HttpResponse, _}
 import spray.httpx.encoding.Gzip
 import spray.routing._
@@ -44,16 +45,17 @@ object Server extends SimpleRoutingApp with Api {
       cache(simpleCache) {
         encodeResponse(Gzip) {
           get {
-            pathSingleSlash {
-              complete {
-                HttpEntity(
-                  MediaTypes.`text/html`,
-                  Static.page(
-                    s"Client().main()",
-                    clientFiles,
-                    "Loading gist..."
+            path("embed") {
+              respondWithHeader(RawHeader("X-Frame-Options", "SAMEORIGIN")) {
+                complete {
+                  HttpEntity(
+                    MediaTypes.`text/html`,
+                    Static.page(
+                      s"Client().main()",
+                      clientFiles
+                    )
                   )
-                )
+                }
               }
             } ~ path("compile") {
               parameters('source, 'opt, 'template ?) { (source, opt, template) =>
@@ -87,17 +89,10 @@ object Server extends SimpleRoutingApp with Api {
       }
     }
   }
+
   def fastOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fastOpt |> Compiler.export)
+
   def fullOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fullOpt |> Compiler.export)
-  def export(compiled: String, source: String) = {
-    renderCode(compiled, Nil, source, "Page().exportMain(); ScalaFiddle().main();", analytics = false)
-  }
-  def `import`(compiled: String, source: String) = {
-    renderCode(compiled, clientFiles, source, "Client().importMain(); ScalaFiddle().main();", analytics = true)
-  }
-  def renderCode(compiled: String, srcFiles: Seq[String], source: String, bootFunc: String, analytics: Boolean) = {
-    Static.page(bootFunc, srcFiles, source, compiled, analytics)
-  }
 
   def completeStuff(template: String, txt: String, flag: String, offset: Int): List[(String, String)] = {
     Await.result(Compiler.autocomplete(template, txt, flag, offset), 100.seconds)
@@ -105,6 +100,7 @@ object Server extends SimpleRoutingApp with Api {
 
   val errorStart = """^Main.scala:(\d+): (\w+):(.*)""".r
   val errorEnd = """ *\^ *$""".r
+
   def parseErrors(preRows: Int, log: String): Seq[EditorAnnotation] = {
     val lines = log.split('\n').toSeq.map(_.replaceAll("[\\n\\r]", ""))
     val (annotations, _) = lines.foldLeft((Seq.empty[EditorAnnotation], Option.empty[EditorAnnotation])) { case ((acc, current), line) =>
@@ -116,18 +112,15 @@ object Server extends SimpleRoutingApp with Api {
           // drop last line from error message, it's the line of code
           val ann = current.map(ann => ann.copy(col = line.length, text = ann.text.init)).get
           (acc :+ ann, None)
-        case errLine if current.isDefined =>
+        case errLine =>
           (acc, current.map(ann => ann.copy(text = ann.text :+ errLine)))
-        case _ =>
-          (acc, current)
       }
     }
-    println(s"Errors: $annotations")
     annotations
   }
 
 
-  def compileStuff(templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String) = {
+  def compileStuff(templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
     println(s"Using template $templateId")
     val output = mutable.Buffer.empty[String]
 
@@ -136,6 +129,6 @@ object Server extends SimpleRoutingApp with Api {
 
     val preRows = template.pre.count(_ == '\n')
     val logSpam = output.mkString
-    (logSpam, parseErrors(preRows, logSpam), res.map(processor))
+    CompilerResponse(res.map(processor), parseErrors(preRows, logSpam), logSpam)
   }
 }

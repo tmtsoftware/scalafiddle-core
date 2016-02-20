@@ -16,7 +16,7 @@ object Static {
     "<!DOCTYPE html>" + html(
       head(
         meta(charset := "utf-8"),
-        meta(name:="viewport", content:="width=device-width, initial-scale=1"),
+        meta(name := "viewport", content := "width=device-width, initial-scale=1"),
         tags2.title("ScalaFiddle"),
 
         for (srcFile <- srcFiles ++ aceFiles) yield script(
@@ -63,6 +63,10 @@ object Static {
             |            108.1h-63c-7.9,0-10.3,5.1-5.3,11.2l95.8,117.9c5,6.2,13.1,6.2,18.2,0L497.6,225 C502.4,
             |            218.9,500,213.8,492.1,213.8z"/>
             | </symbol>
+            | <symbol id="sym_upload" viewBox="0 0 16 16">
+            |  <path d="M7 9H5l3-3 3 3H9v5H7V9z m5-4c0-0.44-0.91-3-4.5-3-2.42 0-4.5 1.92-4.5 4C1.02 6 0 7.52 0 9c0 1.53 1 3 3 3 0.44 0 2.66 0 3 0v-1.3H3C1.38 10.7 1.3 9.28 1.3 9c0-0.17 0.05-1.7 1.7-1.7h1.3v-1.3c0-1.39 1.56-2.7 3.2-2.7 2.55 0 3.13 1.55 3.2 1.8v1.2h1.3c0.81 0 2.7 0.22 2.7 2.2 0 2.09-2.25 2.2-2.7 2.2H10v1.3c0.38 0 1.98 0 2 0 2.08 0 4-1.16 4-3.5 0-2.44-1.92-3.5-4-3.5z" />
+            | </symbol>
+            |</svg>
             |</svg>
           """.stripMargin),
 
@@ -74,20 +78,17 @@ object Static {
           ),
           div(cls := "editorContainer")(
             div(cls := "label",
-              div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized")(
-                svg(width := 21, height := 21)(
-                  use(svga.xLinkHref := "#sym_run", id := "run-icon", cls := "run-icon")
-                )
+              div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized", id := "run-icon")(
+                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_run"))
               ),
-              div(title := "Reset")(
-                svg(width := 21, height := 21)(
-                  use(svga.xLinkHref := "#sym_reset", id := "reset-icon", cls := "reset-icon")
-                )
+              div(title := "Reset", id := "reset-icon")(
+                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_reset"))
               ),
-              div(title := "Help")(
-                svg(width := 21, height := 21)(
-                  use(svga.xLinkHref := "#sym_help", id := "help-icon", cls := "help-icon")
-                )
+              div(title := "Upload gist", id := "upload-icon")(
+                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_upload"))
+              ),
+              div(title := "Help", id := "help-icon")(
+                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_help"))
               )
             ),
             pre(id := "editor")

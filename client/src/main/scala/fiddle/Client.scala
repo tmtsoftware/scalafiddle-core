@@ -59,7 +59,7 @@ object Post extends autowire.Client[String, upickle.Reader, upickle.Writer] {
   override def doCall(req: Request): Future[String] = {
     val url = "/api/" + req.path.mkString("/")
     Ajax.post(
-      url = Shared.url + url,
+      url = url,
       data = upickle.write(req.args)
     ).map(_.responseText)
   }
@@ -74,7 +74,7 @@ class Client(template: String) {
   var currentSource = sourceFiles.head.name
 
   Client.scheduleResets()
-  val command = Channel[Future[(String, Seq[EditorAnnotation], Option[String])]]()
+  val command = Channel[Future[CompilerResponse]]()
 
   def exec(s: String) = {
     Client.clear()
@@ -88,6 +88,7 @@ class Client(template: String) {
       case e: Throwable =>
         Client.logError(e.getStackTraceString)
         Client.logError(e.toString())
+        showError(e.toString())
     }
   }
 
@@ -121,20 +122,34 @@ class Client(template: String) {
     editor.focus()
   }
 
+  def showError(errStr: String): Unit = {
+    import scalatags.JsDom.all._
+    showStatus("Errors")
+    Page.clear()
+    Page.println(Page.red(pre(cls := "error", errStr)))
+  }
+
+  def compileServer(template: String, code: String, opt: String): Future[CompilerResponse] = {
+    Ajax.get(
+      url = s"/compile?template=$template&opt=$opt&source=${js.URIUtils.encodeURIComponent(code)}"
+    ).map { res =>
+      read[CompilerResponse](res.responseText)
+    }
+  }
+
   def fullOpt = {
     beginCompilation()
-    command.update(Post[Api].fullOpt(template, editor.code).call())
+    command.update(compileServer(template, editor.code, "full"))
   }
 
   def fastOpt = {
     beginCompilation()
-    command.update(Post[Api].fastOpt(template, editor.code).call())
+    command.update(compileServer(template, editor.code, "fast"))
   }
 
-  val landing = fiddle.Shared.url + "/gist/" + fiddle.Shared.gistId + "/LandingPage.scala"
-
-  val runIcon: SVGElement = dom.document.getElementById("run-icon").asInstanceOf[SVGElement]
-  val resetIcon: SVGElement = dom.document.getElementById("reset-icon").asInstanceOf[SVGElement]
+  val runIcon: HTMLElement = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
+  val resetIcon: HTMLElement = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
+  val saveIcon: HTMLElement = dom.document.getElementById("upload-icon").asInstanceOf[HTMLElement]
   val outputTag: HTMLElement = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
   val fiddleSelectorDiv: HTMLElement = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
   val fiddleSelector: HTMLSelectElement = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
@@ -150,6 +165,10 @@ class Client(template: String) {
   resetIcon.onclick = (e: MouseEvent) => {
     selectSource(currentSource)
     editor.focus()
+  }
+
+  saveIcon.onclick = (e: MouseEvent) => {
+    save()
   }
 
   fiddleSelector.onchange = (e: Event) => {
@@ -192,12 +211,16 @@ class Client(template: String) {
     }
   }
 
-  def compile(res: Future[(String, Seq[EditorAnnotation], Option[String])]): Future[Option[String]] = {
+  def compile(res: Future[CompilerResponse]): Future[Option[String]] = {
 
-    res.map { case (logspam, annotations, result) =>
+    res.map { response =>
       endCompilation()
-      editor.setAnnotations(annotations)
-      result
+      editor.setAnnotations(response.annotations)
+      if (response.jsCode.isEmpty) {
+        // show compiler errors in output
+        showError(response.log)
+      }
+      response.jsCode
     }.recover { case e: Exception =>
       endCompilation()
       Client.logError(e.getStackTraceString)
@@ -222,20 +245,25 @@ class Client(template: String) {
   }
 
   def save(): Unit = task * async {
-    await(compile(Post[Api].fullOpt(template, editor.code).call()))
+    val files = new js.Object().asInstanceOf[js.Dynamic]
+    updateSource(editor.code)
+    sourceFiles.foreach { src =>
+      files.updateDynamic(src.name)(JsVal.obj("content" -> src.code))
+    }
     val data = JsVal.obj(
       "description" -> "ScalaFiddle gist",
       "public" -> true,
-      "files" -> JsVal.obj(
-        "ScalaFiddle.scala" -> JsVal.obj(
-          "content" -> editor.code
-        )
-      )
+      "files" -> files
     ).toString()
 
     val res = await(Ajax.post("https://api.github.com/gists", data = data))
     val result = JsVal.parse(res.responseText)
-    Util.Form.get("/gist/" + result("id").asString)
+    import scalatags.JsDom.all._
+    val url = s"https://gist.github.com/anonymous/${result("id").asString}"
+    showStatus("Uploaded")
+    Page.clear()
+    Page.println("ScalaFiddle uploaded to ", a(href := url, target := "_blank")(url))
+    dom.console.log(s"ScalaFiddle uploaded to $url")
   }
 }
 
