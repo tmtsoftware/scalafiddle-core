@@ -8,7 +8,7 @@ import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.dom.raw._
-import upickle._
+import upickle.default._
 
 import scala.async.Async.{async, await}
 import scala.concurrent.Future
@@ -55,16 +55,16 @@ object Checker {
   }
 }
 
-object Post extends autowire.Client[String, upickle.Reader, upickle.Writer] {
+object Post extends autowire.Client[String, Reader, Writer] {
   override def doCall(req: Request): Future[String] = {
     val url = "/api/" + req.path.mkString("/")
     Ajax.post(
       url = url,
-      data = upickle.write(req.args)
+      data = upickle.default.write(req.args)
     ).map(_.responseText)
   }
-  def read[Result: upickle.Reader](p: String) = upickle.read[Result](p)
-  def write[Result: upickle.Writer](r: Result) = upickle.write(r)
+  def read[Result: Reader](p: String) = upickle.default.read[Result](p)
+  def write[Result: Writer](r: Result) = upickle.default.write(r)
 }
 
 case class SourceFile(name: String, var code: String)

@@ -8,7 +8,7 @@ import spray.httpx.encoding.Gzip
 import spray.routing._
 import spray.routing.directives.CacheKeyer
 import spray.routing.directives.CachingDirectives._
-import upickle._
+import upickle.default._
 
 import scala.collection.mutable
 import scala.concurrent.Await
@@ -21,9 +21,9 @@ object Server extends SimpleRoutingApp with Api {
   val clientFiles = Seq("/client-fastopt.js")
 
   private object AutowireServer
-    extends autowire.Server[String, upickle.Reader, upickle.Writer] {
-    def write[Result: Writer](r: Result) = upickle.write(r)
-    def read[Result: Reader](p: String) = upickle.read[Result](p)
+    extends autowire.Server[String, Reader, Writer] {
+    def write[Result: Writer](r: Result) = upickle.default.write(r)
+    def read[Result: Reader](p: String) = upickle.default.read[Result](p)
 
     val routes = AutowireServer.route[Api](Server)
   }
@@ -61,10 +61,10 @@ object Server extends SimpleRoutingApp with Api {
               parameters('source, 'opt, 'template ?) { (source, opt, template) =>
                 val res = opt match {
                   case "fast" =>
-                    val result = upickle.write(fastOpt(template.getOrElse("default"), source))
+                    val result = write(fastOpt(template.getOrElse("default"), source))
                     HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
                   case "full" =>
-                    val result = upickle.write(fullOpt(template.getOrElse("default"), source))
+                    val result = write(fullOpt(template.getOrElse("default"), source))
                     HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
                   case _ =>
                     HttpResponse(StatusCodes.BadRequest)
@@ -79,7 +79,7 @@ object Server extends SimpleRoutingApp with Api {
                 extract(_.request.entity.asString) { e =>
                   complete {
                     AutowireServer.routes(
-                      autowire.Core.Request(s, upickle.read[Map[String, String]](e))
+                      autowire.Core.Request(s, read[Map[String, String]](e))
                     )
                   }
                 }

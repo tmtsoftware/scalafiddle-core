@@ -25,10 +25,6 @@ import scala.tools.nsc.util.ClassPath.JavaContext
 import scala.collection.mutable
 import scala.tools.nsc.typechecker.Analyzer
 
-case class Template(pre: String, post: String) {
-  def fullSource(src: String) = pre + src + post
-}
-
 /**
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
@@ -38,37 +34,6 @@ object Compiler {
 
   val semantics = org.scalajs.core.tools.sem.Semantics.Defaults
 
-  val templates = Map[String, Template](
-    "default" -> Template(
-      """
-        |import scalatags.JsDom.all._
-        |import org.scalajs.dom
-        |import fiddle.Page
-        |import Page.{red, green, blue, yellow, orange, println}
-        |import scalajs.js
-        |object ScalaFiddle extends js.JSApp {
-        |  def main() = {
-        |
-      """.stripMargin,
-      """
-        |  }
-        |}
-      """.stripMargin
-    ),
-    "sjs" -> Template(
-      """
-        |import scalatags.JsDom.all._
-        |import org.scalajs.dom
-        |import fiddle.Page
-        |import Page.{red, green, blue, yellow, orange, println}
-        |import scalajs.js
-        |
-      """.stripMargin,
-      """
-      """.stripMargin
-    ),
-    "raw" -> Template("", "")
-  )
   /**
     * Converts Scalac's weird Future type
     * into a standard scala.concurrent.Future
@@ -160,11 +125,12 @@ object Compiler {
   }
 
   def getTemplate(template: String) = {
-    templates.get(template) match {
+    Config.templates.get(template) match {
       case Some(t) => t
       case None => throw new IllegalArgumentException(s"Invalid template $template")
     }
   }
+
   def autocomplete(templateId: String, code: String, flag: String, pos: Int): Future[List[(String, String)]] = async {
     val template = getTemplate(templateId)
     // global can be reused, just create new runs for new compiler invocations

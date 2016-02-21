@@ -1,8 +1,8 @@
 package fiddle
 
 import org.scalajs.dom
-import dom.html
-import scala.concurrent.{Promise, Future}
+
+import scala.concurrent.{Future, Promise}
 import scala.util.Try
 
 /**
@@ -35,33 +35,4 @@ object Util {
    * shortening that common pattern
    */
   def getElem[T](id: String) = dom.document.getElementById(id).asInstanceOf[T]
-
-  /**
-   * Fakes a form submit, the only way that
-   * you can do a HTTP request + navigation
-   */
-  object Form{
-    def post(path: String, args: (String, String)*): Unit = {
-      ajax("post", path, args:_*)
-    }
-    def get(path: String, args: (String, String)*): Unit = {
-      ajax("get", path, args:_*)
-    }
-    def ajax(method: String, path: String, args: (String, String)*): Unit = {
-      val form = dom.document.createElement("form").asInstanceOf[html.Form]
-      form.setAttribute("method", method)
-      form.setAttribute("action", path)
-
-      for((k, v) <- args){
-        val hiddenField = dom.document.createElement("input")
-        hiddenField.setAttribute("type", "hidden")
-        hiddenField.setAttribute("name", k)
-        hiddenField.setAttribute("value", v)
-        form.appendChild(hiddenField)
-      }
-
-      dom.document.body.appendChild(form)
-      form.submit()
-    }
-  }
 }

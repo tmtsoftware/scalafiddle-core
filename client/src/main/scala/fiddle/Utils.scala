@@ -3,6 +3,7 @@ package fiddle
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.scalajs.js
 import js.JSConverters._
+import scala.language.implicitConversions
 
 case class Channel[T](){
   private[this] var value: Promise[T] = null
@@ -22,6 +23,7 @@ class JsVal(val value: js.Dynamic){
       case v => Some(JsVal(v.asInstanceOf[js.Dynamic]))
     }
   }
+
   def apply(name: String): JsVal = get(name).get
   def apply(index: Int): JsVal = value.asInstanceOf[js.Array[JsVal]](index)
 
@@ -42,8 +44,11 @@ object JsVal {
   implicit def jsVal2jsAny(v: JsVal): js.Any = v.value
 
   implicit def jsVal2String(v: JsVal): js.Any = v.toString
+
   def parse(value: String) = new JsVal(js.JSON.parse(value))
+
   def apply(value: js.Any) = new JsVal(value.asInstanceOf[js.Dynamic])
+
   def obj(keyValues: (String, js.Any)*) = {
     val obj = new js.Object().asInstanceOf[js.Dynamic]
     for ((k, v) <- keyValues){
@@ -51,6 +56,7 @@ object JsVal {
     }
     new JsVal(obj)
   }
+
   def arr(values: js.Any*) = {
     new JsVal(values.toJSArray.asInstanceOf[js.Dynamic])
   }

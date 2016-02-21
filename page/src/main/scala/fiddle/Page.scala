@@ -1,9 +1,9 @@
 package fiddle
 
-import scala.scalajs.js
-import js.annotation.JSExport
 import org.scalajs.dom
-import dom.html
+import org.scalajs.dom.html
+
+import scala.scalajs.js.annotation.JSExport
 import scalatags.JsDom.all._
 
 /**
@@ -22,7 +22,6 @@ object Page{
   def canvas = Util.getElem[html.Canvas]("canvas")
   def renderer = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
   def output = Util.getElem[html.Div]("output")
-  def logspam = Util.getElem[html.Pre]("logspam")
   def source = Util.getElem[html.Div]("source")
 
   def println(ss: Modifier*) = {
@@ -48,15 +47,4 @@ object Page{
     dom.console.log("Scrolling", px)
     output.scrollTop = output.scrollTop + px
   }
-
-  def logln(s: Modifier*): Unit = {
-    log(div(s:_*))
-  }
-
-  def log(s: Modifier*): Unit = {
-    s.foreach(_.applyTo(logspam))
-    logspam.scrollTop = 1000000000
-  }
-
-  val compiled = Util.getElem[html.Div]("compiled").textContent
 }

@@ -1,12 +1,13 @@
 package fiddle
+import fiddle.JsVal.jsVal2jsAny
+
+import scala.async.Async.{async, await}
+import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import scala.scalajs.js.{Dynamic => Dyn, JSON}
 import scala.scalajs.js.Dynamic._
 import scala.scalajs.js.JSConverters._
-import JsVal.jsVal2jsAny
-import scala.concurrent.Future
-import scala.async.Async.{async, await}
+import scala.scalajs.js.{Dynamic => Dyn}
 
 /**
  * Everything related to setting up the Ace editor to

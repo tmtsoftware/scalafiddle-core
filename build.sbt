@@ -24,10 +24,10 @@ lazy val client = project
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.9.0",
-      "com.lihaoyi" %%% "scalatags" % "0.4.5",
-      "com.lihaoyi" %%% "scalarx" % "0.2.7",
-      "com.lihaoyi" %%% "upickle" % "0.2.6",
-      "com.lihaoyi" %%% "autowire" % "0.2.4",
+      "com.lihaoyi" %%% "scalatags" % "0.5.4",
+      "com.lihaoyi" %%% "scalarx" % "0.3.1",
+      "com.lihaoyi" %%% "upickle" % "0.3.8",
+      "com.lihaoyi" %%% "autowire" % "0.2.5",
       "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
       "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided"
     ),
@@ -43,7 +43,7 @@ lazy val page = project
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.9.0",
-      "com.lihaoyi" %%% "scalatags" % "0.4.5"
+      "com.lihaoyi" %%% "scalatags" % "0.5.4"
     ),
     scalaVersion := "2.11.7"
   )
@@ -56,10 +56,9 @@ lazy val runtime = project
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scala-js" %%% "scalajs-dom" % "0.9.0",
-      "com.lihaoyi" %%% "scalatags" % "0.4.5",
+      "com.lihaoyi" %%% "scalatags" % "0.5.4",
       "org.scala-lang.modules" %% "scala-async" % "0.9.1",
-      "com.lihaoyi" %%% "scalarx" % "0.2.7",
-      "com.nativelibs4java" %% "scalaxy-loops" % "0.1.1"
+      "com.lihaoyi" %%% "scalarx" % "0.3.1"
     ),
     autoCompilerPlugins := true,
     scalaVersion := "2.11.7"
@@ -73,21 +72,21 @@ lazy val server = project
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
       "com.typesafe.akka" %% "akka-actor" % "2.3.2",
-      "io.spray" %% "spray-can" % "1.3.1",
-      "io.spray" %% "spray-client" % "1.3.1",
-      "io.spray" %% "spray-caching" % "1.3.1",
-      "io.spray" %% "spray-httpx" % "1.3.1",
-      "io.spray" %% "spray-routing" % "1.3.1",
-      "org.scala-js" % s"scalajs-compiler" % "0.6.7" cross CrossVersion.full,
+      "io.spray" %% "spray-can" % "1.3.3",
+      "io.spray" %% "spray-client" % "1.3.3",
+      "io.spray" %% "spray-caching" % "1.3.3",
+      "io.spray" %% "spray-httpx" % "1.3.3",
+      "io.spray" %% "spray-routing" % "1.3.3",
+      "org.scala-js" % "scalajs-compiler" % "0.6.7" cross CrossVersion.full,
       "org.scala-js" %% "scalajs-tools" % "0.6.7",
       "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
-      "com.lihaoyi" %% "scalatags" % "0.4.5",
+      "com.lihaoyi" %% "scalatags" % "0.5.4",
       "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided",
       "org.webjars" % "ace" % "1.2.2",
       "org.webjars" % "jquery" % "2.1.0-2",
       "org.webjars" % "normalize.css" % "2.1.3",
-      "com.lihaoyi" %% "upickle" % "0.2.6",
-      "com.lihaoyi" %% "autowire" % "0.2.4",
+      "com.lihaoyi" %% "upickle" % "0.3.8",
+      "com.lihaoyi" %% "autowire" % "0.2.5",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test",
       "io.apigee" % "rhino" % "1.7R5pre4" % "test"
     ),
