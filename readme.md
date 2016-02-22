@@ -4,7 +4,7 @@ Scala-Js-Fiddle
 Source code for [www.scala-js-fiddle.com](http://www.scala-js-fiddle.com). To develop, run:
 
 ```
-sbt "~; server/re-start"
+sbt "~; server/reStart"
 ```
 
 You can also run
@@ -13,16 +13,12 @@ You can also run
 sbt stage; ./server/target/start
 ```
 
-To stage and run without SBT,
+to stage and run without SBT,
 
 ```
 sbt assembly; java -jar server/target/scala-2.10/server-assembly-0.1-SNAPSHOT.jar
 ```
 
-To package as a fat jar and run, or
+to package as a fat jar and run.
 
-```
-capstan build -p vmw; capstan run -p vmw
-```
-
-To bundle as an image using OSv and run it under VMware.
+Access the fiddle via browser at http://localhost:8080/embed

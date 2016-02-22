@@ -336,8 +336,9 @@ object Client {
       client.fastOpt
     } else if (queryParams.contains("source")) {
       val srcCode = queryParams("source")
+      client.showStatus("Loading")
       // check for sub-fiddles
-      val sources = parseFiddles(srcCode)
+      val sources = await(Future(parseFiddles(srcCode)))
       client.setSources(sources)
       client.fastOpt
     }
