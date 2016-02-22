@@ -1,0 +1,81 @@
+.label {
+    background-color: rgba(70, 70, 70, 0.8);
+    color: #aaa;
+}
+
+.normal {
+    color: #aaa;
+}
+
+#fiddleSelector select {
+    color: #333;
+}
+
+#sandbox {
+    border-color: #666666;
+}
+
+#output {
+    color : #aaa;
+}
+
+#fiddleSelectorDiv {
+    border-bottom-color: #666;
+}
+
+body, pre {
+    background-color: #2d2d2d;
+    color: #aaa;
+}
+
+pre.error {
+    color: #f55;
+}
+
+select {
+    background-color: #2d2d2d;
+    color: #aaa;
+}
+
+a:link {
+    color: #46BDDF;
+}
+
+a:visited {
+    color: #E57255;
+}
+
+#run-icon svg {
+    fill: lime;
+    stroke: hsla(360, 0%, 63%, 1);
+}
+
+#reset-icon {
+    fill: hsla(360, 0%, 63%, 1);
+}
+
+#reset-icon:hover {
+    fill: hsla(360, 70%, 51%, 1);
+}
+
+#upload-icon {
+    fill: hsla(0, 0%, 63%, 1);
+}
+
+#upload-icon:hover {
+    fill: hsla(0, 0%, 90%, 1);
+}
+
+#help-icon {
+    fill: hsla(232, 0%, 63%, 1)
+}
+
+#help-icon:hover {
+    fill: hsla(232, 100%, 75%, 1)
+}
+
+.color-red { color: #E95065; }
+.color-blue { color: #46BDDF; }
+.color-green { color: #52D273; }
+.color-yellow { color: #E5C453; }
+.color-orange { color: #E57255; }

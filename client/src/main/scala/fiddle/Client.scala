@@ -125,7 +125,7 @@ class Client(template: String) {
     import scalatags.JsDom.all._
     showStatus("Errors")
     Page.clear()
-    Page.println(Page.red(pre(cls := "error", errStr)))
+    Page.println(pre(cls := "error", errStr))
   }
 
   def compileServer(template: String, code: String, opt: String): Future[CompilerResponse] = {
@@ -133,6 +133,10 @@ class Client(template: String) {
       url = s"/compile?template=$template&opt=$opt&source=${js.URIUtils.encodeURIComponent(code)}"
     ).map { res =>
       read[CompilerResponse](res.responseText)
+    } recover {
+      case e: Throwable =>
+        showError(e.toString)
+        throw e
     }
   }
 
@@ -237,8 +241,12 @@ class Client(template: String) {
 
     val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
 
-
-    val res = await(Post[Api].completeStuff(template, code, flag, intOffset).call())
+    val f = Post[Api].completeStuff(template, code, flag, intOffset).call().recover {
+      case e: Throwable =>
+        showError(e.toString)
+        throw e
+    }
+    val res = await(f)
     res
   }
 

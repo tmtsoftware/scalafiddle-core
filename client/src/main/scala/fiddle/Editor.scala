@@ -88,10 +88,15 @@ class Editor(bindings: Seq[(String, String, () => Any)],
     editor
   }
 }
+
 object Editor{
   def initEditorIn(id: String) = {
+    val theme = Client.queryParams.get("theme") match {
+      case Some("dark") => "ace/theme/tomorrow_night_eighties"
+      case _ => "ace/theme/eclipse"
+    }
     val editor = global.ace.edit(id)
-    editor.setTheme("ace/theme/eclipse")
+    editor.setTheme(theme)
     editor.renderer.setShowGutter(false)
     editor.renderer.setOption("showFoldWidgets", false)
     editor.setShowPrintMargin(false)

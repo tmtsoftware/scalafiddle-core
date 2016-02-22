@@ -33,12 +33,19 @@
     color: #aaa;
     z-index: 999;
     text-align: right;
-    font-family: Raleway, Helvetica, Arial, sans-serif;
+    font-size: 1em;
+    font-family: "Lato", "Lucida Grande","Lucida Sans Unicode", Tahoma, sans-serif;
 }
 
 .normal {
     color: #333;
-    font-family: Raleway, Helvetica, Arial, sans-serif;
+    font-size: 0.8em;
+    font-family: "Lato", "Lucida Grande","Lucida Sans Unicode", Tahoma, sans-serif;
+}
+
+select {
+    font-size: 0.8em;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
 }
 
 #fiddleSelector select {
@@ -68,7 +75,8 @@
     bottom: 0;
     left: 50%;
     right: 0;
-    border-left: 1px solid #333333;
+    border-color: #333333;
+    border-left: 1px solid;
 }
 
 #output {
@@ -138,7 +146,7 @@ svg {
 #run-icon svg {
     fill: lime;
     fill-opacity: 0;
-    stroke: #aaa;
+    stroke: hsla(360, 0%, 63%, 1);
     stroke-width: 1;
 }
 
@@ -177,7 +185,7 @@ svg {
 
 #help-icon {
     transition: fill 0.3s ease;
-    fill: hsla(232, 0%, 50%, 1)
+    fill: hsla(232, 0%, 63%, 1)
 }
 
 #help-icon:hover {
@@ -207,8 +215,8 @@ svg {
         bottom: 0;
         left: 0;
         right: 0;
-        border-top: 1px solid #333333;
-        border-left: 0;
+        border-top: 1px solid;
+        border-left-width: 0;
     }
 
     .label svg {

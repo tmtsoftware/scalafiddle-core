@@ -10,11 +10,17 @@ object Static {
     "/META-INF/resources/webjars/ace/1.2.2/src-min/ext-language_tools.js",
     "/META-INF/resources/webjars/ace/1.2.2/src-min/ext-static_highlight.js",
     "/META-INF/resources/webjars/ace/1.2.2/src-min/mode-scala.js",
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-eclipse.js"
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-eclipse.js",
+    "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-tomorrow_night_eighties.js"
   )
 
-  def page(arg: String, srcFiles: Seq[String], customStyle: Option[String] = None) = {
+  def page(arg: String, srcFiles: Seq[String], customStyle: Option[String] = None, theme: Option[String] = None) = {
     val customCSS = customStyle.getOrElse("")
+    val themeCSS = theme match {
+      case Some("dark") => "/styles-dark.css"
+      case _ => "/styles-light.css"
+    }
+
     "<!DOCTYPE html>" + html(
       head(
         meta(charset := "utf-8"),
@@ -25,7 +31,8 @@ object Static {
           `type` := "text/javascript", src := srcFile
         ),
         link(rel := "stylesheet", href := "/META-INF/resources/webjars/normalize.css/2.1.3/normalize.css"),
-        link(rel := "stylesheet", href := "/styles.css"),
+        link(rel := "stylesheet", href := "/common.css"),
+        link(rel := "stylesheet", href := themeCSS),
         scalatags.Text.tags2.style(raw(s"""#output{$customCSS}.ace_editor{$customCSS}""")),
         script(raw(
           """
