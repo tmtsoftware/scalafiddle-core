@@ -154,6 +154,7 @@ class Client(template: String) {
   val resetIcon: HTMLElement = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
   val saveIcon: HTMLElement = dom.document.getElementById("upload-icon").asInstanceOf[HTMLElement]
   val outputTag: HTMLElement = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
+  val editorContainerDiv: HTMLElement = dom.document.getElementById("editorContainer").asInstanceOf[HTMLElement]
   val fiddleSelectorDiv: HTMLElement = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
   val fiddleSelector: HTMLSelectElement = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
 
@@ -193,9 +194,11 @@ class Client(template: String) {
       fiddleSelector.add(option(value := source.name)(source.name).render)
     }
     if (sourceFiles.size > 1) {
-      fiddleSelectorDiv.style.display = "block"
+      fiddleSelectorDiv.style.display = "inherit"
+      editorContainerDiv.classList.add("selectorVisible")
     } else {
       fiddleSelectorDiv.style.display = "none"
+      editorContainerDiv.classList.remove("selectorVisible")
     }
     selectSource(sourceFiles.head.name)
   }

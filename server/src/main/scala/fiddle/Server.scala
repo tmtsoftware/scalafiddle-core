@@ -42,15 +42,14 @@ object Server extends SimpleRoutingApp with Api {
           get {
             path("embed") {
               respondWithHeaders(Config.httpHeaders) {
-                parameters('style?, 'theme?) { (style, theme) =>
+                parameterMap { paramMap =>
                   complete {
                     HttpEntity(
                       MediaTypes.`text/html`,
                       Static.page(
                         s"Client().main()",
                         clientFiles,
-                        style,
-                        theme
+                        paramMap
                       )
                     )
                   }

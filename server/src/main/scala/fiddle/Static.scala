@@ -14,11 +14,78 @@ object Static {
     "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-tomorrow_night_eighties.js"
   )
 
-  def page(arg: String, srcFiles: Seq[String], customStyle: Option[String] = None, theme: Option[String] = None) = {
-    val customCSS = customStyle.getOrElse("")
-    val themeCSS = theme match {
+  final val layoutRE = """([vh])(\d\d)""".r
+
+  def page(arg: String, srcFiles: Seq[String], paramMap: Map[String, String]) = {
+    val customCSS = paramMap.getOrElse("style", "")
+    val themeCSS = paramMap.get("theme") match {
       case Some("dark") => "/styles-dark.css"
       case _ => "/styles-light.css"
+    }
+    val layout = paramMap.get("layout") match {
+      case Some(layoutRE(direction, ratio)) =>
+        val editorSize = ratio.toInt
+        val outputSize = 100 - editorSize
+        val responsive =
+          s"""
+             |@media only screen and (max-device-width: 768px) {
+             |    #editorWrap {
+             |        top: 0;
+             |        bottom: $outputSize%;
+             |        left: 0;
+             |        right: 0;
+             |    }
+             |
+             |    #sandbox {
+             |        top: $editorSize%;
+             |        bottom: 0;
+             |        left: 0;
+             |        right: 0;
+             |        border-top: 1px solid;
+             |        border-left-width: 0;
+             |    }
+             |}
+          """.stripMargin
+        direction match {
+          case "h" =>
+
+            s"""
+               |#editorWrap {
+               |    top: 0;
+               |    bottom: 0;
+               |    left: 0;
+               |    right: $outputSize%;
+               |}
+               |#sandbox {
+               |    top: 0;
+               |    bottom: 0;
+               |    left: $editorSize%;
+               |    right: 0;
+               |    border-color: #333333;
+               |    border-left: 1px solid;
+               |}
+              """.stripMargin + responsive
+          case "v" =>
+
+            s"""
+               |#editorWrap {
+               |    top: 0;
+               |    bottom: $outputSize%;
+               |    left: 0;
+               |    right: 0;
+               |}
+               |
+               |#sandbox {
+               |    top: $editorSize%;
+               |    bottom: 0;
+               |    left: 0;
+               |    right: 0;
+               |    border-top: 1px solid;
+               |    border-left-width: 0;
+               |}
+               """.stripMargin + responsive
+        }
+      case _ => ""
     }
 
     "<!DOCTYPE html>" + html(
@@ -34,17 +101,7 @@ object Static {
         link(rel := "stylesheet", href := "/common.css"),
         link(rel := "stylesheet", href := themeCSS),
         scalatags.Text.tags2.style(raw(s"""#output{$customCSS}.ace_editor{$customCSS}""")),
-        script(raw(
-          """
-            (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-                (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-              m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-              })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-              ga('create', 'UA-27464920-3', 'scala-js-fiddle.com');
-              ga('send', 'pageview');
-          """
-        ))
+        scalatags.Text.tags2.style(raw(layout))
       ),
       body(
         raw(
@@ -83,7 +140,7 @@ object Static {
             span(cls := "normal", "Select fiddle "),
             select(id := "fiddleSelector")
           ),
-          div(cls := "editorContainer")(
+          div(id := "editorContainer")(
             div(cls := "label",
               div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized", id := "run-icon")(
                 svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_run"))
@@ -101,7 +158,6 @@ object Static {
             pre(id := "editor")
           )
         ),
-        pre(id := "logspam"),
         div(id := "sandbox")(
           div(cls := "label")(span(id := "output-tag", "Output")),
           canvas(id := "canvas", style := "position: absolute"),
@@ -111,7 +167,18 @@ object Static {
       script(
         id := "compiled"
       ),
-      script(raw(arg))
+      script(raw(arg)),
+      script(raw(
+        """
+            (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+                (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+              m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+              })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+              ga('create', 'UA-27464920-3', 'scala-js-fiddle.com');
+              ga('send', 'pageview');
+        """
+      ))
     ).toString()
   }
 }

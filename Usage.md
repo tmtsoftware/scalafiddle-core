@@ -8,7 +8,7 @@ compiled to JavaScript on the server and then run in the browser.
 To embed a fiddle in your web page, put it in an `iframe` tag:
 
 ```html
-<iframe src="<yourhost>/embed?<parameters>"></iframe>
+<iframe src="<fiddlehost>/embed?<parameters>"></iframe>
 ```
 
 You can use normal `iframe` attributes like `width` and `height` to control the size of the fiddle component. Scala
@@ -72,7 +72,7 @@ that it can be directly executed.
 All fiddles must have an `object ScalaFiddle extends js.JSApp` with a `main` method to work. Usually this is provided
 by the template, but in some cases you'll want to leave that to the user.
 
-## Customizing the style
+## Visual customizing 
 
 Scala Fiddle supports _light_ (default) and _dark_ themes. You can choose between them using the `theme` parameter. To
 make the fiddle integrate even more nicely within your own web page, you can provide additional styling with the `style`
@@ -83,3 +83,9 @@ For example to change the font you can use:
 ```
 /embed?gist=3dfc003dedd4da5d821d&style=font-family:"Lucida%20Console",monospace;font-size:18px;
 ```
+
+You may also customize the layout of the fiddle. By default the layout is horizontal with 50:50 split, which
+automatically switches to vertical 50:50 layout on small screens of mobile devices. To override the default layout,
+use the `layout` parameter with either `hXX` or `vXX` values, where `XX` denotes the percentage allocated to the code
+editor. For example `layout=v70` creates a vertical layout with a 70:30 split between code and output. Even with a 
+custom horizontal layout, it will switch to a vertical layout on small screens (using the provided split, though).
