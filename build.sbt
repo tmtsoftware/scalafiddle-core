@@ -1,26 +1,36 @@
 import sbt._
 import Keys._
 
+val commonSettings = Seq(
+  scalacOptions := Seq(
+    "-Xlint",
+    "-unchecked",
+    "-deprecation",
+    "-feature"
+  ),
+  scalaVersion := "2.11.7"
+)
+
 lazy val root = project.in(file("."))
   .aggregate(client, page, server, runtime)
   .settings(
     (resources in(server, Compile)) ++= {
       (managedClasspath in(runtime, Compile)).value.map(_.data) ++ Seq(
-        (packageBin in(runtime, Compile)).value,
         (packageBin in(page, Compile)).value,
-        (packageBin in(shared, Compile)).value,
         (fastOptJS in(client, Compile)).value.data
       )
     },
     scalaVersion := "2.11.7"
   )
 
-lazy val shared = project.in(file("shared")).enablePlugins(ScalaJSPlugin)
-  .settings(scalaVersion := "2.11.7")
+lazy val shared = project
+  .enablePlugins(ScalaJSPlugin)
+  .settings(commonSettings)
 
 lazy val client = project
   .dependsOn(page, shared)
   .enablePlugins(ScalaJSPlugin)
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.9.0",
@@ -28,44 +38,33 @@ lazy val client = project
       "com.lihaoyi" %%% "scalarx" % "0.3.1",
       "com.lihaoyi" %%% "upickle" % "0.3.8",
       "com.lihaoyi" %%% "autowire" % "0.2.5",
-      "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
-      "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided"
+      "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided"
     ),
-    relativeSourceMaps := true,
-    addCompilerPlugin("com.lihaoyi" %% "acyclic" % "0.1.2"),
-    autoCompilerPlugins := true,
-    scalaVersion := "2.11.7"
+    relativeSourceMaps := true
   )
 
 lazy val page = project
-  .dependsOn(shared)
   .enablePlugins(ScalaJSPlugin)
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.9.0",
       "com.lihaoyi" %%% "scalatags" % "0.5.4"
-    ),
-    scalaVersion := "2.11.7"
+    )
   )
 
 lazy val runtime = project
-  .dependsOn(page)
-  .enablePlugins(ScalaJSPlugin)
+  .settings(commonSettings)
   .settings(
-    resolvers += Resolver.sonatypeRepo("snapshots"),
     libraryDependencies ++= Seq(
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scala-js" %%% "scalajs-dom" % "0.9.0",
-      "com.lihaoyi" %%% "scalatags" % "0.5.4",
-      "org.scala-lang.modules" %% "scala-async" % "0.9.1",
-      "com.lihaoyi" %%% "scalarx" % "0.3.1"
-    ),
-    autoCompilerPlugins := true,
-    scalaVersion := "2.11.7"
+      "org.scala-js" %% "scalajs-library" % "0.6.7",
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value
+    )
   )
 
 lazy val server = project
   .dependsOn(shared)
+  .settings(commonSettings)
   .settings(packageArchetype.java_server: _*)
   .settings(Revolver.settings: _*)
   .settings(
@@ -81,7 +80,6 @@ lazy val server = project
       "org.scala-js" %% "scalajs-tools" % "0.6.7",
       "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
       "com.lihaoyi" %% "scalatags" % "0.5.4",
-      "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided",
       "org.webjars" % "ace" % "1.2.2",
       "org.webjars" % "jquery" % "2.1.0-2",
       "org.webjars" % "normalize.css" % "2.1.3",
@@ -90,11 +88,7 @@ lazy val server = project
       "com.lihaoyi" %% "utest" % "0.3.0" % "test",
       "io.apigee" % "rhino" % "1.7R5pre4" % "test"
     ),
-
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),
-    javaOptions in Revolver.reStart += "-Xmx2g",
-    addCompilerPlugin("com.lihaoyi" %% "acyclic" % "0.1.2"),
-    autoCompilerPlugins := true,
-    scalaVersion := "2.11.7"
+    javaOptions in Revolver.reStart += "-Xmx2g"
   )

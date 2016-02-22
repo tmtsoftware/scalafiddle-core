@@ -1,6 +1,5 @@
 package fiddle
 
-import acyclic.file
 import scala.tools.nsc.Settings
 import scala.reflect.io
 import scala.tools.nsc.util._

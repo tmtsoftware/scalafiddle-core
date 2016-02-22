@@ -2,7 +2,6 @@ package fiddle
 
 import akka.actor.ActorSystem
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
-import spray.http.HttpHeaders.RawHeader
 import spray.http.{HttpRequest, HttpResponse, _}
 import spray.httpx.encoding.Gzip
 import spray.routing._
@@ -14,6 +13,7 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Properties
+import scala.language.postfixOps
 
 object Server extends SimpleRoutingApp with Api {
   implicit val system = ActorSystem()
@@ -34,11 +34,6 @@ object Server extends SimpleRoutingApp with Api {
     }
 
     val simpleCache = routeCache()
-    //    println("Power On Self Test")
-    //    val res = Compiler.compile(fiddle.Shared.default.getBytes, println)
-    //    val optimized = res.get |> Compiler.fullOpt |> Compiler.export
-    //    assert(optimized.contains("Looks like"))
-    //    println("Power On Self Test complete: " + optimized.length + " bytes")
 
     val p = Properties.envOrElse("PORT", "8080").toInt
     startServer("0.0.0.0", port = p) {
@@ -46,15 +41,18 @@ object Server extends SimpleRoutingApp with Api {
         encodeResponse(Gzip) {
           get {
             path("embed") {
-              respondWithHeader(RawHeader("X-Frame-Options", "SAMEORIGIN")) {
-                complete {
-                  HttpEntity(
-                    MediaTypes.`text/html`,
-                    Static.page(
-                      s"Client().main()",
-                      clientFiles
+              respondWithHeaders(Config.httpHeaders) {
+                parameter('style?) { style =>
+                  complete {
+                    HttpEntity(
+                      MediaTypes.`text/html`,
+                      Static.page(
+                        s"Client().main()",
+                        clientFiles,
+                        style
+                      )
                     )
-                  )
+                  }
                 }
               }
             } ~ path("compile") {

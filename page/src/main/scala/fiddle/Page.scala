@@ -22,7 +22,6 @@ object Page{
   def canvas = Util.getElem[html.Canvas]("canvas")
   def renderer = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
   def output = Util.getElem[html.Div]("output")
-  def source = Util.getElem[html.Div]("source")
 
   def println(ss: Modifier*) = {
     print(div(ss: _*))

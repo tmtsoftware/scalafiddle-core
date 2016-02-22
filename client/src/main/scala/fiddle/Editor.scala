@@ -101,7 +101,6 @@ object Editor{
     val editor = initEditorIn("editor")
     editor.getSession().setMode("ace/mode/scala")
     editor.getSession().setOption("useWorker", false)
-    editor.getSession().setValue(Page.source.textContent)
     editor
   }
 }

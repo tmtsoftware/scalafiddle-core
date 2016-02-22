@@ -6,55 +6,58 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /**
- * Internal API tests to make sure I'm using the Scala compiler and
- * ScalaJS tools correctly, since they're completely separate from the
- * web server. They're also complicated enough to be easy to screw up,
- * and it's easier to fix them from the command line without all the
- * HTTP server rubbish getting in the way.
- */
-object Main extends TestSuite{
+  * Internal API tests to make sure I'm using the Scala compiler and
+  * ScalaJS tools correctly, since they're completely separate from the
+  * web server. They're also complicated enough to be easy to screw up,
+  * and it's easier to fix them from the command line without all the
+  * HTTP server rubbish getting in the way.
+  */
+object Main extends TestSuite {
   def compile(s: String) = {
-    Compiler.compile(s.getBytes, println).get
+    Compiler.compile("imports", s, println).get
   }
   val tests = TestSuite {
     "compile" - {
       "simple" - {
-        val res = compile("""
-          object Main{
+        val res = compile(
+          """
+          object Main extends js.JSApp {
             def main() = {
               Predef.println("Hello World")
               "omg"
             }
           }
-        """) |> Compiler.export
-        for(s <- Seq("Main$", "Hello World")){
+          """) |> Compiler.fastOpt |> Compiler.export
+        for (s <- Seq("Main$", "Hello World")) {
           assert(res.contains(s))
         }
       }
 
       "macro" - {
-        val res = compile("""
-          object Main{
+        val res = compile(
+          """
+          object Main extends js.JSApp {
             def main() = {
               println("Hello World")
             }
           }
-        """) |> Compiler.export
-        for(s <- Seq("Hello World", "Main", "main")){
+          """) |> Compiler.fastOpt |> Compiler.export
+        for (s <- Seq("Hello World", "Main", "main")) {
           assert(res.contains(s))
         }
       }
       "async" - {
-        val res = compile("""
+        val res = compile(
+          """
           import async.Async._
           import concurrent.Future
           import scalajs.concurrent.JSExecutionContext.Implicits.queue
-          object Main{
+          object Main extends js.JSApp {
             def main() = async{
               await(Future("Hello World"))
             }
           }
-        """) |> Compiler.export
+          """) |> Compiler.fastOpt |> Compiler.export
         assert(
           res.contains("Hello World"),
           res.contains("Main"),
@@ -65,28 +68,29 @@ object Main extends TestSuite{
 
     "optimize" - {
       "fastOpt" - {
-        val res = compile("""
+        val res = compile(
+          """
         object Main extends js.JSApp{
           def iAmDead() = "lolzz"
           def iAmLive() = "wtfff"
           def main() = {
             Predef.println("Hello World")
             iAmLive()
-            "omg"
           }
         }
-        """) |> Compiler.fastOpt  |> Compiler.export
-        for(s <- Seq("Main", "Hello World", "iAmLive", "wtfff", "main")){
+          """) |> Compiler.fastOpt |> Compiler.export
+        for (s <- Seq("Main", "Hello World", "main")) {
           assert(res.contains(s))
         }
-        for(s <- Seq("iAmDead", "lolzz")){
+        for (s <- Seq("iAmDead", "lolzz")) {
           assert(!res.contains(s))
         }
         // fastOpt with such a small program should be less than 2mb
         assert(res.length < 2 * 1024 * 1024)
       }
       "fullOpt" - {
-        val res = compile("""
+        val res = compile(
+          """
         object Main extends js.JSApp{
           def iAmDead() = "lolzz"
           def iAmLive() = "wtfff"
@@ -96,11 +100,11 @@ object Main extends TestSuite{
             "omg"
           }
         }
-        """) |> Compiler.fullOpt |> Compiler.export
-        for(s <- Seq("Main", "Hello World", "main")){
+          """) |> Compiler.fullOpt |> Compiler.export
+        for (s <- Seq("Main", "Hello World", "main")) {
           assert(res.contains(s))
         }
-        for(s <- Seq("iAmDead", "lolzz", "iAmLive", "wtfff")){
+        for (s <- Seq("iAmDead", "lolzz", "iAmLive", "wtfff")) {
           assert(!res.contains(s))
         }
         // fullOpt with such a small program should be less than 200kb
@@ -122,7 +126,7 @@ object Main extends TestSuite{
 
     "complete" - {
       def complete(src: String, mode: String, index: Int): List[(String, String)] = {
-        Await.result(Compiler.autocomplete(src, mode, index), 60 seconds)
+        Await.result(Compiler.autocomplete("imports", src, mode, index), 60.seconds)
       }
       "basic" - {
         val a = complete("object Main{ def zzzzx = 123}", "member", 12)
@@ -151,15 +155,15 @@ object Main extends TestSuite{
           newEnd
         }
         "scopes" - {
-
-          val snippet = """
+          val snippet =
+            """
             object Lul{
               def lol = "omg"
             }
             object Main{
               def zzzzx = 123;
             }
-          """.replaceAll("\n *", "\n")
+            """.replaceAll("\n *", "\n")
 
 
           val c = check(snippet, "scope") _
@@ -171,10 +175,10 @@ object Main extends TestSuite{
             ("{", false, false),
             (null, false, true)
           ).foldLeft(0)(c(_).tupled(_))
-
         }
         "members" - {
-          val snippet = """
+          val snippet =
+            """
             object Lul{
               def lol = "omg"
               Main. ;
@@ -182,7 +186,7 @@ object Main extends TestSuite{
             object Main{
               def zzzzx = 123;
             }
-          """.replaceAll("\n *", "\n")
+            """.replaceAll("\n *", "\n")
 
           val c = check(snippet, "member") _
           Seq(
@@ -195,7 +199,7 @@ object Main extends TestSuite{
             ("def", false, true),
             ("\n", false, false),
             (null, false, true)
-          ).foldLeft(0)(c(_).tupled( _))
+          ).foldLeft(0)(c(_).tupled(_))
         }
       }
     }

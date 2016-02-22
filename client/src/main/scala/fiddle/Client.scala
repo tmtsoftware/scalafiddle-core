@@ -12,7 +12,7 @@ import upickle.default._
 
 import scala.async.Async.{async, await}
 import scala.concurrent.Future
-import scala.scalajs.concurrent.JSExecutionContext.Implicits.runNow
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 
@@ -86,7 +86,6 @@ class Client(template: String) {
       js.eval("ScalaFiddle().main()")
     } catch {
       case e: Throwable =>
-        Client.logError(e.getStackTraceString)
         Client.logError(e.toString())
         showError(e.toString())
     }
@@ -223,7 +222,6 @@ class Client(template: String) {
       response.jsCode
     }.recover { case e: Exception =>
       endCompilation()
-      Client.logError(e.getStackTraceString)
       Client.logError(e.toString)
       None
     }

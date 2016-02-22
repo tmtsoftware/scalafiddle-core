@@ -1,6 +1,9 @@
 package fiddle
 
 import com.typesafe.config.ConfigFactory
+import spray.http.HttpHeader
+import spray.http.HttpHeaders.RawHeader
+
 import scala.collection.JavaConverters._
 
 case class Template(pre: String, post: String) {
@@ -17,5 +20,9 @@ object Config {
   val templates = config.getConfigList("templates").asScala.map { co =>
     co.getString("name") -> Template(co.getString("pre"), co.getString("post"))
   }.toMap
+
+  val httpHeaders: List[HttpHeader] = config.getConfig("httpHeaders").entrySet().asScala.map { entry =>
+    RawHeader(entry.getKey, entry.getValue.unwrapped().asInstanceOf[String])
+  }.toList
 }
 

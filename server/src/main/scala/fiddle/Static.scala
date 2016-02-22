@@ -3,6 +3,7 @@ package fiddle
 import scalatags.Text.all._
 import scalatags.Text.svgTags.{svg, use}
 import scalatags.Text.{svgAttrs => svga, tags2}
+
 object Static {
   val aceFiles = Seq(
     "/META-INF/resources/webjars/ace/1.2.2/src-min/ace.js",
@@ -12,7 +13,8 @@ object Static {
     "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-eclipse.js"
   )
 
-  def page(arg: String, srcFiles: Seq[String], source: String = "", compiled: String = "", analytics: Boolean = true) =
+  def page(arg: String, srcFiles: Seq[String], customStyle: Option[String] = None) = {
+    val customCSS = customStyle.getOrElse("")
     "<!DOCTYPE html>" + html(
       head(
         meta(charset := "utf-8"),
@@ -24,8 +26,8 @@ object Static {
         ),
         link(rel := "stylesheet", href := "/META-INF/resources/webjars/normalize.css/2.1.3/normalize.css"),
         link(rel := "stylesheet", href := "/styles.css"),
-
-        if (analytics) script(raw(
+        scalatags.Text.tags2.style(raw(s"""#output{$customCSS}.ace_editor{$customCSS}""")),
+        script(raw(
           """
             (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
                 (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
@@ -36,7 +38,6 @@ object Static {
               ga('send', 'pageview');
           """
         ))
-        else ()
       ),
       body(
         raw(
@@ -70,7 +71,6 @@ object Static {
             |</svg>
           """.stripMargin),
 
-        div(id := "source", display := "none")(source),
         div(id := "editorWrap")(
           div(id := "fiddleSelectorDiv", style := "display: none")(
             span(cls := "normal", "Select fiddle "),
@@ -102,9 +102,9 @@ object Static {
         )
       ),
       script(
-        id := "compiled",
-        raw(compiled)
+        id := "compiled"
       ),
       script(raw(arg))
     ).toString()
+  }
 }

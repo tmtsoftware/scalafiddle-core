@@ -79,6 +79,9 @@
     color : #333;
     padding-left : 2px;
     box-sizing : border-box;
+    font-size: 14px;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
+    text-rendering: optimizeLegibility;
 }
 
 #fiddleSelectorDiv {
@@ -90,8 +93,6 @@ body, pre {
     overflow: hidden;
     background-color: #ffffff;
     color: #B3B8BC;
-    font-size: 14px;
-    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
 }
 
 pre.error {
