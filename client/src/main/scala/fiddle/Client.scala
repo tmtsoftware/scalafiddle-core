@@ -224,7 +224,10 @@ class Client(template: String) {
       editor.setAnnotations(response.annotations)
       if (response.jsCode.isEmpty) {
         // show compiler errors in output
-        showError(response.log)
+        val allErrors = response.annotations.map { ann =>
+          s"Main.scala:${ann.row + 1}: ${ann.tpe}: ${ann.text.mkString("\n")}"
+        }.mkString("\n")
+        showError(allErrors)
       }
       response.jsCode
     }.recover { case e: Exception =>

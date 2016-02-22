@@ -96,7 +96,7 @@ object Server extends SimpleRoutingApp with Api {
     Await.result(Compiler.autocomplete(template, txt, flag, offset), 100.seconds)
   }
 
-  val errorStart = """^Main.scala:(\d+): (\w+):(.*)""".r
+  val errorStart = """^Main.scala:(\d+): *(\w+): *(.*)""".r
   val errorEnd = """ *\^ *$""".r
 
   def parseErrors(preRows: Int, log: String): Seq[EditorAnnotation] = {
@@ -107,8 +107,7 @@ object Server extends SimpleRoutingApp with Api {
           val ann = EditorAnnotation(lineNo.toInt - preRows - 1, 0, Seq(msg), severity)
           (acc, Some(ann))
         case errorEnd() if current.isDefined =>
-          // drop last line from error message, it's the line of code
-          val ann = current.map(ann => ann.copy(col = line.length, text = ann.text.init)).get
+          val ann = current.map(ann => ann.copy(col = line.length, text = ann.text :+ line)).get
           (acc :+ ann, None)
         case errLine =>
           (acc, current.map(ann => ann.copy(text = ann.text :+ errLine)))
