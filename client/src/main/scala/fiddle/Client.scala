@@ -372,6 +372,9 @@ object Client {
       val result = JsVal.parse(res.responseText)
       val fileList = if (files.isEmpty) {
         Seq(result("files").keys.head)
+      } else if (files == Seq("*")) {
+        // take all files from the gist
+        result("files").keys
       } else {
         files.filter(f => result("files").keys.exists(_.equalsIgnoreCase(f)))
       }
