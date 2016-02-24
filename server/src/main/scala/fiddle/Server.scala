@@ -1,91 +1,92 @@
 package fiddle
 
 import akka.actor.ActorSystem
+import fiddle.Base64.B64Scheme
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
-import spray.http.{HttpRequest, HttpResponse, _}
+import spray.http.CacheDirectives.`max-age`
+import spray.http.HttpHeaders.`Cache-Control`
+import spray.http._
 import spray.httpx.encoding.Gzip
 import spray.routing._
-import spray.routing.directives.CacheKeyer
-import spray.routing.directives.CachingDirectives._
 import upickle.default._
 
 import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.util.Properties
 import scala.language.postfixOps
+import scala.scalajs.niocharset.StandardCharsets
 
 object Server extends SimpleRoutingApp with Api {
   implicit val system = ActorSystem()
   import system.dispatcher
-  val clientFiles = Seq("/client-fastopt.js")
-
-  private object AutowireServer
-    extends autowire.Server[String, Reader, Writer] {
-    def write[Result: Writer](r: Result) = upickle.default.write(r)
-    def read[Result: Reader](p: String) = upickle.default.read[Result](p)
-
-    val routes = AutowireServer.route[Api](Server)
-  }
 
   def main(args: Array[String]): Unit = {
-    implicit val Default: CacheKeyer = CacheKeyer {
-      case RequestContext(HttpRequest(_, uri, _, entity, _), _, _) => (uri, entity)
-    }
 
-    val simpleCache = routeCache()
-
-    val p = Properties.envOrElse("PORT", "8080").toInt
-    startServer("0.0.0.0", port = p) {
-      cache(simpleCache) {
-        encodeResponse(Gzip) {
-          get {
-            path("embed") {
-              respondWithHeaders(Config.httpHeaders) {
-                parameterMap { paramMap =>
-                  complete {
-                    HttpEntity(
-                      MediaTypes.`text/html`,
-                      Static.page(
-                        s"Client().main()",
-                        clientFiles,
-                        paramMap
-                      )
+    startServer(Config.interface, Config.port) {
+      encodeResponse(Gzip) {
+        get {
+          path("embed") {
+            respondWithHeaders(Config.httpHeaders) {
+              parameterMap { paramMap =>
+                complete {
+                  HttpEntity(
+                    MediaTypes.`text/html`,
+                    Static.page(
+                      s"Client().main()",
+                      Config.clientFiles,
+                      paramMap
                     )
-                  }
-                }
-              }
-            } ~ path("compile") {
-              parameters('source, 'opt, 'template ?) { (source, opt, template) =>
-                val res = opt match {
-                  case "fast" =>
-                    val result = write(fastOpt(template.getOrElse("default"), source))
-                    HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
-                  case "full" =>
-                    val result = write(fullOpt(template.getOrElse("default"), source))
-                    HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
-                  case _ =>
-                    HttpResponse(StatusCodes.BadRequest)
-                }
-                complete(res)
-              }
-            } ~
-              getFromResourceDirectory("")
-          } ~
-            post {
-              path("api" / Segments) { s =>
-                extract(_.request.entity.asString) { e =>
-                  complete {
-                    AutowireServer.routes(
-                      autowire.Core.Request(s, read[Map[String, String]](e))
-                    )
-                  }
+                  )
                 }
               }
             }
+          } ~ path("compile") {
+            parameters('source, 'opt, 'template ?) { (source, opt, template) =>
+              val res = opt match {
+                case "fast" =>
+                  val result = write(fastOpt(template.getOrElse("default"), decodeSource(source)))
+                  HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                case "full" =>
+                  val result = write(fullOpt(template.getOrElse("default"), decodeSource(source)))
+                  HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                case _ =>
+                  HttpResponse(StatusCodes.BadRequest)
+              }
+              complete(res)
+            }
+          } ~ path("complete") {
+            parameters('source, 'flag, 'offset, 'template ?) { (source, flag, offset, template) =>
+              complete {
+                val result = write(Await.result(Compiler.autocomplete(template.getOrElse("default"), decodeSource(source), flag, offset.toInt), 100.seconds))
+                HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+              }
+            }
+          } ~ path("cache" / Segment) { res =>
+            respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L * 365))) {
+              complete {
+                val (hash, ext) = res.span(_ != '.')
+                val contentType = ext match {
+                  case ".css" => MediaTypes.`text/css`
+                  case ".js" => MediaTypes.`application/javascript`
+                  case _ => MediaTypes.`application/octet-stream`
+                }
+                Static.fetchResource(hash) match {
+                  case Some(src) =>
+                    HttpResponse(StatusCodes.OK, HttpEntity(contentType, src))
+                  case None =>
+                    HttpResponse(StatusCodes.NotFound)
+                }
+              }
+            }
+          } ~ getFromResourceDirectory("")
         }
       }
     }
+  }
+
+  def decodeSource(b64: String): String = {
+    implicit def scheme: B64Scheme = Base64.base64Url
+    new String(Base64.Decoder(b64).toByteArray, StandardCharsets.UTF_8)
   }
 
   def fastOpt(template: String, txt: String) = compileStuff(template, txt, _ |> Compiler.fastOpt |> Compiler.export)
@@ -117,7 +118,8 @@ object Server extends SimpleRoutingApp with Api {
   }
 
 
-  def compileStuff(templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
+  def compileStuff(templateId: String, code: String,
+    processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
     println(s"Using template $templateId")
     val output = mutable.Buffer.empty[String]
 

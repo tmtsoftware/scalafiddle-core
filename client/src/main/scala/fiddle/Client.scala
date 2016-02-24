@@ -2,7 +2,7 @@ package fiddle
 
 import java.net.URLDecoder
 
-import autowire._
+import fiddle.Base64.B64Scheme
 import fiddle.Client.RedLogger
 import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
@@ -15,6 +15,7 @@ import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.niocharset.StandardCharsets
 
 @JSExport("Checker")
 object Checker {
@@ -53,18 +54,6 @@ object Checker {
   def scheduleResets() = {
     dom.window.setInterval(() => Checker.reset(1000), 100)
   }
-}
-
-object Post extends autowire.Client[String, Reader, Writer] {
-  override def doCall(req: Request): Future[String] = {
-    val url = "/api/" + req.path.mkString("/")
-    Ajax.post(
-      url = url,
-      data = upickle.default.write(req.args)
-    ).map(_.responseText)
-  }
-  def read[Result: Reader](p: String) = upickle.default.read[Result](p)
-  def write[Result: Writer](r: Result) = upickle.default.write(r)
 }
 
 case class SourceFile(name: String, var code: String)
@@ -128,9 +117,14 @@ class Client(template: String) {
     Page.println(pre(cls := "error", errStr))
   }
 
+  def encodeSource(source: String): String = {
+    implicit def scheme: B64Scheme = Base64.base64Url
+    js.URIUtils.encodeURIComponent(Base64.Encoder(source.getBytes(StandardCharsets.UTF_8)).toBase64)
+  }
+
   def compileServer(template: String, code: String, opt: String): Future[CompilerResponse] = {
     Ajax.get(
-      url = s"/compile?template=$template&opt=$opt&source=${js.URIUtils.encodeURIComponent(code)}"
+      url = s"/compile?template=$template&opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
       read[CompilerResponse](res.responseText)
     } recover {
@@ -247,11 +241,16 @@ class Client(template: String) {
 
     val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
 
-    val f = Post[Api].completeStuff(template, code, flag, intOffset).call().recover {
+    val f = Ajax.get(
+      url = s"/complete?template=$template&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
+    ).map { res =>
+      read[List[(String,String)]](res.responseText)
+    } recover {
       case e: Throwable =>
         showError(e.toString)
         throw e
     }
+
     val res = await(f)
     res
   }

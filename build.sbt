@@ -35,9 +35,7 @@ lazy val client = project
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.9.0",
       "com.lihaoyi" %%% "scalatags" % "0.5.4",
-      "com.lihaoyi" %%% "scalarx" % "0.3.1",
       "com.lihaoyi" %%% "upickle" % "0.3.8",
-      "com.lihaoyi" %%% "autowire" % "0.2.5",
       "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided"
     ),
     relativeSourceMaps := true
@@ -84,7 +82,6 @@ lazy val server = project
       "org.webjars" % "jquery" % "2.1.0-2",
       "org.webjars" % "normalize.css" % "2.1.3",
       "com.lihaoyi" %% "upickle" % "0.3.8",
-      "com.lihaoyi" %% "autowire" % "0.2.5",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test",
       "io.apigee" % "rhino" % "1.7R5pre4" % "test"
     ),

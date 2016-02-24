@@ -2,7 +2,12 @@ package fiddle
 
 import scalatags.Text.all._
 import scalatags.Text.svgTags.{svg, use}
-import scalatags.Text.{svgAttrs => svga, tags2}
+import scalatags.Text.{tags2, svgAttrs => svga}
+import scala.collection.concurrent.TrieMap
+import scala.reflect.io.Streamable
+import java.security.MessageDigest
+
+import scala.scalajs.niocharset.StandardCharsets
 
 object Static {
   val aceFiles = Seq(
@@ -14,14 +19,24 @@ object Static {
     "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-tomorrow_night_eighties.js"
   )
 
+  val cssFiles = Seq(
+    "/META-INF/resources/webjars/normalize.css/2.1.3/normalize.css",
+    "/common.css"
+  )
+
+  val cache = TrieMap.empty[Seq[String], (String, Array[Byte])]
+
   final val layoutRE = """([vh])(\d\d)""".r
 
   def page(arg: String, srcFiles: Seq[String], paramMap: Map[String, String]) = {
-    val customCSS = paramMap.getOrElse("style", "")
+    val customStyle = paramMap.getOrElse("style", "")
     val themeCSS = paramMap.get("theme") match {
       case Some("dark") => "/styles-dark.css"
       case _ => "/styles-light.css"
     }
+    val allJS = joinResources(aceFiles ++ srcFiles, ".js", ";\n")
+    val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
+
     val layout = paramMap.get("layout") match {
       case Some(layoutRE(direction, ratio)) =>
         val editorSize = ratio.toInt
@@ -93,14 +108,17 @@ object Static {
         meta(charset := "utf-8"),
         meta(name := "viewport", content := "width=device-width, initial-scale=1"),
         tags2.title("ScalaFiddle"),
-
-        for (srcFile <- srcFiles ++ aceFiles) yield script(
-          `type` := "text/javascript", src := srcFile
-        ),
-        link(rel := "stylesheet", href := "/META-INF/resources/webjars/normalize.css/2.1.3/normalize.css"),
-        link(rel := "stylesheet", href := "/common.css"),
-        link(rel := "stylesheet", href := themeCSS),
-        scalatags.Text.tags2.style(raw(s"""#output{$customCSS}.ace_editor{$customCSS}""")),
+        script(`type` := "application/javascript", src := s"/cache/$allJS"),
+        link(rel := "stylesheet", href := s"/cache/$allCSS"),
+        /*
+                for (srcFile <- srcFiles ++ aceFiles) yield script(
+                  `type` := "text/javascript", src := srcFile
+                ),
+                link(rel := "stylesheet", href := "/META-INF/resources/webjars/normalize.css/2.1.3/normalize.css"),
+                link(rel := "stylesheet", href := "/common.css"),
+                link(rel := "stylesheet", href := themeCSS),
+        */
+        scalatags.Text.tags2.style(raw(s"""#output{$customStyle}.ace_editor{$customStyle}""")),
         scalatags.Text.tags2.style(raw(layout))
       ),
       body(
@@ -180,5 +198,27 @@ object Static {
         """
       ))
     ).toString()
+  }
+
+  def concatHash(resources: Seq[String], glueStr: String): (String, Array[Byte]) = {
+    val hash = MessageDigest.getInstance("MD5")
+    // files need a bit of glue between them to work properly in concatenated form
+    val glue = glueStr.getBytes
+    // read all resources and calculate both hash and concatenated string
+    val data = resources.map { res =>
+      val stream = getClass.getResourceAsStream(res)
+      val data = Streamable.bytes(stream) ++ glue
+      hash.update(data)
+      data
+    }.reduceLeft(_ ++ _)
+    (hash.digest().map("%02x".format(_)).mkString, data)
+  }
+
+  def joinResources(resources: Seq[String], extension: String, glueStr: String): String = {
+    cache.getOrElseUpdate(resources, concatHash(resources, glueStr))._1 + extension
+  }
+
+  def fetchResource(hash: String): Option[Array[Byte]] = {
+    cache.values.find(_._1 == hash).map(_._2)
   }
 }
