@@ -84,7 +84,8 @@ select {
     max-height: 100%;
     overflow: auto;
     color: #333;
-    padding-left: 2px;
+    padding-left: 0.5em;
+    padding-top: 0.2em;
     box-sizing: border-box;
     font-size: 14px;
     font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;

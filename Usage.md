@@ -74,9 +74,21 @@ by the template, but in some cases you'll want to leave that to the user.
 
 ## Visual customizing 
 
-Scala Fiddle supports _light_ (default) and _dark_ themes. You can choose between them using the `theme` parameter. To
-make the fiddle integrate even more nicely within your own web page, you can provide additional styling with the `style`
-parameter. Contents of this parameter should be CSS source code that will be applied to both editor and output `div`s.
+Scala Fiddle supports _light_ (default) and _dark_ themes. You can choose between them using the `theme` parameter. 
+
+```
+/embed?gist=3dfc003dedd4da5d821d&theme=light
+```
+![light theme](./doc/images/screenshot-light.png)
+
+```
+/embed?gist=3dfc003dedd4da5d821d&theme=dark
+```
+![dark theme](./doc/images/screenshot-dark.png)
+
+To make the fiddle integrate even more nicely within your own web page, you can provide additional styling with the
+`style` parameter. Contents of this parameter should be CSS source code that will be applied to both editor and output
+`div`s.
 
 For example to change the font you can use:
 
