@@ -58,7 +58,7 @@ a:visited {
 }
 
 #upload-icon:hover {
-    fill: hsla(0, 0%, 90%, 1);
+    fill: hsla(0, 0%, 40%, 1);
 }
 
 #help-icon {

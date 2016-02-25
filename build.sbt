@@ -8,7 +8,8 @@ val commonSettings = Seq(
     "-deprecation",
     "-feature"
   ),
-  scalaVersion := "2.11.7"
+  scalaVersion := "2.11.7",
+  version := "1.0.0-SNAPSHOT"
 )
 
 lazy val root = project.in(file("."))
@@ -62,8 +63,9 @@ lazy val runtime = project
 
 lazy val server = project
   .dependsOn(shared)
+  .enablePlugins(JavaAppPackaging)
+  .enablePlugins(sbtdocker.DockerPlugin)
   .settings(commonSettings)
-  .settings(packageArchetype.java_server: _*)
   .settings(Revolver.settings: _*)
   .settings(
     libraryDependencies ++= Seq(
@@ -87,5 +89,26 @@ lazy val server = project
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),
-    javaOptions in Revolver.reStart += "-Xmx2g"
+    javaOptions in Revolver.reStart += "-Xmx2g",
+    dockerfile in docker := {
+      val appDir: File = stage.value
+      val targetDir = "/app"
+
+      new Dockerfile {
+        from("java:8")
+        entryPoint(s"$targetDir/bin/${executableScriptName.value}")
+        copy(appDir, targetDir)
+        expose(8080)
+      }
+    },
+    imageNames in docker := Seq(
+      ImageName(
+        repository = "scalafiddle",
+        tag = Some("latest")
+      ),
+      ImageName(
+        repository = "scalafiddle",
+        tag = Some(version.value)
+      )
+    )
   )

@@ -36,6 +36,8 @@ object Static {
     }
     val allJS = joinResources(aceFiles ++ srcFiles, ".js", ";\n")
     val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
+    val jsURLs = s"/cache/$allJS" +: Config.extJS
+    val cssURLs = s"/cache/$allCSS" +: Config.extCSS
 
     val layout = paramMap.get("layout") match {
       case Some(layoutRE(direction, ratio)) =>
@@ -108,16 +110,8 @@ object Static {
         meta(charset := "utf-8"),
         meta(name := "viewport", content := "width=device-width, initial-scale=1"),
         tags2.title("ScalaFiddle"),
-        script(`type` := "application/javascript", src := s"/cache/$allJS"),
-        link(rel := "stylesheet", href := s"/cache/$allCSS"),
-        /*
-                for (srcFile <- srcFiles ++ aceFiles) yield script(
-                  `type` := "text/javascript", src := srcFile
-                ),
-                link(rel := "stylesheet", href := "/META-INF/resources/webjars/normalize.css/2.1.3/normalize.css"),
-                link(rel := "stylesheet", href := "/common.css"),
-                link(rel := "stylesheet", href := themeCSS),
-        */
+        for (jsURL <- jsURLs) yield script(`type` := "application/javascript", src := jsURL),
+        for (cssURL <- cssURLs) yield link(rel := "stylesheet", href := cssURL),
         scalatags.Text.tags2.style(raw(s"""#output{$customStyle}.ace_editor{$customStyle}""")),
         scalatags.Text.tags2.style(raw(layout))
       ),

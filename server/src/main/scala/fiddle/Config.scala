@@ -19,6 +19,9 @@ object Config {
   val clientFiles = config.getStringList("clientFiles").asScala
 
   val extLibs = config.getStringList("extLibs").asScala
+  val extJS = config.getStringList("extJS").asScala
+  val extCSS = config.getStringList("extCSS").asScala
+
   val libCache = config.getString("libCache")
 
   val templates = config.getConfigList("templates").asScala.map { co =>
