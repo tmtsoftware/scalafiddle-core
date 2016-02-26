@@ -29,7 +29,7 @@ import scala.tools.nsc.typechecker.Analyzer
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
 object Compiler {
-  val blacklist = Seq("<init>")
+  val blacklist = Set("<init>")
 
   val semantics = org.scalajs.core.tools.sem.Semantics.Defaults
 
@@ -164,8 +164,9 @@ object Compiler {
         ).find(_ != "").getOrElse("--Unknown--")
       }
       maybeMems.map((x: compiler.Member) => sig(x) -> x.sym.decodedName)
-        .filter(!blacklist.contains(_))
+        .filterNot(a => blacklist.contains(a._2))
         .distinct
+        .take(100)
     }
     compiler.askShutdown()
     res

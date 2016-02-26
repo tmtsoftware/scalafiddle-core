@@ -1,5 +1,7 @@
 package fiddle
 
+import java.util.{Properties, ResourceBundle}
+
 import com.typesafe.config.ConfigFactory
 import spray.http.HttpHeader
 import spray.http.HttpHeaders.RawHeader
@@ -12,6 +14,9 @@ case class Template(pre: String, post: String) {
 
 object Config {
   protected val config = ConfigFactory.load().getConfig("fiddle")
+  // read the generated version data
+  protected val versionProps = new Properties()
+  versionProps.load(getClass.getResourceAsStream("/version.properties"))
 
   val interface = config.getString("interface")
   val port = config.getInt("port")
@@ -31,5 +36,11 @@ object Config {
   val httpHeaders: List[HttpHeader] = config.getConfig("httpHeaders").entrySet().asScala.map { entry =>
     RawHeader(entry.getKey, entry.getValue.unwrapped().asInstanceOf[String])
   }.toList
+
+  val version = versionProps.getProperty("version")
+  val scalaVersion = versionProps.getProperty("scalaVersion")
+  val scalaMainVersion = scalaVersion.split('.').take(2).mkString(".")
+  val scalaJSVersion = versionProps.getProperty("scalaJSVersion")
+  val scalaJSMainVersion = scalaJSVersion.split('.').take(2).mkString(".")
 }
 

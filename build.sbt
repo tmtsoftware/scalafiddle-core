@@ -56,7 +56,7 @@ lazy val runtime = project
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.scala-js" %% "scalajs-library" % "0.6.7",
+      "org.scala-js" %% "scalajs-library" % scalaJSVersion,
       "org.scala-lang" % "scala-reflect" % scalaVersion.value
     )
   )
@@ -76,8 +76,8 @@ lazy val server = project
       "io.spray" %% "spray-caching" % "1.3.3",
       "io.spray" %% "spray-httpx" % "1.3.3",
       "io.spray" %% "spray-routing" % "1.3.3",
-      "org.scala-js" % "scalajs-compiler" % "0.6.7" cross CrossVersion.full,
-      "org.scala-js" %% "scalajs-tools" % "0.6.7",
+      "org.scala-js" % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
+      "org.scala-js" %% "scalajs-tools" % scalaJSVersion,
       "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
       "com.lihaoyi" %% "scalatags" % "0.5.4",
       "org.webjars" % "ace" % "1.2.2",
@@ -90,6 +90,17 @@ lazy val server = project
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),
     javaOptions in Revolver.reStart += "-Xmx2g",
+    resourceGenerators in Compile += Def.task {
+      // store build version in a property file
+      val file = (resourceManaged in Compile).value / "version.properties"
+      val contents =s"""
+           |version=${version.value}
+           |scalaVersion=${scalaVersion.value}
+           |scalaJSVersion=$scalaJSVersion
+           |""".stripMargin
+      IO.write(file, contents)
+      Seq(file)
+    }.taskValue,
     dockerfile in docker := {
       val appDir: File = stage.value
       val targetDir = "/app"
@@ -103,10 +114,12 @@ lazy val server = project
     },
     imageNames in docker := Seq(
       ImageName(
+        namespace = Some("ochrons"),
         repository = "scalafiddle",
         tag = Some("latest")
       ),
       ImageName(
+        namespace = Some("ochrons"),
         repository = "scalafiddle",
         tag = Some(version.value)
       )

@@ -1,17 +1,17 @@
 package fiddle
 
-import scala.reflect.io.{Streamable, VirtualDirectory}
-import java.util.zip.ZipInputStream
 import java.io._
-import java.nio.file.{Files, Paths, StandardOpenOption}
+import java.nio.file.Files
+import java.util.zip.ZipInputStream
 
 import akka.actor.ActorSystem
-import spray.http._
-import spray.client.pipelining._
 import org.scalajs.core.tools.io._
+import spray.client.pipelining._
+import spray.http._
 
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.reflect.io.{Streamable, VirtualDirectory}
 
 /**
   * Loads the jars that make up the classpath of the scala-js-fiddle
@@ -26,10 +26,10 @@ object Classpath {
   val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
   val baseLibs = Seq(
-    "/scala-library-2.11.7.jar",
-    "/scala-reflect-2.11.7.jar",
-    "/scalajs-library_2.11-0.6.7.jar",
-    "/page_sjs0.6_2.11-0.1-SNAPSHOT.jar"
+    s"/scala-library-${Config.scalaVersion}.jar",
+    s"/scala-reflect-${Config.scalaVersion}.jar",
+    s"/scalajs-library_${Config.scalaMainVersion}-${Config.scalaJSVersion}.jar",
+    s"/page_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}-${Config.version}.jar"
   )
 
   def loadExtLib(uri: String) = {
@@ -67,7 +67,7 @@ object Classpath {
     // load all external libs in parallel using spray-client
     val jarFiles = baseLibs.par.map { name =>
       val stream = getClass.getResourceAsStream(name)
-      println("Loading resource " + name + ": " + stream)
+      println(s"Loading resource $name")
       if (stream == null) {
         throw new Exception(s"Classpath loading failed, jar $name not found")
       }
