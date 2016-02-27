@@ -1,3 +1,7 @@
+#outer {
+    border: 1px solid #333;
+}
+
 .label {
     background-color: rgba(70, 70, 70, 0.8);
     color: #aaa;
@@ -11,8 +15,11 @@
     color: #333;
 }
 
+#editorwrapper {
+    border-color: #666;
+}
 #sandbox {
-    border-color: #666666;
+    border-color: #666;
 }
 
 #output {
@@ -20,7 +27,7 @@
 }
 
 #fiddleSelectorDiv {
-    border-bottom-color: #666;
+    border-bottom-color: #333;
 }
 
 body, pre {

@@ -81,11 +81,9 @@ lazy val server = project
       "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
       "com.lihaoyi" %% "scalatags" % "0.5.4",
       "org.webjars" % "ace" % "1.2.2",
-      "org.webjars" % "jquery" % "2.1.0-2",
       "org.webjars" % "normalize.css" % "2.1.3",
       "com.lihaoyi" %% "upickle" % "0.3.8",
-      "com.lihaoyi" %% "utest" % "0.3.0" % "test",
-      "io.apigee" % "rhino" % "1.7R5pre4" % "test"
+      "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),

@@ -77,6 +77,7 @@ object Server extends SimpleRoutingApp {
                 ctx.complete(res)
             }
           } ~ path("cache" / Segment) { res =>
+            // resources identified by a hash can be cached "forever" (a year in this case)
             respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L * 365))) {
               complete {
                 val (hash, ext) = res.span(_ != '.')

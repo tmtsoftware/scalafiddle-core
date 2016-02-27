@@ -1,13 +1,13 @@
 package fiddle
 
+import java.security.MessageDigest
+
+import scala.collection.concurrent.TrieMap
+import scala.reflect.io.Streamable
+import scala.util.Try
 import scalatags.Text.all._
 import scalatags.Text.svgTags.{svg, use}
 import scalatags.Text.{tags2, svgAttrs => svga}
-import scala.collection.concurrent.TrieMap
-import scala.reflect.io.Streamable
-import java.security.MessageDigest
-
-import scala.scalajs.niocharset.StandardCharsets
 
 object Static {
   val aceFiles = Seq(
@@ -29,6 +29,7 @@ object Static {
   final val layoutRE = """([vh])(\d\d)""".r
 
   def page(arg: String, srcFiles: Seq[String], paramMap: Map[String, String]) = {
+    val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "768").toInt).getOrElse(768)
     val customStyle = paramMap.getOrElse("style", "")
     val themeCSS = paramMap.get("theme") match {
       case Some("dark") => "/styles-dark.css"
@@ -39,72 +40,71 @@ object Static {
     val jsURLs = s"/cache/$allJS" +: Config.extJS
     val cssURLs = s"/cache/$allCSS" +: Config.extCSS
 
-    val layout = paramMap.get("layout") match {
-      case Some(layoutRE(direction, ratio)) =>
-        val editorSize = ratio.toInt
-        val outputSize = 100 - editorSize
-        val responsive =
-          s"""
-             |@media only screen and (max-device-width: 768px) {
-             |    #editorWrap {
-             |        top: 0;
-             |        bottom: $outputSize%;
-             |        left: 0;
-             |        right: 0;
-             |    }
-             |
-             |    #sandbox {
-             |        top: $editorSize%;
-             |        bottom: 0;
-             |        left: 0;
-             |        right: 0;
-             |        border-top: 1px solid;
-             |        border-left-width: 0;
-             |    }
-             |}
-          """.stripMargin
-        direction match {
-          case "h" =>
-
-            s"""
-               |#editorWrap {
-               |    top: 0;
-               |    bottom: 0;
-               |    left: 0;
-               |    right: $outputSize%;
-               |}
-               |#sandbox {
-               |    top: 0;
-               |    bottom: 0;
-               |    left: $editorSize%;
-               |    right: 0;
-               |    border-color: #333333;
-               |    border-left: 1px solid;
-               |}
-              """.stripMargin + responsive
-          case "v" =>
-
-            s"""
-               |#editorWrap {
-               |    top: 0;
-               |    bottom: $outputSize%;
-               |    left: 0;
-               |    right: 0;
-               |}
-               |
-               |#sandbox {
-               |    top: $editorSize%;
-               |    bottom: 0;
-               |    left: 0;
-               |    right: 0;
-               |    border-top: 1px solid;
-               |    border-left-width: 0;
-               |}
-               """.stripMargin + responsive
-        }
-      case _ => ""
+    val (direction, ratio) = paramMap.getOrElse("layout", "h50") match {
+      case layoutRE(d, r) => (d, r.toInt)
+      case _ => ("h", 50)
     }
-
+    val editorSize = ratio.toInt
+    val outputSize = 100 - editorSize
+    val commonLayout =
+      s"""
+         |#output{$customStyle}
+         |.ace_editor{$customStyle}
+         |@media only screen and (max-width: ${responsiveWidth}px) {
+         |    #editorWrap {
+         |        top: 0;
+         |        bottom: $outputSize%;
+         |        left: 0;
+         |        right: 0;
+         |        border-left: 1px solid;
+         |    }
+         |
+         |    #sandbox {
+         |        top: $editorSize%;
+         |        bottom: 0;
+         |        left: 0;
+         |        right: 0;
+         |    }
+         |    .label {
+         |        flex-direction: row;
+         |    }
+         |
+         |    .label svg {
+         |        margin: 0.1em 0.5em;
+         |    }
+         |
+         |    select {
+         |        font-size: 1.0em;
+         |    }
+         |}
+        """.stripMargin
+    val layout = direction match {
+      case "h" =>
+        s"""
+           |#editorWrap {
+           |    bottom: 0;
+           |    right: $outputSize%;
+           |}
+           |#sandbox {
+           |    top: 0;
+           |    left: $editorSize%;
+           |    border-left: 1px solid;
+           |}
+           """.stripMargin + commonLayout
+      case "v" =>
+        s"""
+           |#editorWrap {
+           |    bottom: $outputSize%;
+           |    right: 0;
+           |}
+           |
+           |#sandbox {
+           |    top: $editorSize%;
+           |    left: 0;
+           |    border-top: 0;
+           |}
+           """.stripMargin + commonLayout
+    }
     "<!DOCTYPE html>" + html(
       head(
         meta(charset := "utf-8"),
@@ -112,7 +112,7 @@ object Static {
         tags2.title("ScalaFiddle"),
         for (jsURL <- jsURLs) yield script(`type` := "application/javascript", src := jsURL),
         for (cssURL <- cssURLs) yield link(rel := "stylesheet", href := cssURL),
-        scalatags.Text.tags2.style(raw(s"""#output{$customStyle}.ace_editor{$customStyle}""")),
+        scalatags.Text.tags2.style(raw(s"""""")),
         scalatags.Text.tags2.style(raw(layout))
       ),
       body(
@@ -179,18 +179,7 @@ object Static {
       script(
         id := "compiled"
       ),
-      script(raw(arg)),
-      script(raw(
-        """
-            (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-                (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-              m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-              })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-              ga('create', 'UA-27464920-3', 'scala-js-fiddle.com');
-              ga('send', 'pageview');
-        """
-      ))
+      script(raw(arg))
     ).toString()
   }
 

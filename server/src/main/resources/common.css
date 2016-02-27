@@ -7,7 +7,20 @@
     right: 50%;
     box-sizing: border-box;
     padding-left: 3px;
+    border-color: #ccc;
+    border-left: 1px solid;
+    border-top: 1px solid;
+    border-bottom: 1px solid;
+}
 
+#sandbox {
+    margin: 0;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    right: 0;
+    border: 1px solid #ccc;
 }
 
 #editor {
@@ -39,6 +52,8 @@
 }
 
 .label {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     position: absolute;
     top: 0;
@@ -50,6 +65,10 @@
     text-align: right;
     font-size: 1em;
     font-family: "Lato", "Lucida Grande", "Lucida Sans Unicode", Tahoma, sans-serif;
+}
+
+.label > div {
+    /*flex: 1 1 auto;*/
 }
 
 .normal {
@@ -65,17 +84,6 @@ select {
 
 #fiddleSelector select {
     color: #333;
-}
-
-#sandbox {
-    margin: 0;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 50%;
-    right: 0;
-    border-color: #333333;
-    border-left: 1px solid;
 }
 
 #output {
@@ -195,31 +203,3 @@ svg {
         fill-opacity: 1;
     }
 }
-
-@media only screen and (max-device-width: 768px) {
-    #editorWrap {
-        top: 0;
-        bottom: 50%;
-        left: 0;
-        right: 0;
-    }
-
-    #sandbox {
-        top: 50%;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        border-top: 1px solid;
-        border-left-width: 0;
-    }
-
-    .label svg {
-        margin-bottom: 0.5em;
-        margin-top: 0.5em;
-    }
-
-    select {
-        font-size: 1.0em;
-    }
-}
-
