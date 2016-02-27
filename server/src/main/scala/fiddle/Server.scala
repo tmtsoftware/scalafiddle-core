@@ -37,7 +37,6 @@ object Server extends SimpleRoutingApp {
                   HttpEntity(
                     MediaTypes.`text/html`,
                     Static.page(
-                      s"Client().main()",
                       Config.clientFiles,
                       paramMap
                     )
@@ -49,8 +48,8 @@ object Server extends SimpleRoutingApp {
             parameters('source, 'opt, 'template ?) { (source, opt, template) =>
               ctx =>
                 val optimizer = opt match {
-                  case "fast" => FastOpt
-                  case "full" => FullOpt
+                  case "fast" => Optimizer.Fast
+                  case "full" => Optimizer.Full
                   case _ =>
                     throw new IllegalArgumentException(s"$opt is not a valid opt value")
                 }

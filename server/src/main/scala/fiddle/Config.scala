@@ -42,5 +42,6 @@ object Config {
   val scalaMainVersion = scalaVersion.split('.').take(2).mkString(".")
   val scalaJSVersion = versionProps.getProperty("scalaJSVersion")
   val scalaJSMainVersion = scalaJSVersion.split('.').take(2).mkString(".")
+  val aceVersion = versionProps.getProperty("aceVersion")
 }
 

@@ -7,16 +7,17 @@ import scala.reflect.io.Streamable
 import scala.util.Try
 import scalatags.Text.all._
 import scalatags.Text.svgTags.{svg, use}
-import scalatags.Text.{tags2, svgAttrs => svga}
+import scalatags.Text.tags2
+import scalatags.Text.svgAttrs.xLinkHref
 
 object Static {
   val aceFiles = Seq(
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/ace.js",
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/ext-language_tools.js",
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/ext-static_highlight.js",
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/mode-scala.js",
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-eclipse.js",
-    "/META-INF/resources/webjars/ace/1.2.2/src-min/theme-tomorrow_night_eighties.js"
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ace.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-language_tools.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-static_highlight.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/mode-scala.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-eclipse.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night_eighties.js"
   )
 
   val cssFiles = Seq(
@@ -24,17 +25,20 @@ object Static {
     "/common.css"
   )
 
+  // store concatenated and hashed resource blobs
   val cache = TrieMap.empty[Seq[String], (String, Array[Byte])]
 
   final val layoutRE = """([vh])(\d\d)""".r
 
-  def page(arg: String, srcFiles: Seq[String], paramMap: Map[String, String]) = {
-    val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "768").toInt).getOrElse(768)
+  def page(srcFiles: Seq[String], paramMap: Map[String, String]) = {
+    // apply layout parameters
+    val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "640").toInt).getOrElse(640)
     val customStyle = paramMap.getOrElse("style", "")
     val themeCSS = paramMap.get("theme") match {
       case Some("dark") => "/styles-dark.css"
       case _ => "/styles-light.css"
     }
+    val useFast = paramMap.contains("fast")
     val allJS = joinResources(aceFiles ++ srcFiles, ".js", ";\n")
     val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
     val jsURLs = s"/cache/$allJS" +: Config.extJS
@@ -52,18 +56,15 @@ object Static {
          |.ace_editor{$customStyle}
          |@media only screen and (max-width: ${responsiveWidth}px) {
          |    #editorWrap {
-         |        top: 0;
          |        bottom: $outputSize%;
-         |        left: 0;
          |        right: 0;
          |        border-left: 1px solid;
          |    }
          |
          |    #sandbox {
          |        top: $editorSize%;
-         |        bottom: 0;
          |        left: 0;
-         |        right: 0;
+         |        border-top: 0;
          |    }
          |    .label {
          |        flex-direction: row;
@@ -109,10 +110,10 @@ object Static {
       head(
         meta(charset := "utf-8"),
         meta(name := "viewport", content := "width=device-width, initial-scale=1"),
+        meta(name := "author", content := "Li Haoyi and Otto Chrons"),
         tags2.title("ScalaFiddle"),
         for (jsURL <- jsURLs) yield script(`type` := "application/javascript", src := jsURL),
         for (cssURL <- cssURLs) yield link(rel := "stylesheet", href := cssURL),
-        scalatags.Text.tags2.style(raw(s"""""")),
         scalatags.Text.tags2.style(raw(layout))
       ),
       body(
@@ -155,16 +156,16 @@ object Static {
           div(id := "editorContainer")(
             div(cls := "label",
               div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized", id := "run-icon")(
-                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_run"))
+                svg(width := 21, height := 21)(use(xLinkHref := "#sym_run"))
               ),
               div(title := "Reset", id := "reset-icon")(
-                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_reset"))
+                svg(width := 21, height := 21)(use(xLinkHref := "#sym_reset"))
               ),
               div(title := "Upload gist", id := "upload-icon")(
-                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_upload"))
+                svg(width := 21, height := 21)(use(xLinkHref := "#sym_upload"))
               ),
               div(title := "Help", id := "help-icon")(
-                svg(width := 21, height := 21)(use(svga.xLinkHref := "#sym_help"))
+                svg(width := 21, height := 21)(use(xLinkHref := "#sym_help"))
               )
             ),
             pre(id := "editor")
@@ -179,7 +180,7 @@ object Static {
       script(
         id := "compiled"
       ),
-      script(raw(arg))
+      script(raw(s"Client().main($useFast)"))
     ).toString()
   }
 

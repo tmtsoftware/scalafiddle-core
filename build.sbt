@@ -12,6 +12,13 @@ val commonSettings = Seq(
   version := "1.0.0-SNAPSHOT"
 )
 
+val sprayVersion = "1.3.3"
+val asyncVersion = "0.9.1"
+val aceVersion = "1.2.2"
+val domVersion = "0.9.0"
+val scalatagsVersion = "0.5.4"
+val upickleVersion = "0.3.8"
+
 lazy val root = project.in(file("."))
   .aggregate(client, page, server, runtime)
   .settings(
@@ -20,8 +27,7 @@ lazy val root = project.in(file("."))
         (packageBin in(page, Compile)).value,
         (fastOptJS in(client, Compile)).value.data
       )
-    },
-    scalaVersion := "2.11.7"
+    }
   )
 
 lazy val shared = project
@@ -34,10 +40,10 @@ lazy val client = project
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % "0.9.0",
-      "com.lihaoyi" %%% "scalatags" % "0.5.4",
-      "com.lihaoyi" %%% "upickle" % "0.3.8",
-      "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided"
+      "org.scala-js" %%% "scalajs-dom" % domVersion,
+      "com.lihaoyi" %%% "scalatags" % scalatagsVersion,
+      "com.lihaoyi" %%% "upickle" % upickleVersion,
+      "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided"
     ),
     relativeSourceMaps := true
   )
@@ -47,8 +53,8 @@ lazy val page = project
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % "0.9.0",
-      "com.lihaoyi" %%% "scalatags" % "0.5.4"
+      "org.scala-js" %%% "scalajs-dom" % domVersion,
+      "com.lihaoyi" %%% "scalatags" % scalatagsVersion
     )
   )
 
@@ -71,18 +77,18 @@ lazy val server = project
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
       "com.typesafe.akka" %% "akka-actor" % "2.3.2",
-      "io.spray" %% "spray-can" % "1.3.3",
-      "io.spray" %% "spray-client" % "1.3.3",
-      "io.spray" %% "spray-caching" % "1.3.3",
-      "io.spray" %% "spray-httpx" % "1.3.3",
-      "io.spray" %% "spray-routing" % "1.3.3",
+      "io.spray" %% "spray-can" % sprayVersion,
+      "io.spray" %% "spray-client" % sprayVersion,
+      "io.spray" %% "spray-caching" % sprayVersion,
+      "io.spray" %% "spray-httpx" % sprayVersion,
+      "io.spray" %% "spray-routing" % sprayVersion,
       "org.scala-js" % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js" %% "scalajs-tools" % scalaJSVersion,
-      "org.scala-lang.modules" %% "scala-async" % "0.9.1" % "provided",
-      "com.lihaoyi" %% "scalatags" % "0.5.4",
-      "org.webjars" % "ace" % "1.2.2",
+      "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided",
+      "com.lihaoyi" %% "scalatags" % scalatagsVersion,
+      "org.webjars" % "ace" % aceVersion,
       "org.webjars" % "normalize.css" % "2.1.3",
-      "com.lihaoyi" %% "upickle" % "0.3.8",
+      "com.lihaoyi" %% "upickle" % upickleVersion,
       "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
@@ -95,6 +101,7 @@ lazy val server = project
            |version=${version.value}
            |scalaVersion=${scalaVersion.value}
            |scalaJSVersion=$scalaJSVersion
+           |aceVersion=$aceVersion
            |""".stripMargin
       IO.write(file, contents)
       Seq(file)

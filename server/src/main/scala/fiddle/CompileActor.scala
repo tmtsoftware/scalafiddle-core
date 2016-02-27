@@ -7,11 +7,13 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-sealed trait Optimizer
+sealed abstract class Optimizer
 
-case object FastOpt extends Optimizer
+object Optimizer {
+  case object Fast extends Optimizer
 
-case object FullOpt extends Optimizer
+  case object Full extends Optimizer
+}
 
 case class CompileSource(templateId: String, sourceCode: String, optimizer: Optimizer)
 
@@ -21,8 +23,8 @@ class CompileActor extends Actor {
   def receive = {
     case CompileSource(templateId, sourceCode, optimizer) =>
       val opt = optimizer match {
-        case FastOpt => Compiler.fastOpt _
-        case FullOpt => Compiler.fullOpt _
+        case Optimizer.Fast => Compiler.fastOpt _
+        case Optimizer.Full => Compiler.fullOpt _
       }
       sender() ! doCompile(templateId, sourceCode, _ |> opt |> Compiler.export)
 
@@ -30,7 +32,7 @@ class CompileActor extends Actor {
       sender() ! Await.result(Compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds)
   }
 
-  val errorStart = """^Main.scala:(\d+): *(\w+): *(.*)""".r
+  val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r
   val errorEnd = """ *\^ *$""".r
 
   def parseErrors(preRows: Int, log: String): Seq[EditorAnnotation] = {

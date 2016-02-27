@@ -46,7 +46,7 @@ object Compiler {
     * Converts a bunch of bytes into Scalac's weird VirtualFile class
     */
   def makeFile(src: Array[Byte]) = {
-    val singleFile = new io.VirtualFile("Main.scala")
+    val singleFile = new io.VirtualFile("ScalaFiddle.scala")
     val output = singleFile.output
     output.write(src)
     output.close()

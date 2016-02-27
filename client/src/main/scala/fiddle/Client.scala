@@ -335,7 +335,7 @@ object Client {
   }
 
   @JSExport
-  def main(): Unit = task * async {
+  def main(useFast: Boolean = false): Unit = task * async {
     clear()
     Editor.initEditor
     val client = new Client(templateId)
@@ -346,14 +346,20 @@ object Client {
       client.showStatus("Loading")
       val sources = await(load(gistId, files))
       client.setSources(sources)
-      client.fastOpt
+      if(useFast)
+        client.fastOpt
+      else
+        client.fullOpt
     } else if (queryParams.contains("source")) {
       val srcCode = queryParams("source")
       client.showStatus("Loading")
       // check for sub-fiddles
       val sources = await(Future(parseFiddles(srcCode)))
       client.setSources(sources)
-      client.fastOpt
+      if(useFast)
+        client.fastOpt
+      else
+        client.fullOpt
     }
   }
 
