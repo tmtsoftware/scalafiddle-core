@@ -203,3 +203,9 @@ svg {
         fill-opacity: 1;
     }
 }
+
+@media only screen and (max-device-width: 640px) {
+    select {
+        font-size: 1.0em;
+    }
+}

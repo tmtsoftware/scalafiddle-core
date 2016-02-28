@@ -54,31 +54,25 @@ object Static {
       s"""
          |#output{$customStyle}
          |.ace_editor{$customStyle}
-         |@media only screen and (max-width: ${responsiveWidth}px) {
-         |    #editorWrap {
-         |        bottom: $outputSize%;
-         |        right: 0;
-         |        border-left: 1px solid;
-         |    }
-         |
-         |    #sandbox {
-         |        top: $editorSize%;
-         |        left: 0;
-         |        border-top: 0;
-         |    }
-         |    .label {
-         |        flex-direction: row;
-         |    }
-         |
-         |    .label svg {
-         |        margin: 0.1em 0.5em;
-         |    }
-         |
-         |    select {
-         |        font-size: 1.0em;
-         |    }
-         |}
         """.stripMargin
+    val vertCSS =
+      s"""
+         |#editorWrap {
+         |    bottom: $outputSize%;
+         |    right: 0;
+         |}
+         |#sandbox {
+         |    top: $editorSize%;
+         |    left: 0;
+         |    border-top: 0;
+         |}
+         |.label {
+         |    flex-direction: row;
+         |}
+         |.label svg {
+         |    margin: 0.1em 0.5em;
+         |}
+         """.stripMargin
     val layout = direction match {
       case "h" =>
         s"""
@@ -91,20 +85,12 @@ object Static {
            |    left: $editorSize%;
            |    border-left: 1px solid;
            |}
+           |@media only screen and (max-width: ${responsiveWidth}px) {
+           |$vertCSS
+           |}
            """.stripMargin + commonLayout
       case "v" =>
-        s"""
-           |#editorWrap {
-           |    bottom: $outputSize%;
-           |    right: 0;
-           |}
-           |
-           |#sandbox {
-           |    top: $editorSize%;
-           |    left: 0;
-           |    border-top: 0;
-           |}
-           """.stripMargin + commonLayout
+        vertCSS + commonLayout
     }
     "<!DOCTYPE html>" + html(
       head(

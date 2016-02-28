@@ -8,11 +8,12 @@ compiled to JavaScript on the server and then run in the browser.
 To embed a fiddle in your web page, put it in an `iframe` tag:
 
 ```html
-<iframe src="<fiddlehost>/embed?<parameters>"></iframe>
+<iframe src="<fiddlehost>/embed?<parameters>" height="300" frameborder="0" style="width: 100%; overflow: hidden;"></iframe>
 ```
 
-You can use normal `iframe` attributes like `width` and `height` to control the size of the fiddle component. Scala
-Fiddle will automatically fill the entire space allocated for the `iframe`.
+You can use normal `iframe` attributes like `style`, `frameborder` and `height` to control the size of the fiddle
+component. Scala Fiddle will automatically fill the entire space allocated for the `iframe` and creates a thin border
+around itself.
 
 ## Providing content
 
@@ -101,3 +102,6 @@ automatically switches to vertical 50:50 layout on small screens of mobile devic
 use the `layout` parameter with either `hXX` or `vXX` values, where `XX` denotes the percentage allocated to the code
 editor. For example `layout=v70` creates a vertical layout with a 70:30 split between code and output. Even with a 
 custom horizontal layout, it will switch to a vertical layout on small screens (using the provided split, though).
+
+To control when the responsive layout switches to a vertical orientation, use `responsiveWidth`. This defines (in
+pixels) the minimum width for using a horizontal layout. By default this value is 640 pixels.

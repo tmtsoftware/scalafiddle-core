@@ -15,6 +15,7 @@ import upickle.default._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.scalajs.niocharset.StandardCharsets
+import scala.util.{Failure, Success, Try}
 
 object Server extends SimpleRoutingApp {
   implicit val system = ActorSystem()
@@ -54,10 +55,13 @@ object Server extends SimpleRoutingApp {
                     throw new IllegalArgumentException(s"$opt is not a valid opt value")
                 }
                 val res = ask(compilerRouter, CompileSource(template.getOrElse("default"), decodeSource(source), optimizer))
-                  .mapTo[CompilerResponse]
-                  .map { cr =>
-                    val result = write(cr)
-                    HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                  .mapTo[Try[CompilerResponse]]
+                  .map {
+                    case Success(cr) =>
+                      val result = write(cr)
+                      HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                    case Failure(ex) =>
+                      HttpResponse(StatusCodes.BadRequest, ex.getMessage.take(64))
                   } recover {
                   case e: Exception =>
                     HttpResponse(StatusCodes.InternalServerError)
@@ -68,10 +72,13 @@ object Server extends SimpleRoutingApp {
             parameters('source, 'flag, 'offset, 'template ?) { (source, flag, offset, template) =>
               ctx =>
                 val res = ask(compilerRouter, CompleteSource(template.getOrElse("default"), decodeSource(source), flag, offset.toInt))
-                  .mapTo[List[(String, String)]]
-                  .map { cr =>
-                    val result = write(cr)
-                    HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                  .mapTo[Try[List[(String, String)]]]
+                  .map {
+                    case Success(cr) =>
+                      val result = write(cr)
+                      HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                    case Failure(ex) =>
+                      HttpResponse(StatusCodes.BadRequest, ex.getMessage.take(64))
                   }
                 ctx.complete(res)
             }
@@ -93,7 +100,7 @@ object Server extends SimpleRoutingApp {
                 }
               }
             }
-          } ~ getFromResourceDirectory("")
+          } ~ getFromResourceDirectory("/web")
         }
       }
     }

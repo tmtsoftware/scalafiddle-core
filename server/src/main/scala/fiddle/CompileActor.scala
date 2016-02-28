@@ -6,6 +6,7 @@ import org.scalajs.core.tools.io.VirtualScalaJSIRFile
 import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.util.Try
 
 sealed abstract class Optimizer
 
@@ -26,10 +27,10 @@ class CompileActor extends Actor {
         case Optimizer.Fast => Compiler.fastOpt _
         case Optimizer.Full => Compiler.fullOpt _
       }
-      sender() ! doCompile(templateId, sourceCode, _ |> opt |> Compiler.export)
+      sender() ! Try(doCompile(templateId, sourceCode, _ |> opt |> Compiler.export))
 
     case CompleteSource(templateId, sourceCode, flag, offset) =>
-      sender() ! Await.result(Compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds)
+      sender() ! Try(Await.result(Compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds))
   }
 
   val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r

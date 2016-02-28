@@ -58,7 +58,7 @@ object Checker {
 
 case class SourceFile(name: String, var code: String)
 
-class Client(template: String) {
+class Client(templateId: String, envId: String) {
   var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
   var currentSource = sourceFiles.head.name
 
@@ -124,10 +124,13 @@ class Client(template: String) {
 
   def compileServer(template: String, code: String, opt: String): Future[CompilerResponse] = {
     Ajax.get(
-      url = s"/compile?template=$template&opt=$opt&source=${encodeSource(code)}"
+      url = s"/compile?env=$envId&template=$template&opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
       read[CompilerResponse](res.responseText)
     } recover {
+      case e: dom.ext.AjaxException =>
+        showError(s"Error: ${e.xhr.responseText}")
+        throw e
       case e: Throwable =>
         showError(e.toString)
         throw e
@@ -136,12 +139,12 @@ class Client(template: String) {
 
   def fullOpt = {
     beginCompilation()
-    command.update(compileServer(template, editor.code, "full"))
+    command.update(compileServer(templateId, editor.code, "full"))
   }
 
   def fastOpt = {
     beginCompilation()
-    command.update(compileServer(template, editor.code, "fast"))
+    command.update(compileServer(templateId, editor.code, "fast"))
   }
 
   val runIcon: HTMLElement = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
@@ -242,10 +245,13 @@ class Client(template: String) {
     val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
 
     val f = Ajax.get(
-      url = s"/complete?template=$template&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
+      url = s"/complete?env=$envId&template=$templateId&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
       read[List[(String,String)]](res.responseText)
     } recover {
+      case e: dom.ext.AjaxException =>
+        showError(s"Error: ${e.xhr.responseText}")
+        throw e
       case e: Throwable =>
         showError(e.toString)
         throw e
@@ -298,6 +304,7 @@ object Client {
 
   val queryParams = parseUriParameters(dom.window.location.search)
   val templateId = queryParams.getOrElse("template", "default")
+  val envId = queryParams.getOrElse("env", "default")
 
   dom.console.log(s"queryParams: $queryParams, templateId: $templateId")
 
@@ -338,7 +345,7 @@ object Client {
   def main(useFast: Boolean = false): Unit = task * async {
     clear()
     Editor.initEditor
-    val client = new Client(templateId)
+    val client = new Client(templateId, envId)
     // is a gist specified?
     if (queryParams.contains("gist")) {
       val gistId = queryParams("gist")
