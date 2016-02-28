@@ -56,11 +56,15 @@ object Checker {
   }
 }
 
-case class SourceFile(name: String, var code: String)
+case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil, template: Option[String] = None)
 
 class Client(templateId: String, envId: String) {
   var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
   var currentSource = sourceFiles.head.name
+
+  def currentSourceFile = sourceFiles.find(_.name == currentSource).get
+
+  def currentTemplate = currentSourceFile.template.getOrElse(templateId)
 
   Client.scheduleResets()
   val command = Channel[Future[CompilerResponse]]()
@@ -75,8 +79,8 @@ class Client(templateId: String, envId: String) {
       js.eval("ScalaFiddle().main()")
     } catch {
       case e: Throwable =>
-        Client.logError(e.toString())
-        showError(e.toString())
+        Client.logError(e.toString)
+        showError(e.toString)
     }
   }
 
@@ -118,13 +122,16 @@ class Client(templateId: String, envId: String) {
   }
 
   def encodeSource(source: String): String = {
+    val srcFile = currentSourceFile
+    // use map instead of mkString to prevent empty prefix from generating a single line
+    val fullSource = srcFile.prefix.map(_ + "\n").mkString + source + srcFile.postfix.mkString("","\n","\n")
     implicit def scheme: B64Scheme = Base64.base64Url
-    js.URIUtils.encodeURIComponent(Base64.Encoder(source.getBytes(StandardCharsets.UTF_8)).toBase64)
+    js.URIUtils.encodeURIComponent(Base64.Encoder(fullSource.getBytes(StandardCharsets.UTF_8)).toBase64)
   }
 
-  def compileServer(template: String, code: String, opt: String): Future[CompilerResponse] = {
+  def compileServer(code: String, opt: String): Future[CompilerResponse] = {
     Ajax.get(
-      url = s"/compile?env=$envId&template=$template&opt=$opt&source=${encodeSource(code)}"
+      url = s"/compile?env=$envId&template=$currentTemplate&opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
       read[CompilerResponse](res.responseText)
     } recover {
@@ -139,12 +146,12 @@ class Client(templateId: String, envId: String) {
 
   def fullOpt = {
     beginCompilation()
-    command.update(compileServer(templateId, editor.code, "full"))
+    command.update(compileServer(editor.code, "full"))
   }
 
   def fastOpt = {
     beginCompilation()
-    command.update(compileServer(templateId, editor.code, "fast"))
+    command.update(compileServer(editor.code, "fast"))
   }
 
   val runIcon: HTMLElement = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
@@ -182,10 +189,34 @@ class Client(templateId: String, envId: String) {
   def showStatus(status: String) =
     outputTag.innerHTML = status
 
+  val templateOverride = """\s*// \$Template (\w.+)""".r
+  val fiddleStart = """\s*// \$FiddleStart\s*$""".r
+  val fiddleEnd = """\s*// \$FiddleEnd\s*$""".r
+
+  // separate source code into pre,main,post blocks
+  def extractCode(src: SourceFile): SourceFile = {
+    val lines = src.code.split('\n')
+    val (template, pre, main, post) = lines.foldLeft((Option.empty[String], List.empty[String],List.empty[String],List.empty[String])) {
+      case ((customTemplate, preList, mainList, postList), line) => line match {
+        case templateOverride(name) =>
+          (Some(name), preList, mainList, postList)
+        case fiddleStart() =>
+          (customTemplate, mainList ::: preList, Nil, Nil)
+        case fiddleEnd() =>
+          (customTemplate, preList, mainList, line :: postList)
+        case l if postList.nonEmpty =>
+          (customTemplate, preList, mainList, line :: postList)
+        case _ =>
+          (customTemplate, preList, line :: mainList, postList)
+      }
+    }
+    SourceFile(src.name, main.reverse.mkString("","\n","\n"), pre.reverse, post.reverse, template)
+  }
+
   def setSources(sources: Seq[SourceFile]): Unit = {
     import scalatags.JsDom.all._
 
-    sourceFiles = sources
+    sourceFiles = sources.map(extractCode)
     fiddleSelector.innerHTML = ""
     sourceFiles.foreach { source =>
       fiddleSelector.add(option(value := source.name)(source.name).render)
@@ -209,7 +240,7 @@ class Client(templateId: String, envId: String) {
 
   def updateSource(code: String): Unit = {
     sourceFiles = sourceFiles.collect {
-      case SourceFile(name, _) if name == currentSource => SourceFile(name, code)
+      case sf: SourceFile if sf.name == currentSource => sf.copy(code = code)
       case sf => sf
     }
   }
@@ -218,11 +249,12 @@ class Client(templateId: String, envId: String) {
 
     res.map { response =>
       endCompilation()
-      editor.setAnnotations(response.annotations)
+      val prefixLines = currentSourceFile.prefix.size
+      editor.setAnnotations(response.annotations.map(a => a.copy(row = a.row - prefixLines)))
       if (response.jsCode.isEmpty) {
         // show compiler errors in output
         val allErrors = response.annotations.map { ann =>
-          s"Main.scala:${ann.row + 1}: ${ann.tpe}: ${ann.text.mkString("\n")}"
+          s"ScalaFiddle.scala:${ann.row + 1 - prefixLines}: ${ann.tpe}: ${ann.text.mkString("\n")}"
         }.mkString("\n")
         showError(allErrors)
       }
@@ -245,7 +277,7 @@ class Client(templateId: String, envId: String) {
     val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
 
     val f = Ajax.get(
-      url = s"/complete?env=$envId&template=$templateId&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
+      url = s"/complete?env=$envId&template=$currentTemplate&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
       read[List[(String,String)]](res.responseText)
     } recover {
@@ -290,7 +322,7 @@ object Client {
 
   dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
     dom.console.log("dom.onerror")
-    Client.logError(event.toString())
+    Client.logError(event.toString)
   }
 
   def parseUriParameters(search: String): Map[String, String] = {
@@ -372,13 +404,8 @@ object Client {
 
   val defaultCode =
     """
-      |import scalajs.js
-      |object ScalaFiddle extends js.JSApp {
-      |  def main() = {
-      |    println("Looks like there was an error loading the default Gist!")
-      |    println("Loading an empty application so you can get started")
-      |  }
-      |}
+      |println("Looks like there was an error loading the default Gist!")
+      |println("Loading an empty application so you can get started")
     """.stripMargin
 
   def load(gistId: String, files: Seq[String]): Future[Seq[SourceFile]] = {
