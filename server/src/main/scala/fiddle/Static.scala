@@ -149,10 +149,10 @@ object Static {
               ),
               div(title := "Upload gist", id := "upload-icon")(
                 svg(width := 21, height := 21)(use(xLinkHref := "#sym_upload"))
-              ),
+              )/*,
               div(title := "Help", id := "help-icon")(
                 svg(width := 21, height := 21)(use(xLinkHref := "#sym_help"))
-              )
+              )*/
             ),
             pre(id := "editor")
           )

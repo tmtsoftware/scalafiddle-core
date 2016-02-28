@@ -55,7 +55,8 @@ object Checker {
   }
 }
 
-case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil, template: Option[String] = None)
+case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil,
+  template: Option[String] = None)
 
 class Client(templateId: String, envId: String) {
   var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
@@ -120,13 +121,15 @@ class Client(templateId: String, envId: String) {
     Page.println(pre(cls := "error", errStr))
   }
 
+  def reconstructSource(source: String, srcFile: SourceFile): String = {
+    // use map instead of mkString to prevent an empty list from generating a single line
+    srcFile.prefix.map(_ + "\n").mkString + source + srcFile.postfix.map(_ + "\n").mkString
+  }
+
   def encodeSource(source: String): String = {
-    val srcFile = currentSourceFile
-    // use map instead of mkString to prevent empty prefix from generating a single line
-    val fullSource = srcFile.prefix.map(_ + "\n").mkString + source + srcFile.postfix.mkString("","\n","\n")
     import com.github.marklister.base64.Base64._
     implicit def scheme: B64Scheme = base64Url
-    Encoder(fullSource.getBytes(StandardCharsets.UTF_8)).toBase64
+    Encoder(reconstructSource(source, currentSourceFile).getBytes(StandardCharsets.UTF_8)).toBase64
   }
 
   def compileServer(code: String, opt: String): Future[CompilerResponse] = {
@@ -196,12 +199,12 @@ class Client(templateId: String, envId: String) {
   // separate source code into pre,main,post blocks
   def extractCode(src: SourceFile): SourceFile = {
     val lines = src.code.split('\n')
-    val (template, pre, main, post) = lines.foldLeft((Option.empty[String], List.empty[String],List.empty[String],List.empty[String])) {
+    val (template, pre, main, post) = lines.foldLeft((Option.empty[String], List.empty[String], List.empty[String], List.empty[String])) {
       case ((customTemplate, preList, mainList, postList), line) => line match {
         case templateOverride(name) =>
-          (Some(name), preList, mainList, postList)
+          (Some(name), line :: preList, mainList, postList)
         case fiddleStart() =>
-          (customTemplate, mainList ::: preList, Nil, Nil)
+          (customTemplate, line :: mainList ::: preList, Nil, Nil)
         case fiddleEnd() =>
           (customTemplate, preList, mainList, line :: postList)
         case l if postList.nonEmpty =>
@@ -210,7 +213,7 @@ class Client(templateId: String, envId: String) {
           (customTemplate, preList, line :: mainList, postList)
       }
     }
-    SourceFile(src.name, main.reverse.mkString("","\n","\n"), pre.reverse, post.reverse, template)
+    SourceFile(src.name, main.reverse.mkString("", "\n", "\n"), pre.reverse, post.reverse, template)
   }
 
   def setSources(sources: Seq[SourceFile]): Unit = {
@@ -279,7 +282,7 @@ class Client(templateId: String, envId: String) {
     val f = Ajax.get(
       url = s"/complete?env=$envId&template=$currentTemplate&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
-      read[List[(String,String)]](res.responseText)
+      read[List[(String, String)]](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
         showError(s"Error: ${e.xhr.responseText}")
@@ -297,7 +300,7 @@ class Client(templateId: String, envId: String) {
     val files = new js.Object().asInstanceOf[js.Dynamic]
     updateSource(editor.code)
     sourceFiles.foreach { src =>
-      files.updateDynamic(src.name)(JsVal.obj("content" -> src.code))
+      files.updateDynamic(src.name)(JsVal.obj("content" -> reconstructSource(src.code, src)))
     }
     val data = JsVal.obj(
       "description" -> "ScalaFiddle gist",
@@ -308,10 +311,20 @@ class Client(templateId: String, envId: String) {
     val res = await(Ajax.post("https://api.github.com/gists", data = data))
     val result = JsVal.parse(res.responseText)
     import scalatags.JsDom.all._
-    val url = s"https://gist.github.com/anonymous/${result("id").asString}"
+    val gistId = result("id").asString
+    val url = s"https://gist.github.com/anonymous/$gistId"
     showStatus("Uploaded")
     Page.clear()
-    Page.println("ScalaFiddle uploaded to ", a(href := url, target := "_blank")(url))
+    Page.println("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
+    // build a link to show the uploaded source in Scala Fiddle
+    val params = Client.queryParams
+      .filterKeys(name => name != "gist" && name != "source")
+      .updated("gist", gistId)
+      .updated("files", sourceFiles.map(_.name).mkString(","))
+      .map { case (k, v) => s"$k=${js.URIUtils.encodeURIComponent(v)}" }
+      .mkString("&")
+    val sfUrl = s"/embed?$params"
+    Page.println("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
     dom.console.log(s"ScalaFiddle uploaded to $url")
   }
 }
@@ -385,7 +398,7 @@ object Client {
       client.showStatus("Loading")
       val sources = await(load(gistId, files))
       client.setSources(sources)
-      if(useFast)
+      if (useFast)
         client.fastOpt
       else
         client.fullOpt
@@ -395,7 +408,7 @@ object Client {
       // check for sub-fiddles
       val sources = await(Future(parseFiddles(srcCode)))
       client.setSources(sources)
-      if(useFast)
+      if (useFast)
         client.fastOpt
       else
         client.fullOpt
