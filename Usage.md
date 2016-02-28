@@ -103,8 +103,10 @@ def main() = {
 ### Inline templates
 
 In addition to the basic templates provided on the server, a fiddle can define its own template consisting of a prefix
-and postfix that are hidden from the user. This can be useful when you want to demonstrate some concept that requires
-a bit of boilerplate around it to function properly, but you don't want the user to worry about that.
+and postfix that are hidden from the user. The inline template complements the server template (one is defined within
+the other), so both can be used at the same time. Inline templates can be useful when you want to demonstrate some
+concept that requires a bit of boilerplate around it to function properly, but you don't want the user to worry about
+that.
 
 To mark the beginning and ending of user editable content, use `// $FiddleStart` and `// $FiddleEnd` markers.
 
@@ -164,6 +166,8 @@ For example to change the font you can use:
 /embed?gist=3dfc003dedd4da5d821d&style=font-family:"Lucida%20Console",monospace;font-size:18px;
 ```
 
+### Layouts
+
 You may also customize the layout of the fiddle. By default the layout is horizontal with 50:50 split, which
 automatically switches to vertical 50:50 layout on small screens of mobile devices. To override the default layout,
 use the `layout` parameter with either `hXX` or `vXX` values, where `XX` denotes the percentage allocated to the code
@@ -173,3 +177,10 @@ custom horizontal layout, it will switch to a vertical layout on small screens (
 To control when the responsive layout switches to a vertical orientation, use `responsiveWidth`. This defines (in
 pixels) the minimum width for using a horizontal layout. By default this value is 640 pixels.
 
+Layout with a horizontal 66/34% split:
+
+![Horz layout](./doc/images/screenshot-h66.png)
+
+Layout with a vertical 66/34% split, which also reflects what the previous layout looks like on a narrow mobile screen.
+
+![Vert layout](./doc/images/screenshot-v66.png)
