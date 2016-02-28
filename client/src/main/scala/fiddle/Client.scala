@@ -2,7 +2,6 @@ package fiddle
 
 import java.net.URLDecoder
 
-import fiddle.Base64.B64Scheme
 import fiddle.Client.RedLogger
 import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
@@ -125,8 +124,9 @@ class Client(templateId: String, envId: String) {
     val srcFile = currentSourceFile
     // use map instead of mkString to prevent empty prefix from generating a single line
     val fullSource = srcFile.prefix.map(_ + "\n").mkString + source + srcFile.postfix.mkString("","\n","\n")
-    implicit def scheme: B64Scheme = Base64.base64Url
-    js.URIUtils.encodeURIComponent(Base64.Encoder(fullSource.getBytes(StandardCharsets.UTF_8)).toBase64)
+    import com.github.marklister.base64.Base64._
+    implicit def scheme: B64Scheme = base64Url
+    Encoder(fullSource.getBytes(StandardCharsets.UTF_8)).toBase64
   }
 
   def compileServer(code: String, opt: String): Future[CompilerResponse] = {

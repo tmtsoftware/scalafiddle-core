@@ -43,6 +43,7 @@ lazy val client = project
       "org.scala-js" %%% "scalajs-dom" % domVersion,
       "com.lihaoyi" %%% "scalatags" % scalatagsVersion,
       "com.lihaoyi" %%% "upickle" % upickleVersion,
+      "com.github.marklister" %%% "base64" % "0.2.2",
       "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided"
     ),
     relativeSourceMaps := true
@@ -89,6 +90,7 @@ lazy val server = project
       "org.webjars" % "ace" % aceVersion,
       "org.webjars" % "normalize.css" % "2.1.3",
       "com.lihaoyi" %% "upickle" % upickleVersion,
+      "com.github.marklister" %% "base64" % "0.2.2",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",

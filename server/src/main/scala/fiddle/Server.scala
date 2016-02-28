@@ -4,7 +4,6 @@ import akka.actor.{ActorSystem, Props}
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.Timeout
-import fiddle.Base64.B64Scheme
 import spray.http.CacheDirectives.`max-age`
 import spray.http.HttpHeaders.`Cache-Control`
 import spray.http._
@@ -107,7 +106,8 @@ object Server extends SimpleRoutingApp {
   }
 
   def decodeSource(b64: String): String = {
-    implicit def scheme: B64Scheme = Base64.base64Url
-    new String(Base64.Decoder(b64).toByteArray, StandardCharsets.UTF_8)
+    import com.github.marklister.base64.Base64._
+    implicit def scheme: B64Scheme = base64Url
+    new String(Decoder(b64).toByteArray, StandardCharsets.UTF_8)
   }
 }

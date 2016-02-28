@@ -15,6 +15,23 @@ You can use normal `iframe` attributes like `style`, `frameborder` and `height` 
 component. Scala Fiddle will automatically fill the entire space allocated for the `iframe` and creates a thin border
 around itself.
 
+### Parameters
+
+Scala Fiddle can be customized by providing it with parameters in the URL. These parameters are discussed in more detail
+later in this document, but here is a short overview.
+
+|Parameter|Description|
+|----|----|
+|source|Source code for the fiddle.|
+|gist|Load source file(s) from a Github gist.|
+|files|List of files to load from a gist.|
+|template|Select a template for the fiddle.|
+|env|Select an environment for the fiddle.|
+|theme|Visual theme.|
+|style|Custom CSS styling.|
+|layout|Choose between horizontal and vertical layout.|
+|responsiveWidth|Minimum width for horizontal layout.|
+
 ## Providing content
 
 An empty fiddle may be a nice playground, but usually you'll want to provide some content in it. There are two ways
@@ -71,7 +88,55 @@ _default_ template provides the usual imports and wraps the code in the `ScalaFi
 that it can be directly executed.
 
 All fiddles must have an `object ScalaFiddle extends js.JSApp` with a `main` method to work. Usually this is provided
-by the template, but in some cases you'll want to leave that to the user.
+by the template, but in some cases you may want to leave that to the user.
+
+Template can be specified with a `template` parameter in the URL, or by overriding it in the code itself using a special
+command:
+
+```scala
+// $Template main
+def main() = {
+  println("In the main!")
+}
+```
+
+### Inline templates
+
+In addition to the basic templates provided on the server, a fiddle can define its own template consisting of a prefix
+and postfix that are hidden from the user. This can be useful when you want to demonstrate some concept that requires
+a bit of boilerplate around it to function properly, but you don't want the user to worry about that.
+
+To mark the beginning and ending of user editable content, use `// $FiddleStart` and `// $FiddleEnd` markers.
+
+For example a fiddle drawing different oscilloscope graphs where the user only needs to provide the individual
+functions:
+
+```scala
+import math._
+val (h, w) = (Page.canvas.height, Page.canvas.width)
+var x = 0.0
+// $FiddleStart
+val graphs = Seq[(String, Double => Double)](
+  ("red", sin),
+  ("green", x => 2 - abs(x % 8 - 4)),
+  ("blue", x => 3 * pow(sin(x / 12), 2) * sin(x))
+)
+// $FiddleEnd
+.zipWithIndex
+val count = graphs.size
+dom.window.setInterval(() => {
+  x = (x + 1) % w
+  if (x == 0) Page.renderer.clearRect(0, 0, w, h)
+  else for (((color, func), i) <- graphs) {
+    val y = func(x/w * 75) * h/40 + h/count * (i+0.5)
+    Page.renderer.fillStyle = color
+    Page.renderer.fillRect(x, y, 3, 3)
+  }
+}, 10)
+```
+
+What the user sees:
+![dark theme](./doc/images/screenshot-inline-template.png)
 
 ## Visual customizing 
 
@@ -80,11 +145,13 @@ Scala Fiddle supports _light_ (default) and _dark_ themes. You can choose betwee
 ```
 /embed?gist=3dfc003dedd4da5d821d&theme=light
 ```
+
 ![light theme](./doc/images/screenshot-light.png)
 
 ```
 /embed?gist=3dfc003dedd4da5d821d&theme=dark
 ```
+
 ![dark theme](./doc/images/screenshot-dark.png)
 
 To make the fiddle integrate even more nicely within your own web page, you can provide additional styling with the
@@ -105,3 +172,4 @@ custom horizontal layout, it will switch to a vertical layout on small screens (
 
 To control when the responsive layout switches to a vertical orientation, use `responsiveWidth`. This defines (in
 pixels) the minimum width for using a horizontal layout. By default this value is 640 pixels.
+
