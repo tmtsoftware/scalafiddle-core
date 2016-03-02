@@ -157,13 +157,16 @@ class Client(templateId: String, envId: String) {
     command.update(compileServer(editor.code, "fast"))
   }
 
-  val runIcon: HTMLElement = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
-  val resetIcon: HTMLElement = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
-  val saveIcon: HTMLElement = dom.document.getElementById("upload-icon").asInstanceOf[HTMLElement]
-  val outputTag: HTMLElement = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
-  val editorContainerDiv: HTMLElement = dom.document.getElementById("editorContainer").asInstanceOf[HTMLElement]
-  val fiddleSelectorDiv: HTMLElement = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
-  val fiddleSelector: HTMLSelectElement = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
+  val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
+  val resetIcon = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
+  val shareIcon = dom.document.getElementById("share-icon").asInstanceOf[HTMLElement]
+  val shareBox = dom.document.getElementById("sharebox").asInstanceOf[HTMLElement]
+  val shareLink = dom.document.getElementById("sharelink").asInstanceOf[HTMLInputElement]
+  val gistButton = dom.document.getElementById("gist-button").asInstanceOf[HTMLButtonElement]
+  val outputTag = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
+  val editorContainerDiv = dom.document.getElementById("editorContainer").asInstanceOf[HTMLElement]
+  val fiddleSelectorDiv = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
+  val fiddleSelector = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
 
   // attach handlers to icons
   runIcon.onclick = (e: MouseEvent) => {
@@ -178,8 +181,17 @@ class Client(templateId: String, envId: String) {
     editor.focus()
   }
 
-  saveIcon.onclick = (e: MouseEvent) => {
+  shareIcon.onclick = (e: MouseEvent) => {
+    share()
+  }
+
+  shareBox.onmousedown = (e: MouseEvent) => {
+    e.stopPropagation()
+  }
+
+  gistButton.onclick = (e: MouseEvent) => {
     save()
+    closeShare()
   }
 
   fiddleSelector.onchange = (e: Event) => {
@@ -189,6 +201,18 @@ class Client(templateId: String, envId: String) {
     selectSource(sel)
   }
 
+  val outsideClickHandler: MouseEvent => Unit = e => closeShare()
+
+  def share(): Unit = {
+    shareBox.style.display = "inherit"
+    dom.document.body.addEventListener("mousedown", outsideClickHandler)
+    shareLink.value = dom.window.location.href
+  }
+
+  def closeShare(): Unit = {
+    shareBox.style.display = "none"
+    dom.document.body.removeEventListener("mousedown", outsideClickHandler)
+  }
   def showStatus(status: String) =
     outputTag.innerHTML = status
 

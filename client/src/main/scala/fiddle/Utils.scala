@@ -5,7 +5,7 @@ import scala.scalajs.js
 import js.JSConverters._
 import scala.language.implicitConversions
 
-case class Channel[T](){
+case class Channel[T]() {
   private[this] var value: Promise[T] = null
   def apply(): Future[T] = {
     value = Promise[T]()
@@ -16,7 +16,7 @@ case class Channel[T](){
   }
 }
 
-class JsVal(val value: js.Dynamic){
+class JsVal(val value: js.Dynamic) {
   def get(name: String): Option[JsVal] = {
     (value.selectDynamic(name): Any) match {
       case () => None
@@ -51,7 +51,7 @@ object JsVal {
 
   def obj(keyValues: (String, js.Any)*) = {
     val obj = new js.Object().asInstanceOf[js.Dynamic]
-    for ((k, v) <- keyValues){
+    for ((k, v) <- keyValues) {
       obj.updateDynamic(k)(v.asInstanceOf[js.Any])
     }
     new JsVal(obj)
@@ -63,15 +63,32 @@ object JsVal {
 }
 
 class Logger(val f: String => Unit)
+
 /**
- * Used to mark a Future as a task which returns Unit, making
- * sure to print the error and stack trace if it fails.
- */
-object task{
+  * Used to mark a Future as a task which returns Unit, making
+  * sure to print the error and stack trace if it fails.
+  */
+object task {
   def *[T](f: Future[T])(implicit ec: ExecutionContext, logger: Logger) = {
-    f.map(_ => ()).recover{ case e =>
+    f.map(_ => ()).recover { case e =>
       logger.f(e.toString)
       e.printStackTrace()
     }
   }
+}
+
+object EventTracker {
+  def isScriptLoaded = js.Dynamic.global.ga.isInstanceOf[js.Function]
+  def sendEvent(category: String, action: String, label: String): Unit = {
+    if (isScriptLoaded) GoogleAnalytics.ga("send", "event", category, action, label)
+  }
+  def sendEvent(category: String, action: String, label: String, value: String): Unit = {
+    if (isScriptLoaded) GoogleAnalytics.ga("send", "event", category, action, label, value)
+  }
+}
+
+@js.native
+object GoogleAnalytics extends js.GlobalScope {
+  def ga(send: String, event: String, category: String, action: String, label: String): Unit = js.native
+  def ga(send: String, event: String, category: String, action: String, label: String, value: js.Any): Unit = js.native
 }

@@ -67,6 +67,14 @@ a:visited {
     fill: hsla(0, 0%, 40%, 1);
 }
 
+#share-icon {
+    fill: hsla(0, 0%, 63%, 1);
+}
+
+#share-icon:hover {
+    fill: hsla(0, 0%, 40%, 1);
+}
+
 #help-icon {
     fill: hsla(232, 0%, 63%, 1)
 }

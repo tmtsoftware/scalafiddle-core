@@ -73,6 +73,14 @@ a:visited {
     fill: hsla(0, 0%, 90%, 1);
 }
 
+#share-icon {
+    fill: hsla(0, 0%, 63%, 1);
+}
+
+#share-icon:hover {
+    fill: hsla(0, 0%, 90%, 1);
+}
+
 #help-icon {
     fill: hsla(232, 0%, 63%, 1)
 }
@@ -86,3 +94,25 @@ a:visited {
 .color-green { color: #52D273; }
 .color-yellow { color: #E5C453; }
 .color-orange { color: #E57255; }
+
+.sharebox {
+    border: 1px solid #666;
+    background-color: #2d2d2d;
+    box-shadow: 4px 2px 43px -13px rgba(0,0,0,0.75);
+}
+
+.header {
+    color: #ccc;
+}
+
+.sharebox input {
+    border: 1px solid #666;
+    background-color: #333 ;
+    color: #888;
+}
+
+.sharebox button {
+    border: 1px solid #375a7f;
+    background-color: #375a7f;
+    color: #fff;
+}
