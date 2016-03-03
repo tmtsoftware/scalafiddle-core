@@ -32,7 +32,23 @@ object Classpath {
     s"/page_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}-${Config.version}.jar"
   )
 
-  def loadExtLib(uri: String) = {
+  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
+  val repoRE = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
+  val repoBase = "https://repo1.maven.org/maven2"
+  val sjsVersion = s"_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}"
+
+  def buildRepoUri(ref: String) = {
+    ref match {
+      case repoSJSRE(group, artifact, version) =>
+        s"$repoBase/${group.replace('.', '/')}/$artifact$sjsVersion/$version/$artifact$sjsVersion-$version.jar"
+      case repoRE(group, artifact, version) =>
+        s"$repoBase/${group.replace('.', '/')}/${artifact}_${Config.scalaMainVersion}/$version/${artifact}_${Config.scalaMainVersion}-$version.jar"
+      case _ => ref
+    }
+  }
+
+  def loadExtLib(ref: String) = {
+    val uri = buildRepoUri(ref)
     val name = uri.split('/').last
     // check if it has been loaded already
     val f = new File(Config.libCache, name)
