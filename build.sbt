@@ -108,6 +108,7 @@ lazy val server = project
       IO.write(file, contents)
       Seq(file)
     }.taskValue,
+    scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
     dockerfile in docker := {
       val appDir: File = stage.value
       val targetDir = "/app"
