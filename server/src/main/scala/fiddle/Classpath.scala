@@ -5,9 +5,12 @@ import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.FileIO
 import org.scalajs.core.tools.io._
-import spray.client.pipelining._
-import spray.http._
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -20,10 +23,11 @@ import scala.reflect.io.{Streamable, VirtualDirectory}
   */
 object Classpath {
   implicit val system = ActorSystem()
-  import system.dispatcher
+  implicit val materializer = ActorMaterializer()
+  implicit val ec = system.dispatcher
 
+  val log = LoggerFactory.getLogger(getClass)
   val timeout = 60.seconds
-  val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
   val baseLibs = Seq(
     s"/scala-library-${Config.scalaVersion}.jar",
@@ -53,20 +57,22 @@ object Classpath {
     // check if it has been loaded already
     val f = new File(Config.libCache, name)
     if (f.exists()) {
-      println(s"Loading $name from ${Config.libCache}")
+      log.debug(s"Loading $name from ${Config.libCache}")
       Future {(name, Files.readAllBytes(f.toPath))}
     } else {
-      println(s"Loading $name from $uri")
+      log.debug(s"Loading $name from $uri")
       f.getParentFile.mkdirs()
-      pipeline(Get(uri)).map { response =>
-        val data = response.entity.data.toByteArray
-        println(s"Storing $name with ${data.length} bytes to cache")
+      Http().singleRequest(HttpRequest(uri = uri)).flatMap { response =>
+        val source = response.entity.dataBytes
         // save to cache
-        Files.write(f.toPath, data)
-        (name, data)
+        val sink = FileIO.toFile(f)
+        source.runWith(sink).map { ioResponse =>
+          log.debug(s"Storing $name with ${ioResponse.count} bytes to cache")
+          (name, Files.readAllBytes(f.toPath))
+        }
       } recover {
         case e: Exception =>
-          println(s"Error loading $uri: $e")
+          log.debug(s"Error loading $uri: $e")
           throw e
       }
     }
@@ -78,12 +84,12 @@ object Classpath {
     * want to do something.
     */
   lazy val loadedFiles = {
-    println("Loading files...")
+    log.debug("Loading files...")
     val extFilesFut = Future.sequence(Config.extLibs.map(loadExtLib))
     // load all external libs in parallel using spray-client
     val jarFiles = baseLibs.par.map { name =>
       val stream = getClass.getResourceAsStream(name)
-      println(s"Loading resource $name")
+      log.debug(s"Loading resource $name")
       if (stream == null) {
         throw new Exception(s"Classpath loading failed, jar $name not found")
       }
@@ -99,7 +105,7 @@ object Classpath {
       path.split("/").last -> vfile.toByteArray()
     }
     val extFiles = Await.result(extFilesFut, timeout)
-    println("Files loaded...")
+    log.debug("Files loaded...")
     jarFiles ++ bootFiles ++ extFiles
   }
 
@@ -107,7 +113,7 @@ object Classpath {
     * The loaded files shaped for Scalac to use
     */
   lazy val scalac = (for ((name, bytes) <- loadedFiles.par) yield {
-    println(s"Loading $name for Scalac")
+    log.debug(s"Loading $name for Scalac")
     val in = new ZipInputStream(new ByteArrayInputStream(bytes))
     val entries = Iterator
       .continually(in.getNextEntry)
@@ -129,14 +135,13 @@ object Classpath {
       o.write(data)
       o.close()
     }
-    println(dir.size)
     dir
   }).seq
   /**
     * The loaded files shaped for Scala-Js-Tools to use
     */
   lazy val scalajs = {
-    println("Loading scalaJSClassPath")
+    log.debug("Loading scalaJSClassPath")
     val loadedJars: Seq[IRFileCache.IRContainer] = {
       for ((name, bytes) <- loadedFiles) yield {
         val jarFile = (new MemVirtualBinaryFile(name) with VirtualJarFile)
@@ -147,7 +152,7 @@ object Classpath {
     }
     val cache = (new IRFileCache).newCache
     val res = cache.cached(loadedJars)
-    println("Loaded scalaJSClassPath")
+    log.debug("Loaded scalaJSClassPath")
     res
   }
 }

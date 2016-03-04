@@ -2,9 +2,9 @@ package fiddle
 
 import java.util.{Properties, ResourceBundle}
 
+import akka.http.scaladsl.model.HttpHeader
+import akka.http.scaladsl.model.headers.RawHeader
 import com.typesafe.config.ConfigFactory
-import spray.http.HttpHeader
-import spray.http.HttpHeaders.RawHeader
 
 import scala.collection.JavaConverters._
 

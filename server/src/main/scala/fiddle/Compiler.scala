@@ -4,7 +4,9 @@ import scala.tools.nsc.Settings
 import scala.reflect.io
 import scala.tools.nsc.util._
 import java.io._
+
 import akka.util.ByteString
+
 import scala.tools.nsc.reporters.ConsoleReporter
 import scala.tools.nsc.plugins.Plugin
 import scala.concurrent.Future
@@ -13,11 +15,11 @@ import concurrent.ExecutionContext.Implicits.global
 import scala.reflect.internal.util.{BatchSourceFile, OffsetPosition}
 import scala.tools.nsc.interactive.{InteractiveAnalyzer, Response}
 import scala.tools.nsc
-
 import org.scalajs.core.tools.sem.Semantics
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.logging._
 import org.scalajs.core.tools.linker.Linker
+import org.slf4j.LoggerFactory
 
 import scala.tools.nsc.backend.JavaPlatform
 import scala.tools.nsc.util.ClassPath.JavaContext
@@ -29,6 +31,8 @@ import scala.tools.nsc.typechecker.Analyzer
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
 object Compiler {
+  val log = LoggerFactory.getLogger(getClass)
+  val sjsLogger = new Log4jLogger()
   val blacklist = Set("<init>")
 
   val semantics = org.scalajs.core.tools.sem.Semantics.Defaults
@@ -57,7 +61,7 @@ object Compiler {
     new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
       override def findClass(name: String): Class[_] = {
-        println("Looking for Class " + name)
+        log.debug("Looking for Class " + name)
         val fileName = name.replace('.', '/') + ".class"
         val res = classCache.getOrElseUpdate(
           name,
@@ -70,10 +74,10 @@ object Compiler {
         )
         res match {
           case None =>
-            println("Not Found Class " + name)
+            log.debug("Not Found Class " + name)
             throw new ClassNotFoundException()
           case Some(cls) =>
-            println("Found Class " + name)
+            log.debug("Found Class " + name)
             cls
         }
       }
@@ -114,7 +118,7 @@ object Compiler {
         inner = inner ++ ByteString.fromArray(cbuf.map(_.toByte), off, len)
       }
       def flush(): Unit = {
-        logger(inner.utf8String)
+        log.debug(inner.utf8String)
         inner = ByteString()
       }
       def close(): Unit = ()
@@ -228,10 +232,22 @@ object Compiler {
       useClosureCompiler = fullOpt)
 
     val output = WritableMemVirtualJSFile("output.js")
-    linker.link(Classpath.scalajs ++ userFiles, output, Logger)
+    linker.link(Classpath.scalajs ++ userFiles, output, sjsLogger)
     output
   }
 
-  object Logger extends ScalaConsoleLogger
+  class Log4jLogger(minLevel: Level = Level.Debug) extends Logger {
+
+    def log(level: Level, message: =>String): Unit = if (level >= minLevel) {
+      if (level == Level.Warn || level == Level.Error)
+        Compiler.log.error(message)
+      else
+        Compiler.log.debug(message)
+    }
+    def success(message: => String): Unit = info(message)
+    def trace(t: => Throwable): Unit = {
+      Compiler.log.error("Compiling error", t)
+    }
+  }
 
 }

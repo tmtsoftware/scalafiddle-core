@@ -1,14 +1,15 @@
 package fiddle
 
 import akka.actor.{ActorSystem, Props}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.CacheDirectives.`max-age`
+import akka.http.scaladsl.model.headers.`Cache-Control`
+import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
 import akka.routing.FromConfig
-import akka.util.Timeout
-import spray.http.CacheDirectives.`max-age`
-import spray.http.HttpHeaders.`Cache-Control`
-import spray.http._
-import spray.httpx.encoding.Gzip
-import spray.routing._
+import akka.stream.ActorMaterializer
+import akka.util.{ByteString, Timeout}
 import upickle.default._
 
 import scala.concurrent.duration._
@@ -16,26 +17,28 @@ import scala.language.postfixOps
 import scala.scalajs.niocharset.StandardCharsets
 import scala.util.{Failure, Success, Try}
 
-object Server extends SimpleRoutingApp {
+object Server extends App {
   implicit val system = ActorSystem()
   implicit val timeout = Timeout(30.seconds)
-  import system.dispatcher
+  implicit val materializer = ActorMaterializer()
+  implicit val ec = system.dispatcher
 
   // create compiler router
   val compilerRouter = system.actorOf(FromConfig.props(Props[CompileActor]), "compilerRouter")
 
-  println(s"Scala Fiddle ${Config.version}")
-  def main(args: Array[String]): Unit = {
-
-    startServer(Config.interface, Config.port) {
-      encodeResponse(Gzip) {
-        get {
-          path("embed") {
-            respondWithHeaders(Config.httpHeaders) {
+  import HttpCharsets._
+  import MediaTypes._
+  val route = {
+    encodeResponse {
+      get {
+        path("embed") {
+          respondWithHeaders(Config.httpHeaders) {
+            // main embedded page can be cached for some time (1h for now)
+            respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 1L))) {
               parameterMap { paramMap =>
                 complete {
                   HttpEntity(
-                    MediaTypes.`text/html`,
+                    `text/html` withCharset `UTF-8`,
                     Static.page(
                       Config.clientFiles,
                       paramMap
@@ -44,7 +47,10 @@ object Server extends SimpleRoutingApp {
                 }
               }
             }
-          } ~ path("compile") {
+          }
+        } ~ path("compile") {
+          // compile results can be cached for a long time (24h for now)
+          respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L))) {
             parameters('source, 'opt, 'template ?) { (source, opt, template) =>
               ctx =>
                 val optimizer = opt match {
@@ -58,16 +64,19 @@ object Server extends SimpleRoutingApp {
                   .map {
                     case Success(cr) =>
                       val result = write(cr)
-                      HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                      HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, ByteString(result)))
                     case Failure(ex) =>
-                      HttpResponse(StatusCodes.BadRequest, ex.getMessage.take(64))
+                      HttpResponse(StatusCodes.BadRequest, entity = ex.getMessage.take(64))
                   } recover {
                   case e: Exception =>
                     HttpResponse(StatusCodes.InternalServerError)
                 }
                 ctx.complete(res)
             }
-          } ~ path("complete") {
+          }
+        } ~ path("complete") {
+          // code complete results can be cached for a long time (24h for now)
+          respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L))) {
             parameters('source, 'flag, 'offset, 'template ?) { (source, flag, offset, template) =>
               ctx =>
                 val res = ask(compilerRouter, CompleteSource(template.getOrElse("default"), decodeSource(source), flag, offset.toInt))
@@ -75,32 +84,32 @@ object Server extends SimpleRoutingApp {
                   .map {
                     case Success(cr) =>
                       val result = write(cr)
-                      HttpResponse(StatusCodes.OK, HttpEntity(MediaTypes.`application/json`, result))
+                      HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, result))
                     case Failure(ex) =>
-                      HttpResponse(StatusCodes.BadRequest, ex.getMessage.take(64))
+                      HttpResponse(StatusCodes.BadRequest, entity = ex.getMessage.take(64))
                   }
                 ctx.complete(res)
             }
-          } ~ path("cache" / Segment) { res =>
-            // resources identified by a hash can be cached "forever" (a year in this case)
-            respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L * 365))) {
-              complete {
-                val (hash, ext) = res.span(_ != '.')
-                val contentType = ext match {
-                  case ".css" => MediaTypes.`text/css`
-                  case ".js" => MediaTypes.`application/javascript`
-                  case _ => MediaTypes.`application/octet-stream`
-                }
-                Static.fetchResource(hash) match {
-                  case Some(src) =>
-                    HttpResponse(StatusCodes.OK, HttpEntity(contentType, src))
-                  case None =>
-                    HttpResponse(StatusCodes.NotFound)
-                }
+          }
+        } ~ path("cache" / Segment) { res =>
+          // resources identified by a hash can be cached "forever" (a year in this case)
+          respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L * 365))) {
+            complete {
+              val (hash, ext) = res.span(_ != '.')
+              val contentType: ContentType = ext match {
+                case ".css" => `text/css` withCharset `UTF-8`
+                case ".js" => `application/javascript` withCharset `UTF-8`
+                case _ => `application/octet-stream`
+              }
+              Static.fetchResource(hash) match {
+                case Some(src) =>
+                  HttpResponse(StatusCodes.OK, entity = HttpEntity(contentType, src))
+                case None =>
+                  HttpResponse(StatusCodes.NotFound)
               }
             }
-          } ~ getFromResourceDirectory("/web")
-        }
+          }
+        } ~ getFromResourceDirectory("/web")
       }
     }
   }
@@ -110,4 +119,8 @@ object Server extends SimpleRoutingApp {
     implicit def scheme: B64Scheme = base64Url
     new String(Decoder(b64).toByteArray, StandardCharsets.UTF_8)
   }
+
+  println(s"Scala Fiddle ${Config.version}")
+
+  val bindingFuture = Http().bindAndHandle(route, Config.interface, Config.port)
 }

@@ -2,6 +2,8 @@ package fiddle
 
 import java.security.MessageDigest
 
+import akka.util.ByteString
+
 import scala.collection.concurrent.TrieMap
 import scala.reflect.io.Streamable
 import scala.util.Try
@@ -30,7 +32,7 @@ object Static {
 
   final val layoutRE = """([vh])(\d\d)""".r
 
-  def page(srcFiles: Seq[String], paramMap: Map[String, String]) = {
+  def page(srcFiles: Seq[String], paramMap: Map[String, String]): ByteString = {
     // apply layout parameters
     val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "640").toInt).getOrElse(640)
     val customStyle = paramMap.getOrElse("style", "")
@@ -96,7 +98,7 @@ object Static {
       case "v" =>
         vertCSS + commonLayout
     }
-    "<!DOCTYPE html>" + html(
+    val pageHtml = "<!DOCTYPE html>" + html(
       head(
         meta(charset := "utf-8"),
         meta(name := "viewport", content := "width=device-width, initial-scale=1"),
@@ -208,6 +210,7 @@ object Static {
       ),
       script(raw(s"Client().main($useFast)"))
     ).toString()
+    ByteString(pageHtml, "UTF-8")
   }
 
   def concatHash(resources: Seq[String], glueStr: String): (String, Array[Byte]) = {
