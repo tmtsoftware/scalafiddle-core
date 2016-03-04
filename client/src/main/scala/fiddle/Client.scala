@@ -133,9 +133,13 @@ class Client(templateId: String, envId: String) {
   }
 
   def compileServer(code: String, opt: String): Future[CompilerResponse] = {
+    val tag = s"${if(Client.initializing) "initial-" else ""}$opt"
+    val startTime = System.nanoTime()
     Ajax.get(
       url = s"/compile?env=$envId&template=$currentTemplate&opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
+      val compileTime = (System.nanoTime() - startTime)/1000000
+      EventTracker.sendEvent("compile", tag, currentSource, compileTime)
       read[CompilerResponse](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
@@ -177,6 +181,7 @@ class Client(templateId: String, envId: String) {
   }
 
   resetIcon.onclick = (e: MouseEvent) => {
+    EventTracker.sendEvent("reset", "reset", currentSource)
     selectSource(currentSource)
     editor.focus()
   }
@@ -204,6 +209,7 @@ class Client(templateId: String, envId: String) {
   val outsideClickHandler: MouseEvent => Unit = e => closeShare()
 
   def share(): Unit = {
+    EventTracker.sendEvent("share", "open", currentSource)
     shareBox.style.display = "inherit"
     dom.document.body.addEventListener("mousedown", outsideClickHandler)
     shareLink.value = dom.window.location.href
@@ -302,10 +308,13 @@ class Client(templateId: String, envId: String) {
       .sum
 
     val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
+    val startTime = System.nanoTime()
 
     val f = Ajax.get(
       url = s"/complete?env=$envId&template=$currentTemplate&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
+      val completeTime = (System.nanoTime() - startTime)/1000000
+      EventTracker.sendEvent("complete", "complete", currentSource, completeTime)
       read[List[(String, String)]](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
@@ -338,6 +347,7 @@ class Client(templateId: String, envId: String) {
     val gistId = result("id").asString
     val url = s"https://gist.github.com/anonymous/$gistId"
     showStatus("Uploaded")
+    EventTracker.sendEvent("share", "save", currentSource)
     Page.clear()
     Page.println("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
     // build a link to show the uploaded source in Scala Fiddle
@@ -371,6 +381,7 @@ object Client {
     }.toMap
   }
 
+  var initializing = true
   val queryParams = parseUriParameters(dom.window.location.search)
   val templateId = queryParams.getOrElse("template", "default")
   val envId = queryParams.getOrElse("env", "default")
@@ -437,6 +448,7 @@ object Client {
       else
         client.fullOpt
     }
+    initializing = false
   }
 
   val defaultCode =

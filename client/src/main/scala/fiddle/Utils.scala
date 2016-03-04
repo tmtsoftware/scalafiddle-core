@@ -82,7 +82,7 @@ object EventTracker {
   def sendEvent(category: String, action: String, label: String): Unit = {
     if (isScriptLoaded) GoogleAnalytics.ga("send", "event", category, action, label)
   }
-  def sendEvent(category: String, action: String, label: String, value: String): Unit = {
+  def sendEvent(category: String, action: String, label: String, value: Long): Unit = {
     if (isScriptLoaded) GoogleAnalytics.ga("send", "event", category, action, label, value)
   }
 }
@@ -90,5 +90,5 @@ object EventTracker {
 @js.native
 object GoogleAnalytics extends js.GlobalScope {
   def ga(send: String, event: String, category: String, action: String, label: String): Unit = js.native
-  def ga(send: String, event: String, category: String, action: String, label: String, value: js.Any): Unit = js.native
+  def ga(send: String, event: String, category: String, action: String, label: String, value: Long): Unit = js.native
 }

@@ -179,7 +179,9 @@ object Compiler {
   def compile(templateId: String, src: String, logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {
 
     val template = getTemplate(templateId)
-    val singleFile = makeFile(template.fullSource(src).getBytes("UTF-8"))
+    val fullSource = template.fullSource(src)
+    log.debug("Compiling source:\n" + fullSource)
+    val singleFile = makeFile(fullSource.getBytes("UTF-8"))
 
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
     val compiler = new nsc.Global(settings, reporter) with InMemoryGlobal {
