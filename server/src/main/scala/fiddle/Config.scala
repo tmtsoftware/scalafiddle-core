@@ -1,6 +1,6 @@
 package fiddle
 
-import java.util.{Properties, ResourceBundle}
+import java.util.Properties
 
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.RawHeader

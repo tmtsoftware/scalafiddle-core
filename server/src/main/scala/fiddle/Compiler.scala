@@ -1,30 +1,25 @@
 package fiddle
 
-import scala.tools.nsc.Settings
-import scala.reflect.io
-import scala.tools.nsc.util._
-import java.io._
-
-import akka.util.ByteString
-
-import scala.tools.nsc.reporters.ConsoleReporter
-import scala.tools.nsc.plugins.Plugin
-import scala.concurrent.Future
-import scala.async.Async.{async, await}
-import concurrent.ExecutionContext.Implicits.global
-import scala.reflect.internal.util.{BatchSourceFile, OffsetPosition}
-import scala.tools.nsc.interactive.{InteractiveAnalyzer, Response}
-import scala.tools.nsc
-import org.scalajs.core.tools.sem.Semantics
 import org.scalajs.core.tools.io._
-import org.scalajs.core.tools.logging._
 import org.scalajs.core.tools.linker.Linker
+import org.scalajs.core.tools.logging._
+import org.scalajs.core.tools.sem.Semantics
 import org.slf4j.LoggerFactory
 
-import scala.tools.nsc.backend.JavaPlatform
-import scala.tools.nsc.util.ClassPath.JavaContext
+import scala.async.Async.async
 import scala.collection.mutable
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.reflect.io
+import scala.tools.nsc
+import scala.tools.nsc.Settings
+import scala.tools.nsc.backend.JavaPlatform
+import scala.tools.nsc.interactive.Response
+import scala.tools.nsc.plugins.Plugin
+import scala.tools.nsc.reporters.StoreReporter
 import scala.tools.nsc.typechecker.Analyzer
+import scala.tools.nsc.util.ClassPath.JavaContext
+import scala.tools.nsc.util._
 
 /**
   * Handles the interaction between scala-js-fiddle and
@@ -112,18 +107,8 @@ object Compiler {
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
-    val writer = new Writer {
-      var inner = ByteString()
-      def write(cbuf: Array[Char], off: Int, len: Int): Unit = {
-        inner = inner ++ ByteString.fromArray(cbuf.map(_.toByte), off, len)
-      }
-      def flush(): Unit = {
-        log.debug(inner.utf8String)
-        inner = ByteString()
-      }
-      def close(): Unit = ()
-    }
-    val reporter = new ConsoleReporter(settings, scala.Console.in, new PrintWriter(writer))
+    settings.processArgumentString("-Ypresentation-any-thread")
+    val reporter = new StoreReporter
     (settings, reporter, vd, jCtx, jDirs)
   }
 
@@ -135,6 +120,8 @@ object Compiler {
   }
 
   def autocomplete(templateId: String, code: String, flag: String, pos: Int): Future[List[(String, String)]] = async {
+    import scala.tools.nsc.interactive._
+
     val template = getTemplate(templateId)
     // global can be reused, just create new runs for new compiler invocations
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(_ => ())
@@ -150,30 +137,19 @@ object Compiler {
       }
     }
 
-    val file = new BatchSourceFile(makeFile(template.fullSource(code).getBytes), template.fullSource(code))
-    val position = new OffsetPosition(file, pos + template.pre.length)
+    val offset = pos + template.pre.length
+    val fullSource = template.fullSource(code)
+    val source = fullSource.take(offset) + "_CURSOR_ " + fullSource.drop(offset)
+    val run = new compiler.TyperRun
+    val unit = compiler.newCompilationUnit(source, "ScalaFiddle.scala")
+    val richUnit = new compiler.RichCompilationUnit(unit.source)
+    log.debug(s"Source: ${source.take(offset)}${scala.Console.RED}|${scala.Console.RESET}${source.drop(offset)}")
+    compiler.unitOfFile(richUnit.source.file) = richUnit
+    val results = compiler.completionsAt(richUnit.position(offset)).matchingResults()
 
-    await(toFuture[Unit](compiler.askReload(List(file), _)))
+    log.debug(s"Completion results: ${results.take(20)}")
 
-    val maybeMems = await(toFuture[List[compiler.Member]](flag match {
-      case "scope" => compiler.askScopeCompletion(position, _: compiler.Response[List[compiler.Member]])
-      case "member" => compiler.askTypeCompletion(position, _: compiler.Response[List[compiler.Member]])
-    }))
-
-    val res = compiler.ask { () =>
-      def sig(x: compiler.Member) = {
-        Seq(
-          x.sym.signatureString,
-          s" (${x.sym.kindString})"
-        ).find(_ != "").getOrElse("--Unknown--")
-      }
-      maybeMems.map((x: compiler.Member) => sig(x) -> x.sym.decodedName)
-        .filterNot(a => blacklist.contains(a._2))
-        .distinct
-        .take(100)
-    }
-    compiler.askShutdown()
-    res
+    results.map(r => (r.sym.signatureString, r.symNameDropLocal.decoded)).distinct
   }
 
   def compile(templateId: String, src: String, logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {

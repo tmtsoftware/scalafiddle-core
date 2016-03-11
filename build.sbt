@@ -8,7 +8,7 @@ val commonSettings = Seq(
     "-deprecation",
     "-feature"
   ),
-  scalaVersion := "2.11.7",
+  scalaVersion := "2.11.8",
   version := "1.0.0-SNAPSHOT"
 )
 

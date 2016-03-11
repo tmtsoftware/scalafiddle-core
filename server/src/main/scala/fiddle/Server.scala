@@ -10,6 +10,7 @@ import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.stream.ActorMaterializer
 import akka.util.{ByteString, Timeout}
+import org.slf4j.LoggerFactory
 import upickle.default._
 
 import scala.concurrent.duration._
@@ -22,6 +23,7 @@ object Server extends App {
   implicit val timeout = Timeout(30.seconds)
   implicit val materializer = ActorMaterializer()
   implicit val ec = system.dispatcher
+  val log = LoggerFactory.getLogger(getClass)
 
   // create compiler router
   val compilerRouter = system.actorOf(FromConfig.props(Props[CompileActor]), "compilerRouter")
@@ -69,6 +71,7 @@ object Server extends App {
                       HttpResponse(StatusCodes.BadRequest, entity = ex.getMessage.take(64))
                   } recover {
                   case e: Exception =>
+                    log.error("Error in compilation", e)
                     HttpResponse(StatusCodes.InternalServerError)
                 }
                 ctx.complete(res)
@@ -86,6 +89,7 @@ object Server extends App {
                       val result = write(cr)
                       HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, result))
                     case Failure(ex) =>
+                      log.error("Error in tab completion", ex)
                       HttpResponse(StatusCodes.BadRequest, entity = ex.getMessage.take(64))
                   }
                 ctx.complete(res)
