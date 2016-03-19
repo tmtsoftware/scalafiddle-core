@@ -59,6 +59,8 @@ class CompileActor extends Actor {
     val output = mutable.Buffer.empty[String]
 
     val res = Compiler.compile(templateId, code, output.append(_))
+    if(output.nonEmpty)
+      println(s"Compiler errors: $output")
     val template = Compiler.getTemplate(templateId)
 
     val preRows = template.pre.count(_ == '\n')

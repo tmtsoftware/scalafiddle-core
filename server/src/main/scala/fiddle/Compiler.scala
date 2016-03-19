@@ -1,5 +1,8 @@
 package fiddle
 
+import java.io.{PrintWriter, Writer}
+
+import akka.util.ByteString
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
 import org.scalajs.core.tools.logging._
@@ -16,7 +19,7 @@ import scala.tools.nsc.Settings
 import scala.tools.nsc.backend.JavaPlatform
 import scala.tools.nsc.interactive.Response
 import scala.tools.nsc.plugins.Plugin
-import scala.tools.nsc.reporters.StoreReporter
+import scala.tools.nsc.reporters.{ConsoleReporter, StoreReporter}
 import scala.tools.nsc.typechecker.Analyzer
 import scala.tools.nsc.util.ClassPath.JavaContext
 import scala.tools.nsc.util._
@@ -107,8 +110,18 @@ object Compiler {
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
-    settings.processArgumentString("-Ypresentation-any-thread")
-    val reporter = new StoreReporter
+    val writer = new Writer {
+      var inner = ByteString()
+      def write(cbuf: Array[Char], off: Int, len: Int): Unit = {
+        inner = inner ++ ByteString.fromArray(cbuf.map(_.toByte), off, len)
+      }
+      def flush(): Unit = {
+        logger(inner.utf8String)
+        inner = ByteString()
+      }
+      def close(): Unit = ()
+    }
+    val reporter = new ConsoleReporter(settings, scala.Console.in, new PrintWriter(writer))
     (settings, reporter, vd, jCtx, jDirs)
   }
 
@@ -125,6 +138,7 @@ object Compiler {
     val template = getTemplate(templateId)
     // global can be reused, just create new runs for new compiler invocations
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(_ => ())
+    settings.processArgumentString("-Ypresentation-any-thread")
     val compiler = new nsc.interactive.Global(settings, reporter) with InMemoryGlobal {
       g =>
       def ctx = jCtx
