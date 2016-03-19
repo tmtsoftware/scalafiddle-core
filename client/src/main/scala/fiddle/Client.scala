@@ -2,7 +2,6 @@ package fiddle
 
 import java.net.URLDecoder
 
-import fiddle.Client.RedLogger
 import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
 import org.scalajs.dom.ext.Ajax
@@ -14,51 +13,14 @@ import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
 import scala.scalajs.niocharset.StandardCharsets
-
-@JSExport("Checker")
-object Checker {
-  /**
-    * Deadline by which the user code must complete execution.
-    */
-  private[this] var endTime = 0.0
-  /**
-    * Switch to flip to once you have run out of time to make
-    * `check` fail every single time, ensuring you get thrown out
-    * of the user code
-    */
-  private[this] var dead = false
-  /**
-    * Used to avoid doing an expensive `currentTimeMillis` check on every call,
-    * and instead doing one every N calls.
-    */
-  private[this] var count = 0
-  @JSExport
-  def check(): Unit = {
-    count += 1
-    if (count % 1000 == 0 && js.Date.now() > endTime || dead) {
-      dead = true
-      Client.clearTimeouts()
-      js.eval("""throw new Error("Time's Up! Your code took too long to run.")""")
-    }
-  }
-
-  @JSExport
-  def reset(max: Int) = {
-    count = 0
-    dead = false
-    endTime = math.max(js.Date.now() + max, endTime)
-  }
-
-  def scheduleResets() = {
-    dom.window.setInterval(() => Checker.reset(1000), 100)
-  }
-}
 
 case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil,
   template: Option[String] = None)
 
 class Client(templateId: String, envId: String) {
+  implicit val RedLogger = fiddle.Client.RedLogger
   var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
   var currentSource = sourceFiles.head.name
 
@@ -66,14 +28,11 @@ class Client(templateId: String, envId: String) {
 
   def currentTemplate = currentSourceFile.template.getOrElse(templateId)
 
-  Client.scheduleResets()
   val command = Channel[Future[CompilerResponse]]()
 
   def exec(s: String) = {
     Client.clear()
-    Client.scheduleResets()
 
-    Checker.reset(1000)
     try {
       js.eval(s)
       js.eval("ScalaFiddle().main()")
@@ -117,8 +76,8 @@ class Client(templateId: String, envId: String) {
   def showError(errStr: String): Unit = {
     import scalatags.JsDom.all._
     showStatus("Errors")
-    Page.clear()
-    Page.println(pre(cls := "error", errStr))
+    Fiddle.clear()
+    Fiddle.println(pre(cls := "error", errStr))
   }
 
   def reconstructSource(source: String, srcFile: SourceFile): String = {
@@ -348,8 +307,8 @@ class Client(templateId: String, envId: String) {
     val url = s"https://gist.github.com/anonymous/$gistId"
     showStatus("Uploaded")
     EventTracker.sendEvent("share", "save", currentSource)
-    Page.clear()
-    Page.println("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
+    Fiddle.clear()
+    Fiddle.println("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
     // build a link to show the uploaded source in Scala Fiddle
     val params = Client.queryParams
       .filterKeys(name => name != "gist" && name != "source")
@@ -358,7 +317,7 @@ class Client(templateId: String, envId: String) {
       .map { case (k, v) => s"$k=${js.URIUtils.encodeURIComponent(v)}" }
       .mkString("&")
     val sfUrl = s"/embed?$params"
-    Page.println("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
+    Fiddle.println("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
     dom.console.log(s"ScalaFiddle uploaded to $url")
   }
 }
@@ -366,6 +325,10 @@ class Client(templateId: String, envId: String) {
 @JSExport("Client")
 object Client {
   implicit val RedLogger = new Logger(logError)
+
+  var intervalHandles = List.empty[SetIntervalHandle]
+  var timeoutHandles = List.empty[SetTimeoutHandle]
+
 
   dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
     dom.console.log("dom.onerror")
@@ -388,22 +351,19 @@ object Client {
 
   dom.console.log(s"queryParams: $queryParams, templateId: $templateId")
 
-  @JSExport
   def logError(s: String): Unit = {
     dom.console.error(s)
   }
 
-  @JSExport
-  def clearTimeouts() = {
-    for (i <- -100000 until 100000) {
-      dom.window.clearInterval(i)
-      dom.window.clearTimeout(i)
-    }
-    Client.scheduleResets()
-  }
   def clear() = {
-    clearTimeouts()
-    Page.clear()
+    dom.console.log(s"Clearing ${timeoutHandles.size} timeouts and ${intervalHandles.size} intervals")
+    // clear all timers
+    timeoutHandles.foreach(js.timers.clearTimeout)
+    timeoutHandles = Nil
+    intervalHandles.foreach(js.timers.clearInterval)
+    intervalHandles = Nil
+
+    Fiddle.clear()
   }
 
   val subFiddleRE = """// \$SubFiddle (\w.+)""".r
@@ -475,7 +435,13 @@ object Client {
     }.recover { case e => Seq(SourceFile("ScalaFiddle.scala", defaultCode)) }
   }
 
-  def scheduleResets() = {
-    dom.window.setInterval(() => Checker.reset(1000), 100)
+  @JSExport
+  def addTimeoutHandle(handle: SetTimeoutHandle): Unit = {
+    timeoutHandles ::= handle
+  }
+
+  @JSExport
+  def addIntervalHandle(handle: SetIntervalHandle): Unit = {
+    intervalHandles ::= handle
   }
 }
