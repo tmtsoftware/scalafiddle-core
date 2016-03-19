@@ -21,6 +21,7 @@ object Config {
   val interface = config.getString("interface")
   val port = config.getInt("port")
   val analyticsID = config.getString("analyticsID")
+  val helpUrl = config.getString("helpUrl")
 
   val clientFiles = config.getStringList("clientFiles").asScala
 

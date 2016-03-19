@@ -19,7 +19,7 @@ import scala.scalajs.niocharset.StandardCharsets
 case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil,
   template: Option[String] = None)
 
-class Client(templateId: String, envId: String) {
+class Client(templateId: String, envId: String, helpUrl: String) {
   implicit val RedLogger = fiddle.Client.RedLogger
   var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
   var currentSource = sourceFiles.head.name
@@ -58,8 +58,9 @@ class Client(templateId: String, envId: String) {
   val editor: Editor = new Editor(Seq(
     ("Compile", "Enter", () => fastOpt),
     ("FullOptimize", "Shift-Enter", () => fullOpt),
-    ("Save", "S", save _),
-    ("Complete", "Space", () => editor.complete())
+    ("Save", "S", share _),
+    ("Complete", "Space", () => editor.complete()),
+    ("Parse", "Alt-Enter", parseFull _)
   ), complete, RedLogger)
 
   def beginCompilation(): Unit = {
@@ -76,7 +77,7 @@ class Client(templateId: String, envId: String) {
   def showError(errStr: String): Unit = {
     import scalatags.JsDom.all._
     showStatus("Errors")
-    Fiddle.clear()
+    Client.clear()
     Fiddle.println(pre(cls := "error", errStr))
   }
 
@@ -92,12 +93,12 @@ class Client(templateId: String, envId: String) {
   }
 
   def compileServer(code: String, opt: String): Future[CompilerResponse] = {
-    val tag = s"${if(Client.initializing) "initial-" else ""}$opt"
+    val tag = s"${if (Client.initializing) "initial-" else ""}$opt"
     val startTime = System.nanoTime()
     Ajax.get(
       url = s"/compile?env=$envId&template=$currentTemplate&opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
-      val compileTime = (System.nanoTime() - startTime)/1000000
+      val compileTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("compile", tag, currentSource, compileTime)
       read[CompilerResponse](res.responseText)
     } recover {
@@ -120,9 +121,20 @@ class Client(templateId: String, envId: String) {
     command.update(compileServer(editor.code, "fast"))
   }
 
+  def parseFull = {
+    Ajax.get(
+      url = s"/parse?env=$envId&template=$currentTemplate&source=${encodeSource(editor.code)}"
+    ).map { res =>
+      import scalatags.JsDom.all._
+      Client.clear()
+      Fiddle.println(h2("Full source code"), pre(res.responseText))
+    }
+  }
+
   val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
   val resetIcon = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
   val shareIcon = dom.document.getElementById("share-icon").asInstanceOf[HTMLElement]
+  val helpIcon = dom.document.getElementById("help-icon").asInstanceOf[HTMLElement]
   val shareBox = dom.document.getElementById("sharebox").asInstanceOf[HTMLElement]
   val shareLink = dom.document.getElementById("sharelink").asInstanceOf[HTMLInputElement]
   val gistButton = dom.document.getElementById("gist-button").asInstanceOf[HTMLButtonElement]
@@ -132,21 +144,33 @@ class Client(templateId: String, envId: String) {
   val fiddleSelector = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
 
   // attach handlers to icons
-  runIcon.onclick = (e: MouseEvent) => {
-    if (e.shiftKey)
-      fullOpt
-    else
-      fastOpt
+  if(runIcon != null) {
+    runIcon.onclick = (e: MouseEvent) => {
+      if (e.shiftKey)
+        fullOpt
+      else
+        fastOpt
+    }
   }
 
-  resetIcon.onclick = (e: MouseEvent) => {
-    EventTracker.sendEvent("reset", "reset", currentSource)
-    selectSource(currentSource)
-    editor.focus()
+  if(resetIcon != null) {
+    resetIcon.onclick = (e: MouseEvent) => {
+      EventTracker.sendEvent("reset", "reset", currentSource)
+      selectSource(currentSource)
+      editor.focus()
+    }
   }
 
-  shareIcon.onclick = (e: MouseEvent) => {
-    share()
+  if(shareIcon != null) {
+    shareIcon.onclick = (e: MouseEvent) => {
+      share()
+    }
+  }
+
+  if(helpIcon != null) {
+    helpIcon.onclick = (e: MouseEvent) => {
+      help()
+    }
   }
 
   shareBox.onmousedown = (e: MouseEvent) => {
@@ -167,6 +191,10 @@ class Client(templateId: String, envId: String) {
 
   val outsideClickHandler: MouseEvent => Unit = e => closeShare()
 
+  def help(): Unit = {
+    dom.window.open(helpUrl, "_blank")
+  }
+
   def share(): Unit = {
     EventTracker.sendEvent("share", "open", currentSource)
     shareBox.style.display = "inherit"
@@ -178,6 +206,7 @@ class Client(templateId: String, envId: String) {
     shareBox.style.display = "none"
     dom.document.body.removeEventListener("mousedown", outsideClickHandler)
   }
+
   def showStatus(status: String) =
     outputTag.innerHTML = status
 
@@ -272,7 +301,7 @@ class Client(templateId: String, envId: String) {
     val f = Ajax.get(
       url = s"/complete?env=$envId&template=$currentTemplate&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
-      val completeTime = (System.nanoTime() - startTime)/1000000
+      val completeTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("complete", "complete", currentSource, completeTime)
       read[List[(String, String)]](res.responseText)
     } recover {
@@ -307,7 +336,7 @@ class Client(templateId: String, envId: String) {
     val url = s"https://gist.github.com/anonymous/$gistId"
     showStatus("Uploaded")
     EventTracker.sendEvent("share", "save", currentSource)
-    Fiddle.clear()
+    Client.clear()
     Fiddle.println("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
     // build a link to show the uploaded source in Scala Fiddle
     val params = Client.queryParams
@@ -382,10 +411,10 @@ object Client {
   }
 
   @JSExport
-  def main(useFast: Boolean = false): Unit = task * async {
+  def main(useFast: Boolean, helpUrl: String): Unit = task * async {
     clear()
     Editor.initEditor
-    val client = new Client(templateId, envId)
+    val client = new Client(templateId, envId, helpUrl)
     // is a gist specified?
     if (queryParams.contains("gist")) {
       val gistId = queryParams("gist")

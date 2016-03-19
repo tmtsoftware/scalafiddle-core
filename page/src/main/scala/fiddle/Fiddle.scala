@@ -4,11 +4,11 @@ import org.scalajs.dom
 import org.scalajs.dom.html
 
 import scala.concurrent.{Future, Promise}
+import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSExport, JSName}
 import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
 import scala.util.Try
 import scalatags.JsDom.all._
-import scalajs.js
 
 /**
   * API for things that belong to the page, and are useful to both the fiddle
@@ -36,8 +36,8 @@ object Fiddle {
   val draw = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
   val panel = getElem[html.Div]("output")
 
-  def println(ss: Modifier*) = {
-    print(div(ss: _*))
+  def println(ss: String) = {
+    print(div(ss))
   }
 
   def print(ss: Modifier*) = {

@@ -41,7 +41,7 @@ object Server extends App {
                 complete {
                   HttpEntity(
                     `text/html` withCharset `UTF-8`,
-                    Static.page(
+                    Static.renderPage(
                       Config.clientFiles,
                       paramMap
                     )
@@ -111,6 +111,14 @@ object Server extends App {
                 case None =>
                   HttpResponse(StatusCodes.NotFound)
               }
+            }
+          }
+        } ~ path("parse") {
+          parameters('source, 'template, 'env) { (source, templateId, envId) =>
+            complete {
+              val dSrc = decodeSource(source)
+              val src = Config.templates.get(templateId).map(_.fullSource(dSrc)).getOrElse(dSrc)
+              HttpResponse(StatusCodes.OK, entity = HttpEntity(`text/plain` withCharset `UTF-8`, ByteString(src)))
             }
           }
         } ~ getFromResourceDirectory("/web")

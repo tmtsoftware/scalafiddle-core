@@ -27,12 +27,19 @@ object Static {
     "/common.css"
   )
 
+  val buttons = Seq(
+    ("run", "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized"),
+    ("reset", "Reset"),
+    ("share", "Share"),
+    ("help", "Help")
+  )
+
   // store concatenated and hashed resource blobs
   val cache = TrieMap.empty[Seq[String], (String, Array[Byte])]
 
   final val layoutRE = """([vh])(\d\d)""".r
 
-  def page(srcFiles: Seq[String], paramMap: Map[String, String]): ByteString = {
+  def renderPage(srcFiles: Seq[String], paramMap: Map[String, String]): ByteString = {
     // apply layout parameters
     val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "640").toInt).getOrElse(640)
     val customStyle = paramMap.getOrElse("style", "")
@@ -46,6 +53,13 @@ object Static {
     val jsURLs = s"/cache/$allJS" +: Config.extJS
     val cssURLs = s"/cache/$allCSS" +: Config.extCSS
 
+    // parse which buttons to hide
+    val toHide = paramMap.get("hideButtons").map(_.split(',')).getOrElse(Array.empty)
+    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b._1)).map { case(bName, bTitle) =>
+      div(title := bTitle, id := s"$bName-icon", cls := "icon")(
+        svg(width := 21, height := 21)(use(xLinkHref := s"#sym_$bName"))
+      )
+    }
     val (direction, ratio) = paramMap.getOrElse("layout", "h50") match {
       case layoutRE(d, r) => (d, r.toInt)
       case _ => ("h", 50)
@@ -161,24 +175,7 @@ object Static {
             select(id := "fiddleSelector")
           ),
           div(id := "editorContainer")(
-            div(cls := "label",
-              div(title := "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized", id := "run-icon", cls := "icon")(
-                svg(width := 21, height := 21)(use(xLinkHref := "#sym_run"))
-              ),
-              div(title := "Reset", id := "reset-icon", cls := "icon")(
-                svg(width := 21, height := 21)(use(xLinkHref := "#sym_reset"))
-              ),
-              div(title := "Share", id := "share-icon", cls := "icon")(
-                svg(width := 21, height := 21)(use(xLinkHref := "#sym_share"))
-              )
-              /*
-              div(title := "Upload gist", id := "upload-icon")(
-                svg(width := 21, height := 21)(use(xLinkHref := "#sym_upload"))
-              ),
-              div(title := "Help", id := "help-icon")(
-                svg(width := 21, height := 21)(use(xLinkHref := "#sym_help"))
-              )*/
-            ),
+            div(cls := "label", visibleButtons),
             div(cls := "sharebox", id := "sharebox")(
               div(cls := "header", "Share this Scala Fiddle"),
               div(button(id := "gist-button", "Create a gist")),
@@ -208,7 +205,7 @@ object Static {
       script(
         id := "compiled"
       ),
-      script(raw(s"Client().main($useFast)"))
+      script(raw(s"""Client().main($useFast, "${Config.helpUrl}")"""))
     ).toString()
     ByteString(pageHtml, "UTF-8")
   }

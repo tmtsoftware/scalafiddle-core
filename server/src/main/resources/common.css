@@ -157,7 +157,7 @@ select {
 body, pre {
     overflow: hidden;
     background-color: #ffffff;
-    color: #B3B8BC;
+    color: #878787;
 }
 
 pre.error {
