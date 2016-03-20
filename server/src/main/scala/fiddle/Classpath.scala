@@ -12,6 +12,7 @@ import akka.stream.scaladsl.FileIO
 import org.scalajs.core.tools.io._
 import org.slf4j.LoggerFactory
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.reflect.io.{Streamable, VirtualDirectory}
@@ -83,18 +84,17 @@ object Classpath {
     * memory but is better than reaching all over the filesystem every time we
     * want to do something.
     */
-  lazy val loadedFiles = {
+  lazy val commonLibraries = {
     log.debug("Loading files...")
-    val extFilesFut = Future.sequence(Config.extLibs.map(loadExtLib))
     // load all external libs in parallel using spray-client
-    val jarFiles = baseLibs.par.map { name =>
+    val jarFiles = baseLibs.map { name =>
       val stream = getClass.getResourceAsStream(name)
       log.debug(s"Loading resource $name")
       if (stream == null) {
         throw new Exception(s"Classpath loading failed, jar $name not found")
       }
       name -> Streamable.bytes(stream)
-    }.seq
+    }
 
     val bootFiles = for {
       prop <- Seq(/*"java.class.path", */ "sun.boot.class.path")
@@ -104,15 +104,23 @@ object Classpath {
     } yield {
       path.split("/").last -> vfile.toByteArray()
     }
-    val extFiles = Await.result(extFilesFut, timeout)
     log.debug("Files loaded...")
-    jarFiles ++ bootFiles ++ extFiles
+    jarFiles ++ bootFiles
+  }
+
+  /**
+    * External libraries loaded from repository
+    */
+  lazy val extLibraries = {
+    Await.result(Future.sequence(Config.extLibs.map { case (name, ref) =>
+      loadExtLib(ref).map(name -> _)
+    }), timeout).toMap
   }
 
   /**
     * The loaded files shaped for Scalac to use
     */
-  lazy val scalac = (for ((name, bytes) <- loadedFiles.par) yield {
+  def lib4compiler(name: String, bytes: Array[Byte]) = {
     log.debug(s"Loading $name for Scalac")
     val in = new ZipInputStream(new ByteArrayInputStream(bytes))
     val entries = Iterator
@@ -136,23 +144,45 @@ object Classpath {
       o.close()
     }
     dir
-  }).seq
+  }
+
   /**
     * The loaded files shaped for Scala-Js-Tools to use
     */
-  lazy val scalajs = {
-    log.debug("Loading scalaJSClassPath")
-    val loadedJars: Seq[IRFileCache.IRContainer] = {
-      for ((name, bytes) <- loadedFiles) yield {
-        val jarFile = (new MemVirtualBinaryFile(name) with VirtualJarFile)
-          .withContent(bytes)
-          .withVersion(Some(name)) // unique through the lifetime of the server
-        IRFileCache.IRContainer.Jar(jarFile)
-      }
-    }
-    val cache = (new IRFileCache).newCache
-    val res = cache.cached(loadedJars)
-    log.debug("Loaded scalaJSClassPath")
-    res
+  def lib4linker(name: String, bytes: Array[Byte]) = {
+    val jarFile = (new MemVirtualBinaryFile(name) with VirtualJarFile)
+      .withContent(bytes)
+      .withVersion(Some(name)) // unique through the lifetime of the server
+    IRFileCache.IRContainer.Jar(jarFile)
+  }
+
+  val commonLibraries4compiler =
+    commonLibraries.map { case (name, data) => lib4compiler(name, data) }
+  val extLibraries4compiler =
+    extLibraries.map { case (key, (name, data)) => key -> lib4compiler(name, data) }
+
+  val commonLibraries4linker =
+    commonLibraries.map { case (name, data) => lib4linker(name, data) }
+  val extLibraries4linker =
+    extLibraries.map { case (key, (name, data)) => key -> lib4linker(name, data) }
+
+  val linkerCaches = mutable.Map.empty[List[String], Seq[IRFileCache.VirtualRelativeIRFile]]
+
+  def compilerLibraries(extLibs: List[String]) = {
+    commonLibraries4compiler ++ extLibs.flatMap(extLibraries4compiler.get)
+  }
+
+  def linkerLibraries(extLibs: List[String]) = {
+    linkerCaches.getOrElseUpdate(extLibs, {
+      val loadedJars = commonLibraries4linker ++ extLibs.flatMap(extLibraries4linker.get)
+      val cache = (new IRFileCache).newCache
+      val res = cache.cached(loadedJars)
+      log.debug("Loaded scalaJSClassPath")
+      res
+    })
+  }
+
+  def initialize(): Unit = {
+    // empty function, just to force initialization of the singleton object
   }
 }

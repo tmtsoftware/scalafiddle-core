@@ -16,21 +16,23 @@ object Optimizer {
   case object Full extends Optimizer
 }
 
-case class CompileSource(templateId: String, sourceCode: String, optimizer: Optimizer)
+case class CompileSource(envId: String, templateId: String, sourceCode: String, optimizer: Optimizer)
 
-case class CompleteSource(templateId: String, sourceCode: String, flag: String, offset: Int)
+case class CompleteSource(envId: String, templateId: String, sourceCode: String, flag: String, offset: Int)
 
 class CompileActor extends Actor {
   def receive = {
-    case CompileSource(templateId, sourceCode, optimizer) =>
+    case CompileSource(envId, templateId, sourceCode, optimizer) =>
+      val compiler = new Compiler(envId)
       val opt = optimizer match {
-        case Optimizer.Fast => Compiler.fastOpt _
-        case Optimizer.Full => Compiler.fullOpt _
+        case Optimizer.Fast => compiler.fastOpt _
+        case Optimizer.Full => compiler.fullOpt _
       }
-      sender() ! Try(doCompile(templateId, sourceCode, _ |> opt |> Compiler.export))
+      sender() ! Try(doCompile(compiler, templateId, sourceCode, _ |> opt |> compiler.export))
 
-    case CompleteSource(templateId, sourceCode, flag, offset) =>
-      sender() ! Try(Await.result(Compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds))
+    case CompleteSource(envId, templateId, sourceCode, flag, offset) =>
+      val compiler = new Compiler(envId)
+      sender() ! Try(Await.result(compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds))
   }
 
   val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r
@@ -53,15 +55,14 @@ class CompileActor extends Actor {
     annotations
   }
 
-
-  def doCompile(templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
+  def doCompile(compiler: Compiler, templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
     println(s"Using template $templateId")
     val output = mutable.Buffer.empty[String]
 
-    val res = Compiler.compile(templateId, code, output.append(_))
+    val res = compiler.compile(templateId, code, output.append(_))
     if(output.nonEmpty)
       println(s"Compiler errors: $output")
-    val template = Compiler.getTemplate(templateId)
+    val template = compiler.getTemplate(templateId)
 
     val preRows = template.pre.count(_ == '\n')
     val logSpam = output.mkString

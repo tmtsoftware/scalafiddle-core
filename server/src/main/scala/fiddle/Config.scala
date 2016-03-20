@@ -25,7 +25,14 @@ object Config {
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
-  val extLibs = config.getStringList("extLibs").asScala
+  val extLibs = config.getConfig("extLibs").entrySet().asScala.map { entry =>
+    entry.getKey -> entry.getValue.unwrapped().asInstanceOf[String]
+  }.toMap
+
+  val environments = config.getConfig("environments").entrySet().asScala.map { entry =>
+    entry.getKey -> entry.getValue.unwrapped().asInstanceOf[java.util.List[String]].asScala.toList
+  }.toMap
+
   val extJS = config.getStringList("extJS").asScala
   val extCSS = config.getStringList("extCSS").asScala
 

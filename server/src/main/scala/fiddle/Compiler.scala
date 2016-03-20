@@ -28,12 +28,11 @@ import scala.tools.nsc.util._
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
-object Compiler {
+class Compiler(env: String) { self =>
   val log = LoggerFactory.getLogger(getClass)
   val sjsLogger = new Log4jLogger()
   val blacklist = Set("<init>")
-
-  val semantics = org.scalajs.core.tools.sem.Semantics.Defaults
+  val extLibs = Config.environments.getOrElse(env, Nil)
 
   /**
     * Converts Scalac's weird Future type
@@ -63,7 +62,7 @@ object Compiler {
         val fileName = name.replace('.', '/') + ".class"
         val res = classCache.getOrElseUpdate(
           name,
-          Classpath.scalac
+          Classpath.compilerLibraries(extLibs)
             .map(_.lookupPathUnchecked(fileName, false))
             .find(_ != null).map { f =>
             val data = f.toByteArray
@@ -106,7 +105,7 @@ object Compiler {
   def initGlobalBits(logger: String => Unit) = {
     val vd = new io.VirtualDirectory("(memory)", None)
     val jCtx = new JavaContext()
-    val jDirs = Classpath.scalac.map(new DirectoryClassPath(_, jCtx)).toVector
+    val jDirs = Classpath.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
@@ -224,7 +223,7 @@ object Compiler {
       useClosureCompiler = fullOpt)
 
     val output = WritableMemVirtualJSFile("output.js")
-    linker.link(Classpath.scalajs ++ userFiles, output, sjsLogger)
+    linker.link(Classpath.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
     output
   }
 
@@ -232,13 +231,13 @@ object Compiler {
 
     def log(level: Level, message: =>String): Unit = if (level >= minLevel) {
       if (level == Level.Warn || level == Level.Error)
-        Compiler.log.error(message)
+        self.log.error(message)
       else
-        Compiler.log.debug(message)
+        self.log.debug(message)
     }
     def success(message: => String): Unit = info(message)
     def trace(t: => Throwable): Unit = {
-      Compiler.log.error("Compiling error", t)
+      self.log.error("Compiling error", t)
     }
   }
 

@@ -40,6 +40,10 @@ object Fiddle {
     print(div(ss))
   }
 
+  def println(ss: Modifier*) = {
+    print(div(ss))
+  }
+
   def print(ss: Modifier*) = {
     ss.foreach(_.applyTo(panel))
     panel.scrollTop = panel.scrollHeight - panel.clientHeight

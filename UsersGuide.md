@@ -16,7 +16,7 @@ features.
 The editor panel contains a group of buttons for accessing basic functionality. Depending on fiddle configuration, some
 of the buttons may be hidden.
 
-### Compiling and Running code
+#### Compiling and Running code
 
 To compile and run your code, click the triangle icon or press `Ctrl/Cmd-Enter` on your keyboard. Your code is sent to
 the Scala Fiddle server which compiles it using [Scala.js](https://www.scala-js.org) and returns JavaScript code which
@@ -25,16 +25,16 @@ output panel.
 
 If your code produces output using helper functions like `println`, the output will be visible on the right panel.
 
-### Reset the Fiddle
+#### Reset the Fiddle
 
 In case you want to reset the code to its original state, press the Reset button.
 
-### Sharing your Fiddle
+#### Sharing your Fiddle
 
 To save your fiddle into a GitHub gist and share it, click on the Share button and choose "Create gist". You may also
 share a link to the current fiddle, but your recent edits won't be visible unless you create a new gist.
 
-### Help
+#### Help
 
 To access this user's guide, click on the help icon.
 
@@ -65,7 +65,7 @@ be prepared by the Scala Fiddle server and displayed in the output panel.
 Scala Fiddle provides a helper class `Fiddle` containing useful functionality for producing output and controlling the
 flow of your small application.
 
-### Printing text
+#### Printing text
 
 To print lines of text, use the `println()` function. This works much like printing to a console. If you want to print
 formatted text, use the `print()` function which takes ScalaTags as input. For example to print a header and a
@@ -75,7 +75,7 @@ paragraph, write:
 print(h2("My header"), p("Lorem ipsum"))
 ```
 
-### Graphics
+#### Graphics
 
 In addition to text output, your fiddle can also draw graphics on the provided canvas. Fiddle exposes a canvas rendering
 context via `Fiddle.draw` and the underlying canvas via `Fiddle.canvas`. To draw, use the functionality provided by the
@@ -87,7 +87,7 @@ Fiddle.draw.fillStyle = "red"
 Fiddle.draw.fillRect(0, 0, Fiddle.canvas.width / 2, Fiddle.canvas.height / 2)
 ```
 
-### Timers
+#### Timers
 
 Because JavaScript code is running in a single thread, you cannot create a "busy loop" in your code or else the browser
 will become unresponsive. If you need to create long-running fiddles, you need to break it down into smaller parts and
