@@ -22,7 +22,7 @@ import scala.reflect.io.{Streamable, VirtualDirectory}
   * compiler and re-shapes it into the correct structure to satisfy
   * scala-compile and scalajs-tools
   */
-object Classpath {
+class Classpath {
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
   implicit val ec = system.dispatcher
@@ -79,22 +79,17 @@ object Classpath {
     }
   }
 
-  /**
-    * In memory cache of all the jars used in the compiler. This takes up some
-    * memory but is better than reaching all over the filesystem every time we
-    * want to do something.
-    */
-  lazy val commonLibraries = {
+  val commonLibraries = {
     log.debug("Loading files...")
     // load all external libs in parallel using spray-client
-    val jarFiles = baseLibs.map { name =>
+    val jarFiles = baseLibs.par.map { name =>
       val stream = getClass.getResourceAsStream(name)
       log.debug(s"Loading resource $name")
       if (stream == null) {
         throw new Exception(s"Classpath loading failed, jar $name not found")
       }
       name -> Streamable.bytes(stream)
-    }
+    }.seq
 
     val bootFiles = for {
       prop <- Seq(/*"java.class.path", */ "sun.boot.class.path")
@@ -111,7 +106,7 @@ object Classpath {
   /**
     * External libraries loaded from repository
     */
-  lazy val extLibraries = {
+  val extLibraries = {
     Await.result(Future.sequence(Config.extLibs.map { case (name, ref) =>
       loadExtLib(ref).map(name -> _)
     }), timeout).toMap
@@ -156,11 +151,19 @@ object Classpath {
     IRFileCache.IRContainer.Jar(jarFile)
   }
 
+  /**
+    * In memory cache of all the jars used in the compiler. This takes up some
+    * memory but is better than reaching all over the filesystem every time we
+    * want to do something.
+    */
   val commonLibraries4compiler =
-    commonLibraries.map { case (name, data) => lib4compiler(name, data) }
+    Await.result(Future.sequence(commonLibraries.map { case (name, data) => Future(lib4compiler(name, data)) }), timeout)
   val extLibraries4compiler =
     extLibraries.map { case (key, (name, data)) => key -> lib4compiler(name, data) }
 
+  /**
+    * In memory cache of all the jars used in the linker.
+    */
   val commonLibraries4linker =
     commonLibraries.map { case (name, data) => lib4linker(name, data) }
   val extLibraries4linker =
@@ -180,9 +183,5 @@ object Classpath {
       log.debug("Loaded scalaJSClassPath")
       res
     })
-  }
-
-  def initialize(): Unit = {
-    // empty function, just to force initialization of the singleton object
   }
 }

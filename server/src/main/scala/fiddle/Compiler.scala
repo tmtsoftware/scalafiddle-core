@@ -28,7 +28,7 @@ import scala.tools.nsc.util._
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
-class Compiler(env: String) { self =>
+class Compiler(classPath: Classpath, env: String) { self =>
   val log = LoggerFactory.getLogger(getClass)
   val sjsLogger = new Log4jLogger()
   val blacklist = Set("<init>")
@@ -62,7 +62,7 @@ class Compiler(env: String) { self =>
         val fileName = name.replace('.', '/') + ".class"
         val res = classCache.getOrElseUpdate(
           name,
-          Classpath.compilerLibraries(extLibs)
+          classPath.compilerLibraries(extLibs)
             .map(_.lookupPathUnchecked(fileName, false))
             .find(_ != null).map { f =>
             val data = f.toByteArray
@@ -105,7 +105,7 @@ class Compiler(env: String) { self =>
   def initGlobalBits(logger: String => Unit) = {
     val vd = new io.VirtualDirectory("(memory)", None)
     val jCtx = new JavaContext()
-    val jDirs = Classpath.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
+    val jDirs = classPath.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
@@ -223,7 +223,7 @@ class Compiler(env: String) { self =>
       useClosureCompiler = fullOpt)
 
     val output = WritableMemVirtualJSFile("output.js")
-    linker.link(Classpath.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
+    linker.link(classPath.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
     output
   }
 

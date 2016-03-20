@@ -7,10 +7,10 @@
     right: 50%;
     box-sizing: border-box;
     padding-left: 3px;
-    border-color: #ccc;
     border-left: 1px solid;
     border-top: 1px solid;
     border-bottom: 1px solid;
+    border-color: #ccc;
 }
 
 #sandbox {

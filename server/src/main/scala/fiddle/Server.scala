@@ -24,9 +24,11 @@ object Server extends App {
   implicit val materializer = ActorMaterializer()
   implicit val ec = system.dispatcher
   val log = LoggerFactory.getLogger(getClass)
+  // initialize classpath singleton, loads all libraries
+  val classPath = new Classpath
 
   // create compiler router
-  val compilerRouter = system.actorOf(FromConfig.props(Props[CompileActor]), "compilerRouter")
+  val compilerRouter = system.actorOf(FromConfig.props(CompileActor.props(classPath)), "compilerRouter")
 
   import HttpCharsets._
   import MediaTypes._
@@ -135,9 +137,6 @@ object Server extends App {
   }
 
   println(s"Scala Fiddle ${Config.version}")
-
-  // initialize classpath singleton, loads all libraries
-  Classpath.initialize()
 
   // start the HTTP server
   val bindingFuture = Http().bindAndHandle(route, Config.interface, Config.port)

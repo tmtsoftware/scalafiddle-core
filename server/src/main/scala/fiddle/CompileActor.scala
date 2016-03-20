@@ -1,6 +1,6 @@
 package fiddle
 
-import akka.actor.Actor
+import akka.actor.{Actor, Props}
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
 
 import scala.collection.mutable
@@ -20,10 +20,10 @@ case class CompileSource(envId: String, templateId: String, sourceCode: String, 
 
 case class CompleteSource(envId: String, templateId: String, sourceCode: String, flag: String, offset: Int)
 
-class CompileActor extends Actor {
+class CompileActor(classPath: Classpath) extends Actor {
   def receive = {
     case CompileSource(envId, templateId, sourceCode, optimizer) =>
-      val compiler = new Compiler(envId)
+      val compiler = new Compiler(classPath, envId)
       val opt = optimizer match {
         case Optimizer.Fast => compiler.fastOpt _
         case Optimizer.Full => compiler.fullOpt _
@@ -31,7 +31,7 @@ class CompileActor extends Actor {
       sender() ! Try(doCompile(compiler, templateId, sourceCode, _ |> opt |> compiler.export))
 
     case CompleteSource(envId, templateId, sourceCode, flag, offset) =>
-      val compiler = new Compiler(envId)
+      val compiler = new Compiler(classPath, envId)
       sender() ! Try(Await.result(compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds))
   }
 
@@ -68,4 +68,8 @@ class CompileActor extends Actor {
     val logSpam = output.mkString
     CompilerResponse(res.map(processor), parseErrors(preRows, logSpam), logSpam)
   }
+}
+
+object CompileActor {
+  def props(classPath: Classpath) = Props(new CompileActor(classPath))
 }
