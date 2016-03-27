@@ -1,24 +1,18 @@
-Scala-Js-Fiddle
-==============
+# Scala Fiddle Core
 
-Source code for [www.scala-js-fiddle.com](http://www.scala-js-fiddle.com). To develop, run:
+Scala Fiddle provides an embeddable web component where the user can edit and run Scala code. The source code is
+compiled to JavaScript on the server and then run in the browser.
+
+To develop, run:
 
 ```
 sbt "~; server/reStart"
 ```
 
-You can also run
+You can package as a Docker image with
 
 ```
-sbt stage; ./server/target/start
+sbt docker
 ```
-
-to stage and run without SBT,
-
-```
-sbt assembly; java -jar server/target/scala-2.10/server-assembly-0.1-SNAPSHOT.jar
-```
-
-to package as a fat jar and run.
 
 Access the fiddle via browser at http://localhost:8080/embed
