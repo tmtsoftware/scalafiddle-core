@@ -26,8 +26,6 @@ class Client(templateId: String, envId: String, helpUrl: String) {
 
   def currentSourceFile = sourceFiles.find(_.name == currentSource).get
 
-  def currentTemplate = currentSourceFile.template.getOrElse(templateId)
-
   val command = Channel[Future[CompilerResponse]]()
 
   def exec(s: String) = {
@@ -83,7 +81,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
 
   def reconstructSource(source: String, srcFile: SourceFile): String = {
     // use map instead of mkString to prevent an empty list from generating a single line
-    srcFile.prefix.map(_ + "\n").mkString + source + srcFile.postfix.map(_ + "\n").mkString
+    srcFile.prefix.map(_ + "\n").mkString + source + "\n" + srcFile.postfix.map(_ + "\n").mkString
   }
 
   def encodeSource(source: String): String = {
@@ -96,7 +94,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val tag = s"${if (Client.initializing) "initial-" else ""}$opt"
     val startTime = System.nanoTime()
     Ajax.get(
-      url = s"/compile?env=$envId&template=$currentTemplate&opt=$opt&source=${encodeSource(code)}"
+      url = s"/compile?opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
       val compileTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("compile", tag, currentSource, compileTime)
@@ -121,14 +119,10 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     command.update(compileServer(editor.code, "fast"))
   }
 
-  def parseFull = {
-    Ajax.get(
-      url = s"/parse?env=$envId&template=$currentTemplate&source=${encodeSource(editor.code)}"
-    ).map { res =>
-      import scalatags.JsDom.all._
-      Client.clear()
-      Fiddle.println(h2("Full source code"), pre(res.responseText))
-    }
+  def parseFull() = {
+    import scalatags.JsDom.all._
+    Client.clear()
+    Fiddle.println(h2("Full source code"), pre(reconstructSource(editor.code, currentSourceFile)))
   }
 
   val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
@@ -299,7 +293,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val startTime = System.nanoTime()
 
     val f = Ajax.get(
-      url = s"/complete?env=$envId&template=$currentTemplate&flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
+      url = s"/complete?flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
       val completeTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("complete", "complete", currentSource, completeTime)
@@ -411,7 +405,7 @@ object Client {
   }
 
   @JSExport
-  def main(useFast: Boolean, helpUrl: String): Unit = task * async {
+  def main(useFast: Boolean, helpUrl: String, baseEnv: String): Unit = task * async {
     clear()
     Editor.initEditor
     val client = new Client(templateId, envId, helpUrl)
@@ -436,6 +430,8 @@ object Client {
         client.fastOpt
       else
         client.fullOpt
+    } else {
+      client.setSources(Seq(SourceFile("ScalaFiddle.scala", baseEnv)))
     }
     initializing = false
   }
@@ -447,7 +443,6 @@ object Client {
     """.stripMargin
 
   def load(gistId: String, files: Seq[String]): Future[Seq[SourceFile]] = {
-    val gistUrl = "https://gist.github.com/" + gistId
     Ajax.get("https://api.github.com/gists/" + gistId).map { res =>
       val result = JsVal.parse(res.responseText)
       val fileList = if (files.isEmpty) {

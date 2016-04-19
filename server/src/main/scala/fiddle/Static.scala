@@ -53,6 +53,9 @@ object Static {
     val jsURLs = s"/cache/$allJS" +: Config.extJS
     val cssURLs = s"/cache/$allCSS" +: Config.extCSS
 
+    // convert baseEnv to JS string variable
+    val baseEnv = "var baseEnv = " + Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n") + ";"
+
     // parse which buttons to hide
     val toHide = paramMap.get("hideButtons").map(_.split(',')).getOrElse(Array.empty)
     val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b._1)).map { case(bName, bTitle) =>
@@ -205,7 +208,8 @@ object Static {
       script(
         id := "compiled"
       ),
-      script(raw(s"""Client().main($useFast, "${Config.helpUrl}")"""))
+      script(`type` := "text/javascript", raw(baseEnv)),
+      script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.helpUrl}", baseEnv)"""))
     ).toString()
     ByteString(pageHtml, "UTF-8")
   }

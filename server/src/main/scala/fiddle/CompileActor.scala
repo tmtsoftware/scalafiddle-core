@@ -23,16 +23,16 @@ case class CompleteSource(envId: String, templateId: String, sourceCode: String,
 class CompileActor(classPath: Classpath) extends Actor {
   def receive = {
     case CompileSource(envId, templateId, sourceCode, optimizer) =>
-      val compiler = new Compiler(classPath, envId)
+      val compiler = new Compiler(classPath, sourceCode)
       val opt = optimizer match {
         case Optimizer.Fast => compiler.fastOpt _
         case Optimizer.Full => compiler.fullOpt _
       }
-      sender() ! Try(doCompile(compiler, templateId, sourceCode, _ |> opt |> compiler.export))
+      sender() ! Try(doCompile(compiler, sourceCode, _ |> opt |> compiler.export))
 
     case CompleteSource(envId, templateId, sourceCode, flag, offset) =>
-      val compiler = new Compiler(classPath, envId)
-      sender() ! Try(Await.result(compiler.autocomplete(templateId, sourceCode, flag, offset.toInt), 30.seconds))
+      val compiler = new Compiler(classPath, sourceCode)
+      sender() ! Try(compiler.autocomplete(flag, offset.toInt))
   }
 
   val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r
@@ -55,16 +55,14 @@ class CompileActor(classPath: Classpath) extends Actor {
     annotations
   }
 
-  def doCompile(compiler: Compiler, templateId: String, code: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
-    println(s"Using template $templateId")
+  def doCompile(compiler: Compiler, sourceCode: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilerResponse = {
     val output = mutable.Buffer.empty[String]
 
-    val res = compiler.compile(templateId, code, output.append(_))
+    val res = compiler.compile(output.append(_))
     if(output.nonEmpty)
       println(s"Compiler errors: $output")
-    val template = compiler.getTemplate(templateId)
 
-    val preRows = template.pre.count(_ == '\n')
+    val preRows = sourceCode.split('\n').takeWhile(!_.matches(""" *// \$FiddleStart.*""")).length + 1
     val logSpam = output.mkString
     CompilerResponse(res.map(processor), parseErrors(preRows, logSpam), logSpam)
   }

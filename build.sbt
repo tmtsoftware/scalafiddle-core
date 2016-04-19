@@ -12,7 +12,7 @@ val commonSettings = Seq(
   version := "1.0.0-SNAPSHOT"
 )
 
-val akkaVersion = "2.4.2"
+val akkaVersion = "2.4.3"
 val asyncVersion = "0.9.1"
 val aceVersion = "1.2.2"
 val domVersion = "0.9.0"
@@ -46,6 +46,9 @@ lazy val client = project
       "com.github.marklister" %%% "base64" % "0.2.2",
       "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided"
     ),
+    // rename output always to -opt.js
+    artifactPath in (Compile, fastOptJS) := ((crossTarget in (Compile, fastOptJS)).value /
+      ((moduleName in fastOptJS).value + "-opt.js")),
     relativeSourceMaps := true
   )
 

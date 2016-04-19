@@ -9,17 +9,13 @@ import org.scalajs.core.tools.logging._
 import org.scalajs.core.tools.sem.Semantics
 import org.slf4j.LoggerFactory
 
-import scala.async.Async.async
 import scala.collection.mutable
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 import scala.reflect.io
 import scala.tools.nsc
 import scala.tools.nsc.Settings
 import scala.tools.nsc.backend.JavaPlatform
-import scala.tools.nsc.interactive.Response
 import scala.tools.nsc.plugins.Plugin
-import scala.tools.nsc.reporters.{ConsoleReporter, StoreReporter}
+import scala.tools.nsc.reporters.ConsoleReporter
 import scala.tools.nsc.typechecker.Analyzer
 import scala.tools.nsc.util.ClassPath.JavaContext
 import scala.tools.nsc.util._
@@ -28,21 +24,16 @@ import scala.tools.nsc.util._
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
-class Compiler(classPath: Classpath, env: String) { self =>
+class Compiler(classPath: Classpath, code: String) { self =>
   val log = LoggerFactory.getLogger(getClass)
   val sjsLogger = new Log4jLogger()
   val blacklist = Set("<init>")
-  val extLibs = Config.environments.getOrElse(env, Nil)
-
-  /**
-    * Converts Scalac's weird Future type
-    * into a standard scala.concurrent.Future
-    */
-  def toFuture[T](func: Response[T] => Unit): Future[T] = {
-    val r = new Response[T]
-    Future {func(r); r.get.left.get}
-  }
-
+  val dependencyRE = """ *// \$FiddleDependency (.+)""".r
+  private val codeLines = code.split('\n')
+  val extLibs = codeLines.collect {
+    case dependencyRE(dep) => dep
+  }.toSet
+  log.debug(s"Dependencies: $extLibs")
   /**
     * Converts a bunch of bytes into Scalac's weird VirtualFile class
     */
@@ -124,17 +115,9 @@ class Compiler(classPath: Classpath, env: String) { self =>
     (settings, reporter, vd, jCtx, jDirs)
   }
 
-  def getTemplate(template: String) = {
-    Config.templates.get(template) match {
-      case Some(t) => t
-      case None => throw new IllegalArgumentException(s"Invalid template $template")
-    }
-  }
-
-  def autocomplete(templateId: String, code: String, flag: String, pos: Int): Future[List[(String, String)]] = async {
+  def autocomplete(flag: String, pos: Int): List[(String, String)] = {
     import scala.tools.nsc.interactive._
 
-    val template = getTemplate(templateId)
     // global can be reused, just create new runs for new compiler invocations
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(_ => ())
     settings.processArgumentString("-Ypresentation-any-thread")
@@ -150,27 +133,25 @@ class Compiler(classPath: Classpath, env: String) { self =>
       }
     }
 
-    val offset = pos + template.pre.length
-    val fullSource = template.fullSource(code)
-    val source = fullSource.take(offset) + "_CURSOR_ " + fullSource.drop(offset)
+    val startIndex = codeLines.takeWhile(!_.contains("// $FiddleStart")).length
+    val startOffset = pos + codeLines.take(startIndex + 1).mkString("\n").length
+    val source = code.take(startOffset) + "_CURSOR_ " + code.drop(startOffset)
     val run = new compiler.TyperRun
     val unit = compiler.newCompilationUnit(source, "ScalaFiddle.scala")
     val richUnit = new compiler.RichCompilationUnit(unit.source)
-    log.debug(s"Source: ${source.take(offset)}${scala.Console.RED}|${scala.Console.RESET}${source.drop(offset)}")
+    log.debug(s"Source: ${source.take(startOffset)}${scala.Console.RED}|${scala.Console.RESET}${source.drop(startOffset)}")
     compiler.unitOfFile(richUnit.source.file) = richUnit
-    val results = compiler.completionsAt(richUnit.position(offset)).matchingResults()
+    val results = compiler.completionsAt(richUnit.position(startOffset)).matchingResults()
 
     log.debug(s"Completion results: ${results.take(20)}")
 
     results.map(r => (r.sym.signatureString, r.symNameDropLocal.decoded)).distinct
   }
 
-  def compile(templateId: String, src: String, logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {
+  def compile(logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {
 
-    val template = getTemplate(templateId)
-    val fullSource = template.fullSource(src)
-    log.debug("Compiling source:\n" + fullSource)
-    val singleFile = makeFile(fullSource.getBytes("UTF-8"))
+    log.debug("Compiling source:\n" + code)
+    val singleFile = makeFile(code.getBytes("UTF-8"))
 
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
     val compiler = new nsc.Global(settings, reporter) with InMemoryGlobal {

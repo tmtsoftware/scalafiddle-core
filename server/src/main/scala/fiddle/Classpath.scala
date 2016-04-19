@@ -80,8 +80,7 @@ class Classpath {
   }
 
   val commonLibraries = {
-    log.debug("Loading files...")
-    // load all external libs in parallel using spray-client
+    log.debug("Loading common libraries...")
     val jarFiles = baseLibs.par.map { name =>
       val stream = getClass.getResourceAsStream(name)
       log.debug(s"Loading resource $name")
@@ -99,7 +98,7 @@ class Classpath {
     } yield {
       path.split("/").last -> vfile.toByteArray()
     }
-    log.debug("Files loaded...")
+    log.debug("Common libraries loaded...")
     jarFiles ++ bootFiles
   }
 
@@ -107,9 +106,12 @@ class Classpath {
     * External libraries loaded from repository
     */
   val extLibraries = {
-    Await.result(Future.sequence(Config.extLibs.map { case (name, ref) =>
-      loadExtLib(ref).map(name -> _)
+    log.debug("Loading external libraries")
+    val res = Await.result(Future.sequence(Config.extLibs.map { ref =>
+      loadExtLib(ref).map(r => ref -> r)
     }), timeout).toMap
+    log.debug("External libraries loaded")
+    res
   }
 
   /**
@@ -169,19 +171,21 @@ class Classpath {
   val extLibraries4linker =
     extLibraries.map { case (key, (name, data)) => key -> lib4linker(name, data) }
 
-  val linkerCaches = mutable.Map.empty[List[String], Seq[IRFileCache.VirtualRelativeIRFile]]
-
-  def compilerLibraries(extLibs: List[String]) = {
+  def compilerLibraries(extLibs: Set[String]) = {
     commonLibraries4compiler ++ extLibs.flatMap(extLibraries4compiler.get)
   }
 
-  def linkerLibraries(extLibs: List[String]) = {
-    linkerCaches.getOrElseUpdate(extLibs, {
-      val loadedJars = commonLibraries4linker ++ extLibs.flatMap(extLibraries4linker.get)
-      val cache = (new IRFileCache).newCache
-      val res = cache.cached(loadedJars)
-      log.debug("Loaded scalaJSClassPath")
-      res
-    })
+  val linkerCaches = mutable.Map.empty[Set[String], Seq[IRFileCache.VirtualRelativeIRFile]]
+
+  def linkerLibraries(extLibs: Set[String]) = {
+    this.synchronized {
+      linkerCaches.getOrElseUpdate(extLibs, {
+        val loadedJars = commonLibraries4linker ++ extLibs.flatMap(extLibraries4linker.get)
+        val cache = (new IRFileCache).newCache
+        val res = cache.cached(loadedJars)
+        log.debug(s"Cached $extLibs")
+        res
+      })
+    }
   }
 }

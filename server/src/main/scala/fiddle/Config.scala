@@ -25,22 +25,14 @@ object Config {
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
-  val extLibs = config.getConfig("extLibs").entrySet().asScala.map { entry =>
-    entry.getKey -> entry.getValue.unwrapped().asInstanceOf[String]
-  }.toMap
-
-  val environments = config.getConfig("environments").entrySet().asScala.map { entry =>
-    entry.getKey -> entry.getValue.unwrapped().asInstanceOf[java.util.List[String]].asScala.toList
-  }.toMap
+  val extLibs = config.getStringList("extLibs").asScala
 
   val extJS = config.getStringList("extJS").asScala
   val extCSS = config.getStringList("extCSS").asScala
 
   val libCache = config.getString("libCache")
 
-  val templates = config.getConfigList("templates").asScala.map { co =>
-    co.getString("name") -> Template(co.getString("pre"), co.getString("post"))
-  }.toMap
+  val baseEnv = config.getString("baseEnv")
 
   val httpHeaders: List[HttpHeader] = config.getConfig("httpHeaders").entrySet().asScala.map { entry =>
     RawHeader(entry.getKey, entry.getValue.unwrapped().asInstanceOf[String])

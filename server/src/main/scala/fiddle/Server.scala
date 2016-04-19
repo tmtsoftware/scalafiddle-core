@@ -115,16 +115,6 @@ object Server extends App {
               }
             }
           }
-        } ~ path("parse") {
-          parameters('source, 'template, 'env) { (source, templateId, envId) =>
-            complete {
-              val dSrc = decodeSource(source)
-              val fullSource = Config.templates.get(templateId).map(_.fullSource(dSrc)).getOrElse(dSrc)
-              val libs = Config.environments.getOrElse(envId, Nil).flatMap(lib => Config.extLibs.get(lib))
-              val finalSource = fullSource + "\n// Libraries:\n" + libs.mkString("// ", "\n// ", "\n")
-              HttpResponse(StatusCodes.OK, entity = HttpEntity(`text/plain` withCharset `UTF-8`, ByteString(finalSource)))
-            }
-          }
         } ~ getFromResourceDirectory("/web")
       }
     }
