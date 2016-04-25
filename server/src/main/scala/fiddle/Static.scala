@@ -58,7 +58,7 @@ object Static {
 
     // parse which buttons to hide
     val toHide = paramMap.get("hideButtons").map(_.split(',')).getOrElse(Array.empty)
-    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b._1)).map { case(bName, bTitle) =>
+    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b._1)).map { case (bName, bTitle) =>
       div(title := bTitle, id := s"$bName-icon", cls := "icon")(
         svg(width := 21, height := 21)(use(xLinkHref := s"#sym_$bName"))
       )
@@ -189,9 +189,13 @@ object Static {
           )
         ),
         div(id := "sandbox")(
-          div(cls := "label")(span(id := "output-tag", "Output")),
-          canvas(id := "canvas", style := "position: absolute"),
-          div(id := "output")
+          iframe(
+            id := "codeframe",
+            width := "100%",
+            height := "100%",
+            "frameborder".attr := "0",
+            "sandbox".attr := "allow-scripts",
+            src := s"/codeframe?theme=${paramMap.getOrElse("theme", "light")}")
         )
       ),
       script(`type` := "text/javascript", raw(
@@ -205,11 +209,63 @@ object Static {
              |ga('send', 'pageview');
              |""".stripMargin
         else "")),
-      script(
-        id := "compiled"
-      ),
       script(`type` := "text/javascript", raw(baseEnv)),
       script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.helpUrl}", baseEnv)"""))
+    ).toString()
+    ByteString(pageHtml, "UTF-8")
+  }
+
+  def renderCodeFrame(paramMap: Map[String, String]): ByteString = {
+    val themeCSS = paramMap.get("theme") match {
+      case Some("dark") => "/styles-dark.css"
+      case _ => "/styles-light.css"
+    }
+    val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
+    val cssURLs = s"/cache/$allCSS" +: Config.extCSS
+
+    val pageHtml = "<!DOCTYPE html>" + html(
+      head(
+        meta(charset := "UTF-8"),
+        meta(name := "robots", content := "noindex"),
+        for (cssURL <- cssURLs) yield link(rel := "stylesheet", href := cssURL)
+      ),
+      body(
+        div(id := "container", style := "height: 100%; width: 100%")(
+          div(cls := "label")(span(id := "output-tag", "Output")),
+          canvas(id := "canvas", style := "position: absolute"),
+          div(id := "output"),
+          script(`type` := "text/javascript", raw(
+            """
+              |var label = document.getElementById("output-tag");
+              |var canvas = document.getElementById("canvas");
+              |var panel = document.getElementById("output");
+              |var container = document.getElementById("container");
+              |window.addEventListener('message', function (e) {
+              |  var mainWindow = e.source;
+              |  var msg = e.data;
+              |  switch(msg.cmd) {
+              |    case "label":
+              |      label.innerHTML = msg.data;
+              |      break;
+              |    case "clear":
+              |      panel.innerHTML = "";
+              |      canvas.height = container.clientHeight;
+              |      canvas.width = container.clientWidth;
+              |      canvas.getContext("2d").clearRect(0, 0, 10000, 10000);
+              |      break;
+              |    case "print":
+              |      panel.innerHTML = msg.data;
+              |      break;
+              |    case "code":
+              |      eval(msg.data);
+              |      eval("ScalaFiddle().main();");
+              |      break;
+              |  }
+              |});
+            """.stripMargin)
+          )
+        )
+      )
     ).toString()
     ByteString(pageHtml, "UTF-8")
   }

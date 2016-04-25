@@ -16,13 +16,13 @@ object Optimizer {
   case object Full extends Optimizer
 }
 
-case class CompileSource(envId: String, templateId: String, sourceCode: String, optimizer: Optimizer)
+case class CompileSource(sourceCode: String, optimizer: Optimizer)
 
-case class CompleteSource(envId: String, templateId: String, sourceCode: String, flag: String, offset: Int)
+case class CompleteSource(sourceCode: String, flag: String, offset: Int)
 
 class CompileActor(classPath: Classpath) extends Actor {
   def receive = {
-    case CompileSource(envId, templateId, sourceCode, optimizer) =>
+    case CompileSource(sourceCode, optimizer) =>
       val compiler = new Compiler(classPath, sourceCode)
       val opt = optimizer match {
         case Optimizer.Fast => compiler.fastOpt _
@@ -30,7 +30,7 @@ class CompileActor(classPath: Classpath) extends Actor {
       }
       sender() ! Try(doCompile(compiler, sourceCode, _ |> opt |> compiler.export))
 
-    case CompleteSource(envId, templateId, sourceCode, flag, offset) =>
+    case CompleteSource(sourceCode, flag, offset) =>
       val compiler = new Compiler(classPath, sourceCode)
       sender() ! Try(compiler.autocomplete(flag, offset.toInt))
   }

@@ -5,8 +5,7 @@ import org.scalajs.dom.html
 
 import scala.concurrent.{Future, Promise}
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSExport, JSName}
-import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
+import scala.scalajs.js.annotation.JSExport
 import scala.util.Try
 import scalatags.JsDom.all._
 
@@ -31,7 +30,7 @@ object Fiddle {
     */
   def getElem[T](id: String) = dom.document.getElementById(id).asInstanceOf[T]
 
-  val sandbox = getElem[html.Div]("sandbox")
+  val sandbox = getElem[html.Div]("container")
   val canvas = getElem[html.Canvas]("canvas")
   val draw = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
   val panel = getElem[html.Div]("output")
@@ -69,28 +68,11 @@ object Fiddle {
 
   def scheduleOnce(delay: Int)(f: => Unit) = {
     val handle = js.timers.setTimeout(delay)(f)
-    CommonClient().addTimeoutHandle(handle)
     handle
   }
 
   def schedule(interval: Int)(f: => Unit) = {
     val handle = js.timers.setInterval(interval)(f)
-    CommonClient().addIntervalHandle(handle)
     handle
   }
-}
-
-/**
-  * Expose functionality in the Client to manage scheduled callbacks
-  */
-@js.native
-trait ClientAPI extends js.Object {
-  def addTimeoutHandle(handle: SetTimeoutHandle): Unit = js.native
-  def addIntervalHandle(handle: SetIntervalHandle): Unit = js.native
-}
-
-@JSName("Client")
-@js.native
-object CommonClient extends js.Object {
-  def apply(): ClientAPI = js.native
 }

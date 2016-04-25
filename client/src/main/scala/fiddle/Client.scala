@@ -28,12 +28,26 @@ class Client(templateId: String, envId: String, helpUrl: String) {
 
   val command = Channel[Future[CompilerResponse]]()
 
+  val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
+  val resetIcon = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
+  val shareIcon = dom.document.getElementById("share-icon").asInstanceOf[HTMLElement]
+  val helpIcon = dom.document.getElementById("help-icon").asInstanceOf[HTMLElement]
+  val shareBox = dom.document.getElementById("sharebox").asInstanceOf[HTMLElement]
+  val shareLink = dom.document.getElementById("sharelink").asInstanceOf[HTMLInputElement]
+  val gistButton = dom.document.getElementById("gist-button").asInstanceOf[HTMLButtonElement]
+  def codeFrame = dom.document.getElementById("codeframe").asInstanceOf[HTMLIFrameElement]
+  val editorContainerDiv = dom.document.getElementById("editorContainer").asInstanceOf[HTMLElement]
+  val fiddleSelectorDiv = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
+  val fiddleSelector = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
+
   def exec(s: String) = {
     Client.clear()
 
     try {
-      js.eval(s)
-      js.eval("ScalaFiddle().main()")
+      //js.eval(s)
+      //js.eval("ScalaFiddle().main()")
+      val msg = js.Dynamic.literal(cmd = "code", data = s)
+      codeFrame.contentWindow.postMessage(msg, "*")
     } catch {
       case e: Throwable =>
         Client.logError(e.toString)
@@ -62,8 +76,12 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   ), complete, RedLogger)
 
   def beginCompilation(): Unit = {
-    runIcon.classList.add("active")
-    showStatus("Compiling")
+    // fully clear the code iframe by reloading it
+    codeFrame.onload = (e: Event) => {
+      runIcon.classList.add("active")
+      showStatus("Compiling")
+    }
+    codeFrame.src = codeFrame.src
   }
 
   def endCompilation(): Unit = {
@@ -76,7 +94,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     import scalatags.JsDom.all._
     showStatus("Errors")
     Client.clear()
-    Fiddle.println(pre(cls := "error", errStr))
+    Client.printOutput(pre(cls := "error", errStr))
   }
 
   def reconstructSource(source: String, srcFile: SourceFile): String = {
@@ -122,20 +140,8 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   def parseFull() = {
     import scalatags.JsDom.all._
     Client.clear()
-    Fiddle.println(h2("Full source code"), pre(reconstructSource(editor.code, currentSourceFile)))
+    Client.printOutput(h2("Full source code"), pre(reconstructSource(editor.code, currentSourceFile)))
   }
-
-  val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
-  val resetIcon = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
-  val shareIcon = dom.document.getElementById("share-icon").asInstanceOf[HTMLElement]
-  val helpIcon = dom.document.getElementById("help-icon").asInstanceOf[HTMLElement]
-  val shareBox = dom.document.getElementById("sharebox").asInstanceOf[HTMLElement]
-  val shareLink = dom.document.getElementById("sharelink").asInstanceOf[HTMLInputElement]
-  val gistButton = dom.document.getElementById("gist-button").asInstanceOf[HTMLButtonElement]
-  val outputTag = dom.document.getElementById("output-tag").asInstanceOf[HTMLElement]
-  val editorContainerDiv = dom.document.getElementById("editorContainer").asInstanceOf[HTMLElement]
-  val fiddleSelectorDiv = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
-  val fiddleSelector = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
 
   // attach handlers to icons
   if(runIcon != null) {
@@ -201,8 +207,10 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     dom.document.body.removeEventListener("mousedown", outsideClickHandler)
   }
 
-  def showStatus(status: String) =
-    outputTag.innerHTML = status
+  def showStatus(status: String) = {
+    val msg = js.Dynamic.literal(cmd = "label", data = status)
+    codeFrame.contentWindow.postMessage(msg, "*")
+  }
 
   val templateOverride = """\s*// \$Template (\w.+)""".r
   val fiddleStart = """\s*// \$FiddleStart\s*$""".r
@@ -331,7 +339,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     showStatus("Uploaded")
     EventTracker.sendEvent("share", "save", currentSource)
     Client.clear()
-    Fiddle.println("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
+    Client.printOutput("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
     // build a link to show the uploaded source in Scala Fiddle
     val params = Client.queryParams
       .filterKeys(name => name != "gist" && name != "source")
@@ -340,7 +348,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
       .map { case (k, v) => s"$k=${js.URIUtils.encodeURIComponent(v)}" }
       .mkString("&")
     val sfUrl = s"/embed?$params"
-    Fiddle.println("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
+    Client.printOutput("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
     dom.console.log(s"ScalaFiddle uploaded to $url")
   }
 }
@@ -351,13 +359,12 @@ object Client {
 
   var intervalHandles = List.empty[SetIntervalHandle]
   var timeoutHandles = List.empty[SetTimeoutHandle]
-
-
+  
   dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
     dom.console.log("dom.onerror")
     Client.logError(event.toString)
   }
-
+  
   def parseUriParameters(search: String): Map[String, String] = {
     search.drop(1).split('&').filter(_.nonEmpty).map { part =>
       val pair = part.split("=")
@@ -371,6 +378,7 @@ object Client {
   val queryParams = parseUriParameters(dom.window.location.search)
   val templateId = queryParams.getOrElse("template", "default")
   val envId = queryParams.getOrElse("env", "default")
+  val codeFrame = dom.document.getElementById("codeframe").asInstanceOf[HTMLIFrameElement]
 
   dom.console.log(s"queryParams: $queryParams, templateId: $templateId")
 
@@ -385,8 +393,8 @@ object Client {
     timeoutHandles = Nil
     intervalHandles.foreach(js.timers.clearInterval)
     intervalHandles = Nil
-
-    Fiddle.clear()
+    val msg = js.Dynamic.literal(cmd = "clear")
+    codeFrame.contentWindow.postMessage(msg, "*")
   }
 
   val subFiddleRE = """// \$SubFiddle (\w.+)""".r
@@ -459,13 +467,17 @@ object Client {
     }.recover { case e => Seq(SourceFile("ScalaFiddle.scala", defaultCode)) }
   }
 
-  @JSExport
-  def addTimeoutHandle(handle: SetTimeoutHandle): Unit = {
-    timeoutHandles ::= handle
+  def printOutput(ss: String) = {
+    import scalatags.JsDom.all._
+    val html = div(ss).toString
+    val msg = js.Dynamic.literal(cmd = "print", data = html)
+    codeFrame.contentWindow.postMessage(msg, "*")
   }
 
-  @JSExport
-  def addIntervalHandle(handle: SetIntervalHandle): Unit = {
-    intervalHandles ::= handle
+  def printOutput(ss: scalatags.JsDom.all.Modifier*) = {
+    import scalatags.JsDom.all._
+    val html = div(ss).toString
+    val msg = js.Dynamic.literal(cmd = "print", data = html)
+    codeFrame.contentWindow.postMessage(msg, "*")
   }
 }

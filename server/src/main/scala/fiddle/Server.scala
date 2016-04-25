@@ -52,10 +52,26 @@ object Server extends App {
               }
             }
           }
+        } ~ path("codeframe") {
+          respondWithHeaders(Config.httpHeaders) {
+            // code frame can be cached for a long time (1h for now)
+            respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 1L))) {
+              parameterMap { paramMap =>
+                complete {
+                  HttpEntity(
+                    `text/html` withCharset `UTF-8`,
+                    Static.renderCodeFrame(
+                      paramMap
+                    )
+                  )
+                }
+              }
+            }
+          }
         } ~ path("compile") {
           // compile results can be cached for a long time (24h for now)
           respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L))) {
-            parameters('source, 'opt, 'template, 'env) { (source, opt, template, env) =>
+            parameters('source, 'opt) { (source, opt) =>
               ctx =>
                 val optimizer = opt match {
                   case "fast" => Optimizer.Fast
@@ -63,7 +79,7 @@ object Server extends App {
                   case _ =>
                     throw new IllegalArgumentException(s"$opt is not a valid opt value")
                 }
-                val res = ask(compilerRouter, CompileSource(env, template, decodeSource(source), optimizer))
+                val res = ask(compilerRouter, CompileSource(decodeSource(source), optimizer))
                   .mapTo[Try[CompilerResponse]]
                   .map {
                     case Success(cr) =>
@@ -82,9 +98,9 @@ object Server extends App {
         } ~ path("complete") {
           // code complete results can be cached for a long time (24h for now)
           respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L))) {
-            parameters('source, 'flag, 'offset, 'template, 'env) { (source, flag, offset, template, env) =>
+            parameters('source, 'flag, 'offset) { (source, flag, offset) =>
               ctx =>
-                val res = ask(compilerRouter, CompleteSource(env, template, decodeSource(source), flag, offset.toInt))
+                val res = ask(compilerRouter, CompleteSource(decodeSource(source), flag, offset.toInt))
                   .mapTo[Try[List[(String, String)]]]
                   .map {
                     case Success(cr) =>
