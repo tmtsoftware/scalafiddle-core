@@ -9,12 +9,13 @@ import org.scalajs.dom.raw._
 import upickle.default._
 
 import scala.async.Async.{async, await}
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
 import scala.scalajs.niocharset.StandardCharsets
+import scala.util.Success
 
 case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil,
   template: Option[String] = None)
@@ -46,8 +47,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     try {
       //js.eval(s)
       //js.eval("ScalaFiddle().main()")
-      val msg = js.Dynamic.literal(cmd = "code", data = s)
-      codeFrame.contentWindow.postMessage(msg, "*")
+      Client.sendFrameCmd("code", s)
     } catch {
       case e: Throwable =>
         Client.logError(e.toString)
@@ -75,13 +75,16 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     ("Parse", "Alt-Enter", parseFull _)
   ), complete, RedLogger)
 
-  def beginCompilation(): Unit = {
+  def beginCompilation(): Future[Unit] = {
     // fully clear the code iframe by reloading it
+    val p = Promise[Unit]
     codeFrame.onload = (e: Event) => {
       runIcon.classList.add("active")
       showStatus("Compiling")
+      p.complete(Success(()))
     }
     codeFrame.src = codeFrame.src
+    p.future
   }
 
   def endCompilation(): Unit = {
@@ -128,13 +131,11 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   def fullOpt = {
-    beginCompilation()
-    command.update(compileServer(editor.code, "full"))
+    beginCompilation().map(_ => command.update(compileServer(editor.code, "full")))
   }
 
   def fastOpt = {
-    beginCompilation()
-    command.update(compileServer(editor.code, "fast"))
+    beginCompilation().map(_ => command.update(compileServer(editor.code, "fast")))
   }
 
   def parseFull() = {
@@ -208,8 +209,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   def showStatus(status: String) = {
-    val msg = js.Dynamic.literal(cmd = "label", data = status)
-    codeFrame.contentWindow.postMessage(msg, "*")
+    Client.sendFrameCmd("label", status)
   }
 
   val templateOverride = """\s*// \$Template (\w.+)""".r
@@ -386,6 +386,11 @@ object Client {
     dom.console.error(s)
   }
 
+  def sendFrameCmd(cmd: String, data: String = "") = {
+    val msg = js.Dynamic.literal(cmd = cmd, data = data)
+    codeFrame.contentWindow.postMessage(msg, "*")
+  }
+
   def clear() = {
     dom.console.log(s"Clearing ${timeoutHandles.size} timeouts and ${intervalHandles.size} intervals")
     // clear all timers
@@ -393,8 +398,7 @@ object Client {
     timeoutHandles = Nil
     intervalHandles.foreach(js.timers.clearInterval)
     intervalHandles = Nil
-    val msg = js.Dynamic.literal(cmd = "clear")
-    codeFrame.contentWindow.postMessage(msg, "*")
+    sendFrameCmd("clear")
   }
 
   val subFiddleRE = """// \$SubFiddle (\w.+)""".r
@@ -470,14 +474,12 @@ object Client {
   def printOutput(ss: String) = {
     import scalatags.JsDom.all._
     val html = div(ss).toString
-    val msg = js.Dynamic.literal(cmd = "print", data = html)
-    codeFrame.contentWindow.postMessage(msg, "*")
+    Client.sendFrameCmd("print", html)
   }
 
   def printOutput(ss: scalatags.JsDom.all.Modifier*) = {
     import scalatags.JsDom.all._
     val html = div(ss).toString
-    val msg = js.Dynamic.literal(cmd = "print", data = html)
-    codeFrame.contentWindow.postMessage(msg, "*")
+    Client.sendFrameCmd("print", html)
   }
 }
