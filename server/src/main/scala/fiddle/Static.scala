@@ -50,8 +50,8 @@ object Static {
     val useFast = paramMap.contains("fast")
     val allJS = joinResources(aceFiles ++ srcFiles, ".js", ";\n")
     val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
-    val jsURLs = s"/cache/$allJS" +: Config.extJS
-    val cssURLs = s"/cache/$allCSS" +: Config.extCSS
+    val jsURLs = s"cache/$allJS" +: Config.extJS
+    val cssURLs = s"cache/$allCSS" +: Config.extCSS
 
     // convert baseEnv to JS string variable
     val baseEnv = "var baseEnv = " + Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n") + ";"
@@ -195,7 +195,7 @@ object Static {
             height := "100%",
             "frameborder".attr := "0",
             "sandbox".attr := "allow-scripts",
-            src := s"/codeframe?theme=${paramMap.getOrElse("theme", "light")}")
+            src := s"codeframe?theme=${paramMap.getOrElse("theme", "light")}")
         )
       ),
       script(`type` := "text/javascript", raw(
@@ -221,7 +221,7 @@ object Static {
       case _ => "/styles-light.css"
     }
     val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
-    val cssURLs = s"/cache/$allCSS" +: Config.extCSS
+    val cssURLs = s"cache/$allCSS" +: Config.extCSS
 
     val pageHtml = "<!DOCTYPE html>" + html(
       head(

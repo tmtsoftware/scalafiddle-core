@@ -69,11 +69,17 @@ within the source file itself.
 
 ```scala
 // $SubFiddle Main.scala
-println("Hello World!")
+import fiddle.Fiddle.println  
+object ScalaFiddle extends scala.js.JSApp {
+  println("Hello World!")
+}
 // $SubFiddle Test.scala
-val x = 42
-val y = 88
-println(x*y)
+import fiddle.Fiddle.println  
+object ScalaFiddle extends scala.js.JSApp {
+  val x = 42
+  val y = 88
+  println(x*y)
+}
 ```
 
 This will provide two files, `Main.scala` and `Test.scala` with respective content. The separators are not visible to
@@ -82,31 +88,12 @@ the end user.
 ## Templates
 
 The code written in the fiddle is run inside a _template_. This template provides things like common imports and a
-wrapper around the code so that it can be directly executed. The templates are defined in the
-[application.conf](server/src/main/resources/application.conf) file by providing a pre and post code snippet. The 
+wrapper around the code so that it can be directly executed. The templates provides pre and post code snippet around the actual fiddle code. The 
 _default_ template provides the usual imports and wraps the code in the `ScalaFiddle` object and its `main` method, so
 that it can be directly executed.
 
 All fiddles must have an `object ScalaFiddle extends js.JSApp` with a `main` method to work. Usually this is provided
 by the template, but in some cases you may want to leave that to the user.
-
-Template can be specified with a `template` parameter in the URL, or by overriding it in the code itself using a special
-command:
-
-```scala
-// $Template main
-def main() = {
-  println("In the main!")
-}
-```
-
-### Inline templates
-
-In addition to the basic templates provided on the server, a fiddle can define its own template consisting of a prefix
-and postfix that are hidden from the user. The inline template complements the server template (one is defined within
-the other), so both can be used at the same time. Inline templates can be useful when you want to demonstrate some
-concept that requires a bit of boilerplate around it to function properly, but you don't want the user to worry about
-that.
 
 To mark the beginning and ending of user editable content, use `// $FiddleStart` and `// $FiddleEnd` markers.
 
@@ -114,27 +101,35 @@ For example a fiddle drawing different oscilloscope graphs where the user only n
 functions:
 
 ```scala
-import math._
-val (h, w) = (Page.canvas.height, Page.canvas.width)
-var x = 0.0
+import scalatags.JsDom.all._
+import org.scalajs.dom
+import fiddle.Fiddle, Fiddle.println
+import scalajs.js
+
+object ScalaFiddle extends js.JSApp {
+  def main() = {
+    import math._
+    val (h, w) = (Fiddle.canvas.height, Fiddle.canvas.width)
+    var x = 0.0
 // $FiddleStart
 val graphs = Seq[(String, Double => Double)](
   ("red", sin),
   ("green", x => 2 - abs(x % 8 - 4)),
   ("blue", x => 3 * pow(sin(x / 12), 2) * sin(x))
-)
+).zipWithIndex
 // $FiddleEnd
-.zipWithIndex
-val count = graphs.size
-dom.window.setInterval(() => {
-  x = (x + 1) % w
-  if (x == 0) Page.renderer.clearRect(0, 0, w, h)
-  else for (((color, func), i) <- graphs) {
-    val y = func(x/w * 75) * h/40 + h/count * (i+0.5)
-    Page.renderer.fillStyle = color
-    Page.renderer.fillRect(x, y, 3, 3)
+    val count = graphs.size
+    dom.window.setInterval(() => {
+      x = (x + 1) % w
+      if (x == 0) Fiddle.draw.clearRect(0, 0, w, h)
+      else for (((color, func), i) <- graphs) {
+        val y = func(x/w * 75) * h/40 + h/count * (i+0.5)
+        Fiddle.draw.fillStyle = color
+        Fiddle.draw.fillRect(x, y, 3, 3)
+      }
+    }, 10)
   }
-}, 10)
+}
 ```
 
 What the user sees:

@@ -15,7 +15,7 @@ val commonSettings = Seq(
 val akkaVersion = "2.4.3"
 val asyncVersion = "0.9.1"
 val aceVersion = "1.2.2"
-val domVersion = "0.9.0"
+val domVersion = "0.9.1"
 val scalatagsVersion = "0.5.4"
 val upickleVersion = "0.3.8"
 

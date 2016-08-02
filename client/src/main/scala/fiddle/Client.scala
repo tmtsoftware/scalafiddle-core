@@ -115,7 +115,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val tag = s"${if (Client.initializing) "initial-" else ""}$opt"
     val startTime = System.nanoTime()
     Ajax.get(
-      url = s"/compile?opt=$opt&source=${encodeSource(code)}"
+      url = s"compile?opt=$opt&source=${encodeSource(code)}"
     ).map { res =>
       val compileTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("compile", tag, currentSource, compileTime)
@@ -301,7 +301,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val startTime = System.nanoTime()
 
     val f = Ajax.get(
-      url = s"/complete?flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
+      url = s"complete?flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
       val completeTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("complete", "complete", currentSource, completeTime)
@@ -347,7 +347,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
       .updated("files", sourceFiles.map(_.name).mkString(","))
       .map { case (k, v) => s"$k=${js.URIUtils.encodeURIComponent(v)}" }
       .mkString("&")
-    val sfUrl = s"/embed?$params"
+    val sfUrl = s"embed?$params"
     Client.printOutput("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
     dom.console.log(s"ScalaFiddle uploaded to $url")
   }
