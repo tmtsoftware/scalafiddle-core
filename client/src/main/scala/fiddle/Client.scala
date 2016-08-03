@@ -12,10 +12,17 @@ import scala.async.Async.{async, await}
 import scala.concurrent.{Future, Promise}
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.annotation.{JSExport, JSName}
 import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
+import scala.scalajs.js.typedarray.Uint8Array
 import scala.scalajs.niocharset.StandardCharsets
 import scala.util.Success
+
+@JSName("Zlib.Gzip")
+@js.native
+class Gzip(data: js.Array[Byte]) extends js.Object {
+  def compress(): Uint8Array = js.native
+}
 
 case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil,
   template: Option[String] = None)
@@ -107,8 +114,17 @@ class Client(templateId: String, envId: String, helpUrl: String) {
 
   def encodeSource(source: String): String = {
     import com.github.marklister.base64.Base64._
+    import js.JSConverters._
     implicit def scheme: B64Scheme = base64Url
-    Encoder(reconstructSource(source, currentSourceFile).getBytes(StandardCharsets.UTF_8)).toBase64
+    val fullSource = reconstructSource(source, currentSourceFile).getBytes(StandardCharsets.UTF_8)
+    val compressedBuffer = new Gzip(fullSource.toJSArray).compress()
+    val compressedSource = new Array[Byte](compressedBuffer.length)
+    var i = 0
+    while(i < compressedBuffer.length) {
+      compressedSource(i) = compressedBuffer.get(i).toByte
+      i += 1
+    }
+    Encoder(compressedSource).toBase64
   }
 
   def compileServer(code: String, opt: String): Future[CompilerResponse] = {

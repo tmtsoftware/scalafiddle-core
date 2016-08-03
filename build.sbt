@@ -12,7 +12,7 @@ val commonSettings = Seq(
   version := "1.0.0-SNAPSHOT"
 )
 
-val akkaVersion = "2.4.3"
+val akkaVersion = "2.4.4"
 val asyncVersion = "0.9.1"
 val aceVersion = "1.2.2"
 val domVersion = "0.9.1"
@@ -98,7 +98,8 @@ lazy val server = project
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),
-    javaOptions in Revolver.reStart += "-Xmx2g",
+    javaOptions in Revolver.reStart ++= Seq("-Xmx2g", "-Xss4m"),
+    javaOptions in Universal ++= Seq("-J-Xmx1500m", "-J-Xss4m"),
     resourceGenerators in Compile += Def.task {
       // store build version in a property file
       val file = (resourceManaged in Compile).value / "version.properties"

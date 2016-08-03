@@ -1,5 +1,8 @@
 package fiddle
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.util.zip.GZIPInputStream
+
 import akka.actor.{ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -139,7 +142,20 @@ object Server extends App {
   def decodeSource(b64: String): String = {
     import com.github.marklister.base64.Base64._
     implicit def scheme: B64Scheme = base64Url
-    new String(Decoder(b64).toByteArray, StandardCharsets.UTF_8)
+    // decode base64 and gzip
+    val compressedSource = Decoder(b64).toByteArray
+    val bis = new ByteArrayInputStream(compressedSource)
+    val zis = new GZIPInputStream(bis)
+    val buf = new Array[Byte](1024)
+    val bos = new ByteArrayOutputStream()
+    var len = 0
+    while({len = zis.read(buf); len > 0}) {
+      bos.write(buf, 0, len)
+    }
+    zis.close()
+    bos.close()
+    val source = bos.toByteArray
+    new String(source, StandardCharsets.UTF_8)
   }
 
   println(s"Scala Fiddle ${Config.version}")

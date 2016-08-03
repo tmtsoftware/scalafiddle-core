@@ -13,13 +13,14 @@ import scalatags.Text.tags2
 import scalatags.Text.svgAttrs.xLinkHref
 
 object Static {
-  val aceFiles = Seq(
+  val extJSFiles = Seq(
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ace.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-language_tools.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-static_highlight.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/mode-scala.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-eclipse.js",
-    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night_eighties.js"
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night_eighties.js",
+    s"/web/gzip.js"
   )
 
   val cssFiles = Seq(
@@ -48,7 +49,7 @@ object Static {
       case _ => "/styles-light.css"
     }
     val useFast = paramMap.contains("fast")
-    val allJS = joinResources(aceFiles ++ srcFiles, ".js", ";\n")
+    val allJS = joinResources(extJSFiles ++ srcFiles, ".js", ";\n")
     val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
     val jsURLs = s"cache/$allJS" +: Config.extJS
     val cssURLs = s"cache/$allCSS" +: Config.extCSS
