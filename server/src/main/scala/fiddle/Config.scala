@@ -38,6 +38,8 @@ object Config {
     RawHeader(entry.getKey, entry.getValue.unwrapped().asInstanceOf[String])
   }.toList
 
+  val corsOrigins = config.getStringList("corsOrigins").asScala
+
   val version = versionProps.getProperty("version")
   val scalaVersion = versionProps.getProperty("scalaVersion")
   val scalaMainVersion = scalaVersion.split('.').take(2).mkString(".")

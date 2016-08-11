@@ -194,8 +194,8 @@ object Static {
             id := "codeframe",
             width := "100%",
             height := "100%",
-            "frameborder".attr := "0",
-            "sandbox".attr := "allow-scripts",
+            attr("frameborder") := "0",
+            attr("sandbox") := "allow-scripts",
             src := s"codeframe?theme=${paramMap.getOrElse("theme", "light")}")
         )
       ),

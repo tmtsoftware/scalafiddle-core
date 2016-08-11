@@ -28,7 +28,12 @@ class CompileActor(classPath: Classpath) extends Actor {
         case Optimizer.Fast => compiler.fastOpt _
         case Optimizer.Full => compiler.fullOpt _
       }
-      sender() ! Try(doCompile(compiler, sourceCode, _ |> opt |> compiler.export))
+      try {
+        sender() ! doCompile(compiler, sourceCode, _ |> opt |> compiler.export)
+      } catch {
+        case e: Throwable =>
+          sender() ! CompilerResponse(None, Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")), compiler.getLog.mkString("\n"))
+      }
 
     case CompleteSource(sourceCode, flag, offset) =>
       val compiler = new Compiler(classPath, sourceCode)
@@ -38,12 +43,12 @@ class CompileActor(classPath: Classpath) extends Actor {
   val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r
   val errorEnd = """ *\^ *$""".r
 
-  def parseErrors(preRows: Int, log: String): Seq[EditorAnnotation] = {
+  def parseErrors(log: String): Seq[EditorAnnotation] = {
     val lines = log.split('\n').toSeq.map(_.replaceAll("[\\n\\r]", ""))
     val (annotations, _) = lines.foldLeft((Seq.empty[EditorAnnotation], Option.empty[EditorAnnotation])) { case ((acc, current), line) =>
       line match {
         case errorStart(lineNo, severity, msg) =>
-          val ann = EditorAnnotation(lineNo.toInt - preRows - 1, 0, Seq(msg), severity)
+          val ann = EditorAnnotation(lineNo.toInt - 1, 0, Seq(msg), severity)
           (acc, Some(ann))
         case errorEnd() if current.isDefined =>
           val ann = current.map(ann => ann.copy(col = line.length, text = ann.text :+ line)).get
@@ -62,9 +67,8 @@ class CompileActor(classPath: Classpath) extends Actor {
     if(output.nonEmpty)
       println(s"Compiler errors: $output")
 
-    val preRows = sourceCode.split('\n').takeWhile(!_.matches(""" *// \$FiddleStart.*""")).length + 1
     val logSpam = output.mkString
-    CompilerResponse(res.map(processor), parseErrors(preRows, logSpam), logSpam)
+    CompilerResponse(res.map(processor), parseErrors(logSpam), logSpam)
   }
 }
 

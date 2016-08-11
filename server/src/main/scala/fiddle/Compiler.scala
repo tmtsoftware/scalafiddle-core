@@ -29,11 +29,25 @@ class Compiler(classPath: Classpath, code: String) { self =>
   val sjsLogger = new Log4jLogger()
   val blacklist = Set("<init>")
   val dependencyRE = """ *// \$FiddleDependency (.+)""".r
-  private val codeLines = code.split('\n')
-  val extLibs = codeLines.collect {
+  private val codeLines = code.replaceAll("\r", "").split('\n')
+  val extLibDefs = codeLines.collect {
     case dependencyRE(dep) => dep
   }.toSet
-  log.debug(s"Dependencies: $extLibs")
+  log.debug(s"Dependencies: $extLibDefs")
+
+  def extLibs = {
+    val userLibs = extLibDefs.map(lib => ExtLib(lib))
+    // add DOM and Scalatags if they are missing
+    val domLib = if(userLibs.exists { case ExtLib("org.scala-js", "scalajs-dom", _, false) => true; case _ => false })
+      None
+    else
+      Some(ExtLib("org.scala-js", "scalajs-dom", "0.9.1", false))
+    val scalatagsLib = if(userLibs.exists { case ExtLib("com.lihaoyi", "scalatags", _, false) => true; case _ => false })
+      None
+    else
+      Some(ExtLib("com.lihaoyi", "scalatags", "0.6.0", false))
+    userLibs ++ domLib ++ scalatagsLib
+  }
   /**
     * Converts a bunch of bytes into Scalac's weird VirtualFile class
     */
@@ -133,8 +147,7 @@ class Compiler(classPath: Classpath, code: String) { self =>
       }
     }
 
-    val startIndex = codeLines.takeWhile(!_.contains("// $FiddleStart")).length
-    val startOffset = pos + codeLines.take(startIndex + 1).mkString("\n").length
+    val startOffset = pos
     val source = code.take(startOffset) + "_CURSOR_ " + code.drop(startOffset)
     val run = new compiler.TyperRun
     val unit = compiler.newCompilationUnit(source, "ScalaFiddle.scala")
@@ -208,13 +221,18 @@ class Compiler(classPath: Classpath, code: String) { self =>
     output
   }
 
+  def getLog = sjsLogger.logLines
+
   class Log4jLogger(minLevel: Level = Level.Debug) extends Logger {
+    var logLines = Vector.empty[String]
 
     def log(level: Level, message: =>String): Unit = if (level >= minLevel) {
-      if (level == Level.Warn || level == Level.Error)
+      if (level == Level.Warn || level == Level.Error) {
+        logLines :+= message
         self.log.error(message)
-      else
+      } else {
         self.log.debug(message)
+      }
     }
     def success(message: => String): Unit = info(message)
     def trace(t: => Throwable): Unit = {

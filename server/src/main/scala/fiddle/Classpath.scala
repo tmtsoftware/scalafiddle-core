@@ -17,6 +17,24 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.reflect.io.{Streamable, VirtualDirectory}
 
+case class ExtLib(group: String, artifact: String, version: String, compileTimeOnly: Boolean) {
+  override def toString: String = s"$group ${if(compileTimeOnly) "%%" else "%%%"} $artifact % $version"
+}
+
+object ExtLib {
+  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
+  val repoRE = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
+
+  def apply(libDef: String): ExtLib = libDef match {
+    case repoSJSRE(group, artifact, version) =>
+      ExtLib(group, artifact, version, false)
+    case repoRE(group, artifact, version) =>
+      ExtLib(group, artifact, version, true)
+    case _ =>
+      throw new IllegalArgumentException(s"Library definition '$libDef' is not correct")
+  }
+}
+
 /**
   * Loads the jars that make up the classpath of the scala-js-fiddle
   * compiler and re-shapes it into the correct structure to satisfy
@@ -37,23 +55,20 @@ class Classpath {
     s"/page_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}-${Config.version}.jar"
   )
 
-  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
-  val repoRE = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
   val repoBase = "https://repo1.maven.org/maven2"
   val sjsVersion = s"_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}"
 
-  def buildRepoUri(ref: String) = {
+  def buildRepoUri(ref: ExtLib) = {
     ref match {
-      case repoSJSRE(group, artifact, version) =>
+      case ExtLib(group, artifact, version, false) =>
         s"$repoBase/${group.replace('.', '/')}/$artifact$sjsVersion/$version/$artifact$sjsVersion-$version.jar"
-      case repoRE(group, artifact, version) =>
+      case ExtLib(group, artifact, version, true) =>
         s"$repoBase/${group.replace('.', '/')}/${artifact}_${Config.scalaMainVersion}/$version/${artifact}_${Config.scalaMainVersion}-$version.jar"
-      case _ => ref
     }
   }
 
-  def loadExtLib(ref: String) = {
-    val uri = buildRepoUri(ref)
+  def loadExtLib(libDef: ExtLib) = {
+    val uri = buildRepoUri(libDef)
     val name = uri.split('/').last
     // check if it has been loaded already
     val f = new File(Config.libCache, name)
@@ -66,7 +81,7 @@ class Classpath {
       Http().singleRequest(HttpRequest(uri = uri)).flatMap { response =>
         val source = response.entity.dataBytes
         // save to cache
-        val sink = FileIO.toFile(f)
+        val sink = FileIO.toPath(f.toPath)
         source.runWith(sink).map { ioResponse =>
           log.debug(s"Storing $name with ${ioResponse.count} bytes to cache")
           (name, Files.readAllBytes(f.toPath))
@@ -108,7 +123,8 @@ class Classpath {
   val extLibraries = {
     log.debug("Loading external libraries")
     val res = Await.result(Future.sequence(Config.extLibs.map { ref =>
-      loadExtLib(ref).map(r => ref -> r)
+      val libDef = ExtLib(ref)
+      loadExtLib(libDef).map(r => libDef -> r)
     }), timeout).toMap
     log.debug("External libraries loaded")
     res
@@ -171,16 +187,16 @@ class Classpath {
   val extLibraries4linker =
     extLibraries.map { case (key, (name, data)) => key -> lib4linker(name, data) }
 
-  def compilerLibraries(extLibs: Set[String]) = {
-    commonLibraries4compiler ++ extLibs.flatMap(extLibraries4compiler.get)
+  def compilerLibraries(extLibs: Set[ExtLib]) = {
+    commonLibraries4compiler ++ extLibs.map(lib => extLibraries4compiler.getOrElse(lib, throw new IllegalArgumentException(s"Library $lib is not allowed")))
   }
 
-  val linkerCaches = mutable.Map.empty[Set[String], Seq[IRFileCache.VirtualRelativeIRFile]]
+  val linkerCaches = mutable.Map.empty[Set[ExtLib], Seq[IRFileCache.VirtualRelativeIRFile]]
 
-  def linkerLibraries(extLibs: Set[String]) = {
+  def linkerLibraries(extLibs: Set[ExtLib]) = {
     this.synchronized {
       linkerCaches.getOrElseUpdate(extLibs, {
-        val loadedJars = commonLibraries4linker ++ extLibs.flatMap(extLibraries4linker.get)
+        val loadedJars = commonLibraries4linker ++ extLibs.map(lib => extLibraries4linker.getOrElse(lib, throw new IllegalArgumentException(s"Library $lib is not allowed")))
         val cache = (new IRFileCache).newCache
         val res = cache.cached(loadedJars)
         log.debug(s"Cached $extLibs")

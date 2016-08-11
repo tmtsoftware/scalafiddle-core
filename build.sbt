@@ -16,7 +16,7 @@ val akkaVersion = "2.4.4"
 val asyncVersion = "0.9.1"
 val aceVersion = "1.2.2"
 val domVersion = "0.9.1"
-val scalatagsVersion = "0.5.4"
+val scalatagsVersion = "0.6.0"
 val upickleVersion = "0.3.8"
 
 lazy val root = project.in(file("."))
@@ -94,6 +94,7 @@ lazy val server = project
       "org.webjars" % "normalize.css" % "2.1.3",
       "com.lihaoyi" %% "upickle" % upickleVersion,
       "com.github.marklister" %% "base64" % "0.2.2",
+      "ch.megard" %% "akka-http-cors" % "0.1.4",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
@@ -126,13 +127,13 @@ lazy val server = project
     },
     imageNames in docker := Seq(
       ImageName(
-        namespace = Some("ochrons"),
-        repository = "scalafiddle",
+        namespace = Some("scalafiddle"),
+        repository = "scalafiddle-core",
         tag = Some("latest")
       ),
       ImageName(
-        namespace = Some("ochrons"),
-        repository = "scalafiddle",
+        namespace = Some("scalafiddle"),
+        repository = "scalafiddle-core",
         tag = Some(version.value)
       )
     )
