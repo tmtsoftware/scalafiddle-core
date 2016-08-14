@@ -2,6 +2,7 @@
   "org.scala-js %%% scalajs-dom % 0.9.1": [],
   "com.lihaoyi %%% scalatags % 0.6.0": [],
   "me.chrons %%% boopickle % 1.2.4": [],
+  "com.lihaoyi %% upickle % 0.4.1": [],
   "me.chrons %%% diode % 1.0.0": [
     "me.chrons %%% diode-core % 1.0.0",
     "me.chrons %%% diode-data % 1.0.0"
