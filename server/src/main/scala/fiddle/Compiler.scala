@@ -3,6 +3,7 @@ package fiddle
 import java.io.{PrintWriter, Writer}
 
 import akka.util.ByteString
+import org.apache.maven.artifact.versioning.ComparableVersion
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
 import org.scalajs.core.tools.logging._
@@ -33,10 +34,19 @@ class Compiler(classPath: Classpath, code: String) { self =>
   val extLibDefs = codeLines.collect {
     case dependencyRE(dep) => dep
   }.toSet
-  log.debug(s"Dependencies: $extLibDefs")
 
   def extLibs = {
-    val userLibs = extLibDefs.map(lib => ExtLib(lib))
+    val directDeps = extLibDefs.map(lib => ExtLib(lib)).collect {
+      case lib if Config.extLibs.exists(_.library == lib) => lib
+      case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
+    }.toSeq
+    // add dependencies and filter duplicates
+    val userLibs = directDeps.flatMap { lib =>
+      Seq(lib) ++ Config.extLibs.find(_.library == lib).fold(Seq.empty[ExtLib])(_.deps)
+    }.groupBy(lib => lib.group + lib.artifact).map { case (_, versions) =>
+        // sort by version, select latest
+      versions.sortBy(lib => new ComparableVersion(lib.version)).head
+    }.toSeq
     // add DOM and Scalatags if they are missing
     val domLib = if(userLibs.exists { case ExtLib("org.scala-js", "scalajs-dom", _, false) => true; case _ => false })
       None
@@ -46,7 +56,9 @@ class Compiler(classPath: Classpath, code: String) { self =>
       None
     else
       Some(ExtLib("com.lihaoyi", "scalatags", "0.6.0", false))
-    userLibs ++ domLib ++ scalatagsLib
+    val finalLibs = userLibs ++ domLib ++ scalatagsLib
+    log.debug(s"Full dependencies: $finalLibs")
+    finalLibs.toSet
   }
   /**
     * Converts a bunch of bytes into Scalac's weird VirtualFile class

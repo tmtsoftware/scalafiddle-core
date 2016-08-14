@@ -122,9 +122,9 @@ class Classpath {
     */
   val extLibraries = {
     log.debug("Loading external libraries")
-    val res = Await.result(Future.sequence(Config.extLibs.map { ref =>
-      val libDef = ExtLib(ref)
-      loadExtLib(libDef).map(r => libDef -> r)
+    val allLibs = Config.extLibs.flatMap(lib => Set(lib.library) ++ lib.deps)
+    val res = Await.result(Future.sequence(allLibs.map { lib =>
+      loadExtLib(lib).map(r => lib -> r)
     }), timeout).toMap
     log.debug("External libraries loaded")
     res
@@ -188,7 +188,7 @@ class Classpath {
     extLibraries.map { case (key, (name, data)) => key -> lib4linker(name, data) }
 
   def compilerLibraries(extLibs: Set[ExtLib]) = {
-    commonLibraries4compiler ++ extLibs.map(lib => extLibraries4compiler.getOrElse(lib, throw new IllegalArgumentException(s"Library $lib is not allowed")))
+    commonLibraries4compiler ++ extLibs.map(lib => extLibraries4compiler(lib))
   }
 
   val linkerCaches = mutable.Map.empty[Set[ExtLib], Seq[IRFileCache.VirtualRelativeIRFile]]
@@ -196,7 +196,7 @@ class Classpath {
   def linkerLibraries(extLibs: Set[ExtLib]) = {
     this.synchronized {
       linkerCaches.getOrElseUpdate(extLibs, {
-        val loadedJars = commonLibraries4linker ++ extLibs.map(lib => extLibraries4linker.getOrElse(lib, throw new IllegalArgumentException(s"Library $lib is not allowed")))
+        val loadedJars = commonLibraries4linker ++ extLibs.map(lib => extLibraries4linker(lib))
         val cache = (new IRFileCache).newCache
         val res = cache.cached(loadedJars)
         log.debug(s"Cached $extLibs")

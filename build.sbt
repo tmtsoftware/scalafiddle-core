@@ -47,7 +47,7 @@ lazy val client = project
       "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided"
     ),
     // rename output always to -opt.js
-    artifactPath in (Compile, fastOptJS) := ((crossTarget in (Compile, fastOptJS)).value /
+    artifactPath in(Compile, fastOptJS) := ((crossTarget in(Compile, fastOptJS)).value /
       ((moduleName in fastOptJS).value + "-opt.js")),
     relativeSourceMaps := true
   )
@@ -95,6 +95,7 @@ lazy val server = project
       "com.lihaoyi" %% "upickle" % upickleVersion,
       "com.github.marklister" %% "base64" % "0.2.2",
       "ch.megard" %% "akka-http-cors" % "0.1.4",
+      "org.apache.maven" % "maven-artifact" % "3.3.9",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
@@ -104,7 +105,8 @@ lazy val server = project
     resourceGenerators in Compile += Def.task {
       // store build version in a property file
       val file = (resourceManaged in Compile).value / "version.properties"
-      val contents =s"""
+      val contents =
+        s"""
            |version=${version.value}
            |scalaVersion=${scalaVersion.value}
            |scalaJSVersion=$scalaJSVersion

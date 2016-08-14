@@ -12,6 +12,8 @@ case class Template(pre: String, post: String) {
   def fullSource(src: String) = pre + src + post
 }
 
+case class LibDependency(library: ExtLib, deps: Seq[ExtLib])
+
 object Config {
   protected val config = ConfigFactory.load().getConfig("fiddle")
   // read the generated version data
@@ -25,7 +27,9 @@ object Config {
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
-  val extLibs = config.getStringList("extLibs").asScala
+  val extLibs = config.getConfig("extLibs").entrySet().asScala.map { entry =>
+    LibDependency(ExtLib(entry.getKey.replace("\"", "")), entry.getValue.unwrapped().asInstanceOf[java.util.List[String]].asScala.map(ExtLib(_)))
+  }
 
   val extJS = config.getStringList("extJS").asScala
   val extCSS = config.getStringList("extCSS").asScala
