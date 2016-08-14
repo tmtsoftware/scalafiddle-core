@@ -25,7 +25,8 @@ import scala.tools.nsc.util._
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
-class Compiler(classPath: Classpath, code: String) { self =>
+class Compiler(classPath: Classpath, code: String) {
+  self =>
   val log = LoggerFactory.getLogger(getClass)
   val sjsLogger = new Log4jLogger()
   val blacklist = Set("<init>")
@@ -44,15 +45,15 @@ class Compiler(classPath: Classpath, code: String) { self =>
     val userLibs = directDeps.flatMap { lib =>
       Seq(lib) ++ Config.extLibs.find(_.library == lib).fold(Seq.empty[ExtLib])(_.deps)
     }.groupBy(lib => lib.group + lib.artifact).map { case (_, versions) =>
-        // sort by version, select latest
+      // sort by version, select latest
       versions.sortBy(lib => new ComparableVersion(lib.version)).head
     }.toSeq
     // add DOM and Scalatags if they are missing
-    val domLib = if(userLibs.exists { case ExtLib("org.scala-js", "scalajs-dom", _, false) => true; case _ => false })
+    val domLib = if (userLibs.exists { case ExtLib("org.scala-js", "scalajs-dom", _, false) => true; case _ => false })
       None
     else
       Some(ExtLib("org.scala-js", "scalajs-dom", "0.9.1", false))
-    val scalatagsLib = if(userLibs.exists { case ExtLib("com.lihaoyi", "scalatags", _, false) => true; case _ => false })
+    val scalatagsLib = if (userLibs.exists { case ExtLib("com.lihaoyi", "scalatags", _, false) => true; case _ => false })
       None
     else
       Some(ExtLib("com.lihaoyi", "scalatags", "0.6.0", false))
@@ -238,7 +239,7 @@ class Compiler(classPath: Classpath, code: String) { self =>
   class Log4jLogger(minLevel: Level = Level.Debug) extends Logger {
     var logLines = Vector.empty[String]
 
-    def log(level: Level, message: =>String): Unit = if (level >= minLevel) {
+    def log(level: Level, message: => String): Unit = if (level >= minLevel) {
       if (level == Level.Warn || level == Level.Error) {
         logLines :+= message
         self.log.error(message)

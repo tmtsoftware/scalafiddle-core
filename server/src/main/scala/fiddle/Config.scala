@@ -5,6 +5,7 @@ import java.util.Properties
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.RawHeader
 import com.typesafe.config.ConfigFactory
+import upickle.default._
 
 import scala.collection.JavaConverters._
 
@@ -15,6 +16,17 @@ case class Template(pre: String, post: String) {
 case class LibDependency(library: ExtLib, deps: Seq[ExtLib])
 
 object Config {
+  def loadLibraries(uri: String): Seq[LibDependency] = {
+    val data = if (uri.startsWith("file:")) {
+      // load from file system
+      scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
+    } else {
+      // load from resources
+      scala.io.Source.fromInputStream(getClass.getResourceAsStream(uri), "UTF-8").mkString
+    }
+    read[Map[String, Seq[String]]](data).map { case (lib, deps) => LibDependency(ExtLib(lib), deps.map(ExtLib(_))) }.toSeq
+  }
+
   protected val config = ConfigFactory.load().getConfig("fiddle")
   // read the generated version data
   protected val versionProps = new Properties()
@@ -27,9 +39,7 @@ object Config {
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
-  val extLibs = config.getConfig("extLibs").entrySet().asScala.map { entry =>
-    LibDependency(ExtLib(entry.getKey.replace("\"", "")), entry.getValue.unwrapped().asInstanceOf[java.util.List[String]].asScala.map(ExtLib(_)))
-  }
+  val extLibs = loadLibraries(config.getString("extLibs"))
 
   val extJS = config.getStringList("extJS").asScala
   val extCSS = config.getStringList("extCSS").asScala
@@ -51,4 +61,3 @@ object Config {
   val scalaJSMainVersion = scalaJSVersion.split('.').take(2).mkString(".")
   val aceVersion = versionProps.getProperty("aceVersion")
 }
-
