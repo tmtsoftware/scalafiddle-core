@@ -259,7 +259,7 @@ object Static {
               |      break;
               |    case "code":
               |      eval(msg.data);
-              |      eval("ScalaFiddle().main();");
+              |      eval("var sf = ScalaFiddle();if(typeof sf.main === 'function') sf.main();");
               |      break;
               |  }
               |});
