@@ -6,7 +6,7 @@ import java.util.zip.GZIPInputStream
 import akka.actor.{ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `public`}
+import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `no-cache`}
 import akka.http.scaladsl.model.headers.{HttpOrigin, HttpOriginRange, `Cache-Control`}
 import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
@@ -44,7 +44,7 @@ object Server extends App {
         path("embed") {
           respondWithHeaders(Config.httpHeaders) {
             // main embedded page can be cached for some time (1h for now)
-            respondWithHeader(`Cache-Control`(`public`, `max-age`(60L * 60L * 1L))) {
+            respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 1L))) {
               parameterMap { paramMap =>
                 complete {
                   HttpEntity(
@@ -61,7 +61,7 @@ object Server extends App {
         } ~ path("codeframe") {
           respondWithHeaders(Config.httpHeaders) {
             // code frame can be cached for a long time (7d for now)
-            respondWithHeader(`Cache-Control`(`public`, `max-age`(7 * 60L * 60L * 24L))) {
+            respondWithHeader(`Cache-Control`(`max-age`(7 * 60L * 60L * 24L))) {
               parameterMap { paramMap =>
                 complete {
                   HttpEntity(
@@ -77,56 +77,52 @@ object Server extends App {
         } ~ path("compile") {
           handleRejections(CorsDirectives.corsRejectionHandler) {
             CorsDirectives.cors(settings) {
-              // compile results can be cached for a long time (week for now)
-              respondWithHeader(`Cache-Control`(`public`, `max-age`(7 * 60L * 60L * 24L))) {
-                parameters('source, 'opt) { (source, opt) =>
-                  ctx =>
-                    val optimizer = opt match {
-                      case "fast" => Optimizer.Fast
-                      case "full" => Optimizer.Full
-                      case _ =>
-                        throw new IllegalArgumentException(s"$opt is not a valid opt value")
-                    }
-                    val res = ask(compilerRouter, CompileSource(decodeSource(source), optimizer))
-                      .mapTo[CompilerResponse]
-                      .map { cr =>
-                        val result = write(cr)
-                        HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, ByteString(result)))
-                      } recover {
-                      case e: Exception =>
-                        log.error("Error in compilation", e)
-                        HttpResponse(StatusCodes.InternalServerError)
-                    }
-                    ctx.complete(res)
-                }
+              parameters('source, 'opt) { (source, opt) =>
+                ctx =>
+                  val optimizer = opt match {
+                    case "fast" => Optimizer.Fast
+                    case "full" => Optimizer.Full
+                    case _ =>
+                      throw new IllegalArgumentException(s"$opt is not a valid opt value")
+                  }
+                  val res = ask(compilerRouter, CompileSource(decodeSource(source), optimizer))
+                    .mapTo[CompilerResponse]
+                    .map { cr =>
+                      val result = write(cr)
+                      // compile results can be cached for a long time (week for now)
+                      HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, ByteString(result)), headers = List(`Cache-Control`(`max-age`(7 * 60L * 60L * 24L))))
+                    } recover {
+                    case e: Exception =>
+                      log.error("Error in compilation", e)
+                      HttpResponse(StatusCodes.InternalServerError, headers = List(`Cache-Control`(`no-cache`)))
+                  }
+                  ctx.complete(res)
               }
             }
           }
         } ~ path("complete") {
           handleRejections(CorsDirectives.corsRejectionHandler) {
             CorsDirectives.cors(settings) {
-              // code complete results can be cached for a long time (week for now)
-              respondWithHeader(`Cache-Control`(`public`, `max-age`(7 * 60L * 60L * 24L))) {
-                parameters('source, 'flag, 'offset) { (source, flag, offset) =>
-                  ctx =>
-                    val res = ask(compilerRouter, CompleteSource(decodeSource(source), flag, offset.toInt))
-                      .mapTo[Try[List[(String, String)]]]
-                      .map {
-                        case Success(cr) =>
-                          val result = write(cr)
-                          HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, result))
-                        case Failure(ex) =>
-                          log.error("Error in tab completion", ex)
-                          HttpResponse(StatusCodes.BadRequest, entity = ex.getMessage.take(64))
-                      }
-                    ctx.complete(res)
-                }
+              parameters('source, 'flag, 'offset) { (source, flag, offset) =>
+                ctx =>
+                  val res = ask(compilerRouter, CompleteSource(decodeSource(source), flag, offset.toInt))
+                    .mapTo[Try[List[(String, String)]]]
+                    .map {
+                      case Success(cr) =>
+                        val result = write(cr)
+                        // code complete results can be cached for a long time (week for now)
+                        HttpResponse(StatusCodes.OK, entity = HttpEntity(`application/json`, result), headers = List(`Cache-Control`(`max-age`(7 * 60L * 60L * 24L))))
+                      case Failure(ex) =>
+                        log.error("Error in tab completion", ex)
+                        HttpResponse(StatusCodes.BadRequest, entity = ex.getMessage.take(64), headers = List(`Cache-Control`(`no-cache`)))
+                    }
+                  ctx.complete(res)
               }
             }
           }
         } ~ path("cache" / Segment) { res =>
           // resources identified by a hash can be cached "forever" (a year in this case)
-          respondWithHeader(`Cache-Control`(`public`, `max-age`(60L * 60L * 24L * 365))) {
+          respondWithHeader(`Cache-Control`(`max-age`(60L * 60L * 24L * 365))) {
             complete {
               val (hash, ext) = res.span(_ != '.')
               val contentType: ContentType = ext match {

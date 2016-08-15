@@ -36,7 +36,7 @@ class Compiler(classPath: Classpath, code: String) {
     case dependencyRE(dep) => dep
   }.toSet
 
-  def extLibs = {
+  lazy val extLibs = {
     val directDeps = extLibDefs.map(lib => ExtLib(lib)).collect {
       case lib if Config.extLibs.exists(_.library == lib) => lib
       case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
