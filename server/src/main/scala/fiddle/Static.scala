@@ -55,7 +55,7 @@ object Static {
     val cssURLs = s"cache/$allCSS" +: Config.extCSS
 
     // convert baseEnv to JS string variable
-    val baseEnv = "var baseEnv = " + Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n") + ";"
+    val baseEnv = s"""var baseEnv = ${Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n")};"""
 
     // parse which buttons to hide
     val toHide = paramMap.get("hideButtons").map(_.split(',')).getOrElse(Array.empty)
@@ -211,7 +211,7 @@ object Static {
              |""".stripMargin
         else "")),
       script(`type` := "text/javascript", raw(baseEnv)),
-      script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.helpUrl}", baseEnv)"""))
+      script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.helpUrl}", "${Config.scalaFiddleSourceUrl}", baseEnv)"""))
     ).toString()
     ByteString(pageHtml, "UTF-8")
   }

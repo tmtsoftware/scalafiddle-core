@@ -24,8 +24,7 @@ class Gzip(data: js.Array[Byte]) extends js.Object {
   def compress(): Uint8Array = js.native
 }
 
-case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil,
-  template: Option[String] = None)
+case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil)
 
 class Client(templateId: String, envId: String, helpUrl: String) {
   implicit val RedLogger = fiddle.Client.RedLogger
@@ -52,8 +51,6 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     Client.clear()
 
     try {
-      //js.eval(s)
-      //js.eval("ScalaFiddle().main()")
       Client.sendFrameCmd("code", s)
     } catch {
       case e: Throwable =>
@@ -228,28 +225,27 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     Client.sendFrameCmd("label", status)
   }
 
-  val templateOverride = """\s*// \$Template (\w.+)""".r
   val fiddleStart = """\s*// \$FiddleStart\s*$""".r
   val fiddleEnd = """\s*// \$FiddleEnd\s*$""".r
 
   // separate source code into pre,main,post blocks
   def extractCode(src: SourceFile): SourceFile = {
     val lines = src.code.split('\n')
-    val (template, pre, main, post) = lines.foldLeft((Option.empty[String], List.empty[String], List.empty[String], List.empty[String])) {
-      case ((customTemplate, preList, mainList, postList), line) => line match {
-        case templateOverride(name) =>
-          (Some(name), line :: preList, mainList, postList)
+    val (pre, main, post) = lines.foldLeft((List.empty[String], List.empty[String], List.empty[String])) {
+      case ((preList, mainList, postList), line) => line match {
         case fiddleStart() =>
-          (customTemplate, line :: mainList ::: preList, Nil, Nil)
+          (line :: mainList ::: preList, Nil, Nil)
         case fiddleEnd() =>
-          (customTemplate, preList, mainList, line :: postList)
+          (preList, mainList, line :: postList)
         case l if postList.nonEmpty =>
-          (customTemplate, preList, mainList, line :: postList)
+          (preList, mainList, line :: postList)
         case _ =>
-          (customTemplate, preList, line :: mainList, postList)
+          (preList, line :: mainList, postList)
       }
     }
-    SourceFile(src.name, main.reverse.mkString("", "\n", "\n"), pre.reverse, post.reverse, template)
+    // remove indentation from main part
+    val indent = main.filter(_.nonEmpty).map(_.takeWhile(_ == ' ').length).min
+    SourceFile(src.name, main.reverse.map(_.drop(indent)).mkString("", "\n", "\n"), pre.reverse, post.reverse)
   }
 
   def setSources(sources: Seq[SourceFile]): Unit = {
@@ -433,7 +429,7 @@ object Client {
   }
 
   @JSExport
-  def main(useFast: Boolean, helpUrl: String, baseEnv: String): Unit = task * async {
+  def main(useFast: Boolean, helpUrl: String, scalaFiddleSourceUrl: String, baseEnv: String): Unit = task * async {
     clear()
     Editor.initEditor
     val client = new Client(templateId, envId, helpUrl)
@@ -442,7 +438,15 @@ object Client {
       val gistId = queryParams("gist")
       val files = queryParams.get("files").map(_.split(',').toList.filter(_.nonEmpty)).getOrElse(Nil)
       client.showStatus("Loading")
-      val sources = await(load(gistId, files))
+      val sources = await(loadGist(gistId, files))
+      client.setSources(sources)
+      if (useFast)
+        client.fastOpt
+      else
+        client.fullOpt
+    } else if (queryParams.contains("sfid")) {
+      val ids = queryParams("sfid").split(",").toList
+      val sources = await(Future.sequence(ids.map(id => loadSource(scalaFiddleSourceUrl + id))))
       client.setSources(sources)
       if (useFast)
         client.fastOpt
@@ -470,7 +474,7 @@ object Client {
       |println("Loading an empty application so you can get started")
     """.stripMargin
 
-  def load(gistId: String, files: Seq[String]): Future[Seq[SourceFile]] = {
+  def loadGist(gistId: String, files: Seq[String]): Future[Seq[SourceFile]] = {
     Ajax.get("https://api.github.com/gists/" + gistId).map { res =>
       val result = JsVal.parse(res.responseText)
       val fileList = if (files.isEmpty) {
@@ -485,6 +489,22 @@ object Client {
         SourceFile(fileName, result("files")(fileName)("content").asString)
       }
     }.recover { case e => Seq(SourceFile("ScalaFiddle.scala", defaultCode)) }
+  }
+
+  val fiddleName = """\s*// \$FiddleName\s+(.+)$""".r
+
+  def parseName(source: String): Option[String] = {
+    source.split("\n").collectFirst {
+      case fiddleName(name) => name
+    }
+  }
+
+  def loadSource(url: String): Future[SourceFile] = {
+    Ajax.get(url).map { res =>
+      val source = res.responseText
+      val name = parseName(source).getOrElse("ScalaFiddle")
+      SourceFile(name, source)
+    }
   }
 
   def printOutput(ss: String) = {

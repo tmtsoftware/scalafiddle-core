@@ -36,6 +36,7 @@ object Config {
   val port = config.getInt("port")
   val analyticsID = config.getString("analyticsID")
   val helpUrl = config.getString("helpUrl")
+  val scalaFiddleSourceUrl = config.getString("scalaFiddleSourceUrl")
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
