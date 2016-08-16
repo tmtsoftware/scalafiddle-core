@@ -69,7 +69,7 @@ class Classpath {
 
   def loadExtLib(libDef: ExtLib) = {
     val uri = buildRepoUri(libDef)
-    val name = uri.split('/').last
+    val name = libDef.group.replace('.', '_') + "_" + uri.split('/').last
     // check if it has been loaded already
     val f = new File(Config.libCache, name)
     if (f.exists()) {
