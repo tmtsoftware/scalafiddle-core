@@ -22,10 +22,10 @@ later in this document, but here is a short overview.
 
 |Parameter|Description|
 |----|----|
-|source|Source code for the fiddle.|
+|sfid|Load source file(s) from scalafiddle.io|
 |gist|Load source file(s) from a Github gist.|
+|source|Source code for the fiddle.|
 |files|List of files to load from a gist.|
-|template|Select a template for the fiddle.|
 |env|Select an environment for the fiddle.|
 |theme|Visual theme.|
 |style|Custom CSS styling.|
@@ -37,8 +37,17 @@ later in this document, but here is a short overview.
 An empty fiddle may be a nice playground, but usually you'll want to provide some content in it. There are two ways
 to provide source code to the fiddle:
 
-1. From a Github gist
-2. As inline parameter
+1. From ScalaFiddle
+2. From a Github gist
+3. As inline parameter
+
+To access a fiddle stored on the ScalaFiddle server use its identifier with version number:
+
+```
+/embed?sfid=0aRs0/1
+```
+
+You can also provide multiple identifiers separated with commas to load multiple files.
 
 If you have the source code in a gist, simply provide the gist identifier.
 
@@ -53,7 +62,7 @@ files separated by commas), add a `files` parameter.
 /embed?gist=3dfc003dedd4da5d821d&files=SierpinskiTriangle.scala
 ```
 
-If you provide multiple files, Scaal Fiddle will provide a dropdown above the editor to choose the file for 
+If you provide multiple files, Scala Fiddle will provide a dropdown above the editor to choose the file for 
 editing/execution.
 
 In case you don't want to use a gist, you can provide the source code directly with the `source` parameter.
@@ -88,12 +97,9 @@ the end user.
 ## Templates
 
 The code written in the fiddle is run inside a _template_. This template provides things like common imports and a
-wrapper around the code so that it can be directly executed. The templates provides pre and post code snippet around the actual fiddle code. The 
-_default_ template provides the usual imports and wraps the code in the `ScalaFiddle` object and its `main` method, so
-that it can be directly executed.
+wrapper around the code so that it can be directly executed. The templates provides pre and post code snippet around the actual fiddle code. 
 
-All fiddles must have an `object ScalaFiddle extends js.JSApp` with a `main` method to work. Usually this is provided
-by the template, but in some cases you may want to leave that to the user.
+All fiddles must have an `object ScalaFiddle` to work. Usually this is provided by the template, but in some cases you may want to leave that to the user.
 
 To mark the beginning and ending of user editable content, use `// $FiddleStart` and `// $FiddleEnd` markers.
 
@@ -101,33 +107,29 @@ For example a fiddle drawing different oscilloscope graphs where the user only n
 functions:
 
 ```scala
-import scalatags.JsDom.all._
-import org.scalajs.dom
 import fiddle.Fiddle, Fiddle.println
 import scalajs.js
 
-object ScalaFiddle extends js.JSApp {
-  def main() = {
-    import math._
-    val (h, w) = (Fiddle.canvas.height, Fiddle.canvas.width)
-    var x = 0.0
-// $FiddleStart
-val graphs = Seq[(String, Double => Double)](
-  ("red", sin),
-  ("green", x => 2 - abs(x % 8 - 4)),
-  ("blue", x => 3 * pow(sin(x / 12), 2) * sin(x))
-).zipWithIndex
-// $FiddleEnd
-    val count = graphs.size
-    dom.window.setInterval(() => {
-      x = (x + 1) % w
-      if (x == 0) Fiddle.draw.clearRect(0, 0, w, h)
-      else for (((color, func), i) <- graphs) {
-        val y = func(x/w * 75) * h/40 + h/count * (i+0.5)
-        Fiddle.draw.fillStyle = color
-        Fiddle.draw.fillRect(x, y, 3, 3)
-      }
-    }, 10)
+object ScalaFiddle {
+  import math._
+  val (h, w) = (Fiddle.canvas.height, Fiddle.canvas.width)
+  var x = 0.0
+  // $FiddleStart
+  val graphs = Seq[(String, Double => Double)](
+    ("red", sin),
+    ("green", x => 2 - abs(x % 8 - 4)),
+    ("blue", x => 3 * pow(sin(x / 12), 2) * sin(x))
+  ).zipWithIndex
+  // $FiddleEnd
+  val count = graphs.size
+  Fiddle.setInterval(10){
+    x = (x + 1) % w
+    if (x == 0) Fiddle.draw.clearRect(0, 0, w, h)
+    else for (((color, func), i) <- graphs) {
+      val y = func(x/w * 75) * h/40 + h/count * (i+0.5)
+      Fiddle.draw.fillStyle = color
+      Fiddle.draw.fillRect(x, y, 3, 3)
+    }
   }
 }
 ```
