@@ -37,16 +37,9 @@ class Compiler(classPath: Classpath, code: String) {
   }.toSet
 
   lazy val extLibs = {
-    val directDeps = extLibDefs.map(lib => ExtLib(lib)).collect {
-      case lib if Config.extLibs.exists(_.library == lib) => lib
+    val userLibs = extLibDefs.map(lib => ExtLib(lib)).collect {
+      case lib if Config.extLibs.contains(lib) => lib
       case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
-    }.toSeq
-    // add dependencies and filter duplicates
-    val userLibs = directDeps.flatMap { lib =>
-      Seq(lib) ++ Config.extLibs.find(_.library == lib).fold(Seq.empty[ExtLib])(_.deps)
-    }.groupBy(lib => lib.group + lib.artifact).map { case (_, versions) =>
-      // sort by version, select latest
-      versions.sortBy(lib => new ComparableVersion(lib.version)).head
     }.toSeq
     // add DOM and Scalatags if they are missing
     val domLib = if (userLibs.exists { case ExtLib("org.scala-js", "scalajs-dom", _, false) => true; case _ => false })

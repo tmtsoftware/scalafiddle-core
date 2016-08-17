@@ -9,16 +9,18 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.FileIO
+import org.apache.maven.artifact.versioning.ComparableVersion
 import org.scalajs.core.tools.io._
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, Future, Promise}
 import scala.reflect.io.{Streamable, VirtualDirectory}
+import scalaz.concurrent.Task
 
 case class ExtLib(group: String, artifact: String, version: String, compileTimeOnly: Boolean) {
-  override def toString: String = s"$group ${if(compileTimeOnly) "%%" else "%%%"} $artifact % $version"
+  override def toString: String = s"$group ${if (compileTimeOnly) "%%" else "%%%"} $artifact % $version"
 }
 
 object ExtLib {
@@ -117,18 +119,76 @@ class Classpath {
     jarFiles ++ bootFiles
   }
 
+  import coursier._
+  def loadCoursier(libs: Seq[ExtLib]) = {
+    import scalaz._
+
+    log.debug(s"Loading: $libs")
+
+    val repositories = Seq(
+      Cache.ivy2Local,
+      MavenRepository("https://repo1.maven.org/maven2")
+    )
+    val exclusions = Set(
+      ("org.scala-lang", "scala-reflect"),
+      ("org.scala-lang", "scala-library"),
+      ("org.scala-js", s"scalajs-library_${Config.scalaMainVersion}"),
+      ("org.scala-js", s"scalajs-test-interface_${Config.scalaMainVersion}")
+    )
+    val results = Task.gatherUnordered(libs.map { lib =>
+      val dep = lib match {
+        case ExtLib(group, artifact, version, false) =>
+          Dependency(Module(group, artifact + sjsVersion), lib.version, exclusions = exclusions)
+        case ExtLib(group, artifact, version, true) =>
+          Dependency(Module(group, s"${artifact}_${Config.scalaMainVersion}"), lib.version, exclusions = exclusions)
+      }
+      val start = Resolution(Set(dep))
+      val fetch = Fetch.from(repositories, Cache.fetch())
+      start.process.run(fetch).map(res => (lib, res))
+    }).run
+    results.foreach { case (lib, r) =>
+      val root = r.rootDependencies.head
+      log.debug(s"Deps for ${root.moduleVersion}:")
+      r.minDependencies.foreach { dep =>
+        log.debug(s"   ${dep.moduleVersion}")
+      }
+    }
+    val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._1).mapValues(_.head._2).toSeq
+    // load all JARs
+    val artifacts = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, Files.readAllBytes(f.toPath))).run)).run.flatMap {
+      case \/-(dep) => Some(dep)
+      case -\/(error) => throw new Exception(s"Unable to load a library: ${error.describe}")
+    }.toMap
+    // create a result map
+    results.map { case (lib, resolution) =>
+      (lib, resolution.minDependencies.map(dep => (dep, artifacts(dep))))
+    }
+  }
+
+  def resolveDeps(deps: Seq[Dependency]): Seq[Dependency] = {
+    deps.groupBy(_.moduleVersion).map { case (_, versions) =>
+      // sort by version, select latest
+      versions.sortBy(lib => new ComparableVersion(lib.version)).last
+    }.toSeq
+  }
+
   /**
     * External libraries loaded from repository
     */
   val extLibraries = {
     log.debug("Loading external libraries")
+    loadCoursier(Config.extLibs).toMap
+/*
     val allLibs = Config.extLibs.flatMap(lib => Set(lib.library) ++ lib.deps)
     val res = Await.result(Future.sequence(allLibs.map { lib =>
       loadExtLib(lib).map(r => lib -> r)
     }), timeout).toMap
     log.debug("External libraries loaded")
     res
+*/
   }
+
+  val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
 
   /**
     * The loaded files shaped for Scalac to use
@@ -174,21 +234,24 @@ class Classpath {
     * memory but is better than reaching all over the filesystem every time we
     * want to do something.
     */
-  val commonLibraries4compiler =
-    Await.result(Future.sequence(commonLibraries.map { case (name, data) => Future(lib4compiler(name, data)) }), timeout)
-  val extLibraries4compiler =
-    extLibraries.map { case (key, (name, data)) => key -> lib4compiler(name, data) }
+  val commonLibraries4compiler = Await.result(Future.sequence(commonLibraries.map { case (name, data) => Future(lib4compiler(name, data)) }), timeout)
+
+  val dependency4compiler = flatDeps.map { case (dep, data) => dep -> lib4compiler(s"${dep.module.organization}_${dep.module.name}_${dep.version}", data) }
 
   /**
     * In memory cache of all the jars used in the linker.
     */
-  val commonLibraries4linker =
-    commonLibraries.map { case (name, data) => lib4linker(name, data) }
-  val extLibraries4linker =
-    extLibraries.map { case (key, (name, data)) => key -> lib4linker(name, data) }
+  val commonLibraries4linker = commonLibraries.map { case (name, data) => lib4linker(name, data) }
+  val dependency4linker = flatDeps.map { case (dep, data) => dep -> lib4linker(s"${dep.module.organization}_${dep.module.name}_${dep.version}", data) }
+
+  def deps(extLibs: Set[ExtLib]) = {
+    val resolved = resolveDeps(extLibs.flatMap(lib => extLibraries(lib).map(_._1)).toList)
+    log.debug(s"Resolved libraries: ${resolved.map(_.moduleVersion)}")
+    resolved
+  }
 
   def compilerLibraries(extLibs: Set[ExtLib]) = {
-    commonLibraries4compiler ++ extLibs.map(lib => extLibraries4compiler(lib))
+    commonLibraries4compiler ++ deps(extLibs).map(dep => dependency4compiler(dep))
   }
 
   val linkerCaches = mutable.Map.empty[Set[ExtLib], Seq[IRFileCache.VirtualRelativeIRFile]]
@@ -196,7 +259,7 @@ class Classpath {
   def linkerLibraries(extLibs: Set[ExtLib]) = {
     this.synchronized {
       linkerCaches.getOrElseUpdate(extLibs, {
-        val loadedJars = commonLibraries4linker ++ extLibs.map(lib => extLibraries4linker(lib))
+        val loadedJars = commonLibraries4linker ++ deps(extLibs).map(dep => dependency4linker(dep))
         val cache = (new IRFileCache).newCache
         val res = cache.cached(loadedJars)
         log.debug(s"Cached $extLibs")

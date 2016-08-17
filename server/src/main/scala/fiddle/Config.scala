@@ -13,10 +13,8 @@ case class Template(pre: String, post: String) {
   def fullSource(src: String) = pre + src + post
 }
 
-case class LibDependency(library: ExtLib, deps: Seq[ExtLib])
-
 object Config {
-  def loadLibraries(uri: String): Seq[LibDependency] = {
+  def loadLibraries(uri: String): Seq[ExtLib] = {
     val data = if (uri.startsWith("file:")) {
       // load from file system
       scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
@@ -24,7 +22,7 @@ object Config {
       // load from resources
       scala.io.Source.fromInputStream(getClass.getResourceAsStream(uri), "UTF-8").mkString
     }
-    read[Map[String, Seq[String]]](data).map { case (lib, deps) => LibDependency(ExtLib(lib), deps.map(ExtLib(_))) }.toSeq
+    read[Seq[String]](data).map(ExtLib(_))
   }
 
   protected val config = ConfigFactory.load().getConfig("fiddle")

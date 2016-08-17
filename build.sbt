@@ -96,12 +96,14 @@ lazy val server = project
       "com.github.marklister" %% "base64" % "0.2.2",
       "ch.megard" %% "akka-http-cors" % "0.1.4",
       "org.apache.maven" % "maven-artifact" % "3.3.9",
+      "io.get-coursier" %% "coursier" % "1.0.0-M13",
+      "io.get-coursier" %% "coursier-cache" % "1.0.0-M13",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),
     javaOptions in Revolver.reStart ++= Seq("-Xmx2g", "-Xss4m"),
-    javaOptions in Universal ++= Seq("-J-Xmx1500m", "-J-Xss4m"),
+    javaOptions in Universal ++= Seq("-J-Xmx3G", "-J-Xss4m"),
     resourceGenerators in Compile += Def.task {
       // store build version in a property file
       val file = (resourceManaged in Compile).value / "version.properties"
