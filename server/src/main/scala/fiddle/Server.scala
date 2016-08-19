@@ -162,7 +162,7 @@ object Server extends App {
     new String(source, StandardCharsets.UTF_8)
   }
 
-  println(s"Scala Fiddle ${Config.version}")
+  log.info(s"Scala Fiddle ${Config.version} at ${Config.interface}:${Config.port}")
 
   // start the HTTP server
   val bindingFuture = Http().bindAndHandle(route, Config.interface, Config.port)

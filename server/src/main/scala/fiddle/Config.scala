@@ -14,15 +14,20 @@ case class Template(pre: String, post: String) {
 }
 
 object Config {
-  def loadLibraries(uri: String): Seq[ExtLib] = {
+  def loadLibraries(uri: String, defaultLibs: Seq[String]): Seq[ExtLib] = {
     val data = if (uri.startsWith("file:")) {
       // load from file system
       scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
+    } else if (uri.startsWith("http")) {
+      // load from internet
+      System.setProperty("http.agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.29 Safari/537.36")
+      scala.io.Source.fromURL(uri, "UTF-8").mkString
     } else {
       // load from resources
       scala.io.Source.fromInputStream(getClass.getResourceAsStream(uri), "UTF-8").mkString
     }
-    read[Seq[String]](data).map(ExtLib(_))
+    val extLibs = read[Seq[String]](data)
+    (extLibs ++ defaultLibs).map(ExtLib(_))
   }
 
   protected val config = ConfigFactory.load().getConfig("fiddle")
@@ -38,7 +43,7 @@ object Config {
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
-  val extLibs = loadLibraries(config.getString("extLibs"))
+  val defaultLibs = config.getStringList("defaultLibs").asScala
 
   val extJS = config.getStringList("extJS").asScala
   val extCSS = config.getStringList("extCSS").asScala
@@ -59,4 +64,6 @@ object Config {
   val scalaJSVersion = versionProps.getProperty("scalaJSVersion")
   val scalaJSMainVersion = scalaJSVersion.split('.').take(2).mkString(".")
   val aceVersion = versionProps.getProperty("aceVersion")
+
+  val extLibs = loadLibraries(config.getString("extLibs"), defaultLibs)
 }

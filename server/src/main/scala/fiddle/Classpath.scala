@@ -148,20 +148,24 @@ class Classpath {
     }).run
     results.foreach { case (lib, r) =>
       val root = r.rootDependencies.head
+      if(r.errors.nonEmpty) {
+        log.error(r.errors.toString)
+      }
       log.debug(s"Deps for ${root.moduleVersion}:")
       r.minDependencies.foreach { dep =>
         log.debug(s"   ${dep.moduleVersion}")
       }
     }
-    val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._1).mapValues(_.head._2).toSeq
+    val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._2.url).map(_._2.head).toSeq
+    log.debug(s"Artifacts: ${depArts.map(_._2.url).mkString("\n")}")
     // load all JARs
     val artifacts = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, Files.readAllBytes(f.toPath))).run)).run.flatMap {
       case \/-(dep) => Some(dep)
       case -\/(error) => throw new Exception(s"Unable to load a library: ${error.describe}")
-    }.toMap
+    }
     // create a result map
     results.map { case (lib, resolution) =>
-      (lib, resolution.minDependencies.map(dep => (dep, artifacts(dep))))
+      (lib, resolution.minDependencies.map(dep => (dep, artifacts.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
     }
   }
 
@@ -178,14 +182,6 @@ class Classpath {
   val extLibraries = {
     log.debug("Loading external libraries")
     loadCoursier(Config.extLibs).toMap
-/*
-    val allLibs = Config.extLibs.flatMap(lib => Set(lib.library) ++ lib.deps)
-    val res = Await.result(Future.sequence(allLibs.map { lib =>
-      loadExtLib(lib).map(r => lib -> r)
-    }), timeout).toMap
-    log.debug("External libraries loaded")
-    res
-*/
   }
 
   val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
@@ -216,6 +212,7 @@ class Classpath {
       o.write(data)
       o.close()
     }
+    in.close()
     dir
   }
 
@@ -234,9 +231,8 @@ class Classpath {
     * memory but is better than reaching all over the filesystem every time we
     * want to do something.
     */
-  val commonLibraries4compiler = Await.result(Future.sequence(commonLibraries.map { case (name, data) => Future(lib4compiler(name, data)) }), timeout)
-
-  val dependency4compiler = flatDeps.map { case (dep, data) => dep -> lib4compiler(s"${dep.module.organization}_${dep.module.name}_${dep.version}", data) }
+  val commonLibraries4compiler = commonLibraries.par.map { case (name, data) => lib4compiler(name, data) }.seq
+  val dependency4compiler = flatDeps.par.map { case (dep, data) => dep -> lib4compiler(s"${dep.module.organization}_${dep.module.name}_${dep.version}", data) }.seq
 
   /**
     * In memory cache of all the jars used in the linker.
