@@ -3,7 +3,6 @@ package fiddle
 import java.io.{PrintWriter, Writer}
 
 import akka.util.ByteString
-import org.apache.maven.artifact.versioning.ComparableVersion
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
 import org.scalajs.core.tools.logging._
@@ -54,6 +53,7 @@ class Compiler(classPath: Classpath, code: String) {
     log.debug(s"Full dependencies: $finalLibs")
     finalLibs.toSet
   }
+
   /**
     * Converts a bunch of bytes into Scalac's weird VirtualFile class
     */
@@ -135,7 +135,7 @@ class Compiler(classPath: Classpath, code: String) {
     (settings, reporter, vd, jCtx, jDirs)
   }
 
-  def autocomplete(flag: String, pos: Int): List[(String, String)] = {
+  def autocomplete(pos: Int): List[(String, String)] = {
     import scala.tools.nsc.interactive._
 
     // global can be reused, just create new runs for new compiler invocations

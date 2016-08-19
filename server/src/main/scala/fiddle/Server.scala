@@ -103,9 +103,9 @@ object Server extends App {
         } ~ path("complete") {
           handleRejections(CorsDirectives.corsRejectionHandler) {
             CorsDirectives.cors(settings) {
-              parameters('source, 'flag, 'offset) { (source, flag, offset) =>
+              parameters('source, 'offset) { (source, offset) =>
                 ctx =>
-                  val res = ask(compilerRouter, CompleteSource(decodeSource(source), flag, offset.toInt))
+                  val res = ask(compilerRouter, CompleteSource(decodeSource(source), offset.toInt))
                     .mapTo[Try[List[(String, String)]]]
                     .map {
                       case Success(cr) =>

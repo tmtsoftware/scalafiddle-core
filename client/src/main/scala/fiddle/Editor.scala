@@ -1,4 +1,5 @@
 package fiddle
+
 import fiddle.JsVal.jsVal2jsAny
 
 import scala.async.Async.{async, await}
@@ -10,18 +11,18 @@ import scala.scalajs.js.JSConverters._
 import scala.scalajs.js.{Dynamic => Dyn}
 
 /**
- * Everything related to setting up the Ace editor to
- * do exactly what we want.
- */
+  * Everything related to setting up the Ace editor to
+  * do exactly what we want.
+  */
 class Editor(bindings: Seq[(String, String, () => Any)],
-             completions: () => Future[Seq[(String, String)]],
-             implicit val logger: Logger){
+  completions: () => Future[Seq[(String, String)]],
+  implicit val logger: Logger) {
   lazy val Autocomplete = js.Dynamic.global.require("ace/autocomplete").Autocomplete
   def sess = editor.getSession()
   def aceDoc = sess.getDocument()
   def code = sess.getValue().asInstanceOf[String]
   def row = editor.getCursorPosition().row.asInstanceOf[Int]
-  def column= editor.getCursorPosition().column.asInstanceOf[Int]
+  def column = editor.getCursorPosition().column.asInstanceOf[Int]
 
   def complete() = {
     if (!js.DynamicImplicits.truthValue(editor.completer))
@@ -35,7 +36,7 @@ class Editor(bindings: Seq[(String, String, () => Any)],
 
   def setAnnotations(annotations: Seq[EditorAnnotation]): Unit = {
     editor.getSession().clearAnnotations()
-    if(annotations.nonEmpty) {
+    if (annotations.nonEmpty) {
       editor.renderer.setShowGutter(true)
       val aceAnnotations = annotations.map { ann =>
         JsVal.obj(
@@ -58,7 +59,7 @@ class Editor(bindings: Seq[(String, String, () => Any)],
   val editor: js.Dynamic = {
     val editor = Editor.initEditor
 
-    for ((name, key, func) <- bindings){
+    for ((name, key, func) <- bindings) {
       val binding = s"Ctrl-$key|Cmd-$key"
       editor.commands.addCommand(JsVal.obj(
         "name" -> name,
@@ -72,15 +73,16 @@ class Editor(bindings: Seq[(String, String, () => Any)],
     }
 
     editor.completers = js.Array(JsVal.obj(
-      "getCompletions" -> {(editor: Dyn, session: Dyn, pos: Dyn, prefix: Dyn, callback: Dyn) => task*async{
-        val things = await(completions()).map{ case (name, value) =>
+      "getCompletions" -> { (editor: Dyn, session: Dyn, pos: Dyn, prefix: Dyn, callback: Dyn) => task * async {
+        val things = await(completions()).map { case (name, value) =>
           JsVal.obj(
             "value" -> value,
             "caption" -> (value + name)
           ).value
         }
-        callback(null, js.Array(things:_*))
-      }}
+        callback(null, js.Array(things: _*))
+      }
+      }
     ).value)
 
     editor.getSession().setTabSize(2)
@@ -89,7 +91,7 @@ class Editor(bindings: Seq[(String, String, () => Any)],
   }
 }
 
-object Editor{
+object Editor {
   def initEditorIn(id: String) = {
     val theme = Client.queryParams.get("theme") match {
       case Some("dark") => "ace/theme/tomorrow_night_eighties"
@@ -100,6 +102,7 @@ object Editor{
     editor.renderer.setShowGutter(false)
     editor.renderer.setOption("showFoldWidgets", false)
     editor.setShowPrintMargin(false)
+    editor.$blockScrolling = Double.PositiveInfinity
     editor
   }
   lazy val initEditor: js.Dynamic = {

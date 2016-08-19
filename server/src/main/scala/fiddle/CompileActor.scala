@@ -18,7 +18,7 @@ object Optimizer {
 
 case class CompileSource(sourceCode: String, optimizer: Optimizer)
 
-case class CompleteSource(sourceCode: String, flag: String, offset: Int)
+case class CompleteSource(sourceCode: String, offset: Int)
 
 class CompileActor(classPath: Classpath) extends Actor {
   def receive = {
@@ -35,9 +35,9 @@ class CompileActor(classPath: Classpath) extends Actor {
           sender() ! CompilerResponse(None, Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")), compiler.getLog.mkString("\n"))
       }
 
-    case CompleteSource(sourceCode, flag, offset) =>
+    case CompleteSource(sourceCode, offset) =>
       val compiler = new Compiler(classPath, sourceCode)
-      sender() ! Try(compiler.autocomplete(flag, offset.toInt))
+      sender() ! Try(compiler.autocomplete(offset.toInt))
   }
 
   val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r

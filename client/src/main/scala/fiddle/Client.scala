@@ -24,7 +24,7 @@ class Gzip(data: js.Array[Byte]) extends js.Object {
   def compress(): Uint8Array = js.native
 }
 
-case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil)
+case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil, indent:Int = 0)
 
 class Client(templateId: String, envId: String, helpUrl: String) {
   implicit val RedLogger = fiddle.Client.RedLogger
@@ -105,15 +105,16 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   def reconstructSource(source: String, srcFile: SourceFile): String = {
+    val indented = source.split("\n").map(l => (" " * srcFile.indent) + l ).map(_ + "\n").mkString
     // use map instead of mkString to prevent an empty list from generating a single line
-    srcFile.prefix.map(_ + "\n").mkString + source + "\n" + srcFile.postfix.map(_ + "\n").mkString
+    srcFile.prefix.map(_ + "\n").mkString + indented + "\n" + srcFile.postfix.map(_ + "\n").mkString
   }
 
   def encodeSource(source: String): String = {
     import com.github.marklister.base64.Base64._
     import js.JSConverters._
     implicit def scheme: B64Scheme = base64Url
-    val fullSource = reconstructSource(source, currentSourceFile).getBytes(StandardCharsets.UTF_8)
+    val fullSource = source.getBytes(StandardCharsets.UTF_8)
     val compressedBuffer = new Gzip(fullSource.toJSArray).compress()
     val compressedSource = new Array[Byte](compressedBuffer.length)
     var i = 0
@@ -128,7 +129,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val tag = s"${if (Client.initializing) "initial-" else ""}$opt"
     val startTime = System.nanoTime()
     Ajax.get(
-      url = s"compile?opt=$opt&source=${encodeSource(code)}"
+      url = s"compile?opt=$opt&source=${encodeSource(reconstructSource(code, currentSourceFile))}"
     ).map { res =>
       val compileTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("compile", tag, currentSource, compileTime)
@@ -244,8 +245,11 @@ class Client(templateId: String, envId: String, helpUrl: String) {
       }
     }
     // remove indentation from main part
-    val indent = main.filter(_.nonEmpty).map(_.takeWhile(_ == ' ').length).min
-    SourceFile(src.name, main.reverse.map(_.drop(indent)).mkString("", "\n", "\n"), pre.reverse, post.reverse)
+    val indent = main.filter(_.nonEmpty).map(_.takeWhile(_ == ' ').length) match {
+      case l if l.nonEmpty => l.min
+      case _ => 0
+    }
+    SourceFile(src.name, main.reverse.map(_.drop(indent)).mkString("", "\n", "\n"), pre.reverse, post.reverse, indent)
   }
 
   def setSources(sources: Seq[SourceFile]): Unit = {
@@ -281,7 +285,6 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   def compile(res: Future[CompilerResponse]): Future[Option[String]] = {
-
     res.map { response =>
       endCompilation()
       val prefixLines = currentSourceFile.prefix.size
@@ -302,18 +305,18 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   def complete() = async {
-    val code = editor.sess.getValue().asInstanceOf[String]
-
-    val intOffset = editor.column + code.split("\n")
-      .take(editor.row)
+    val code = reconstructSource(editor.code, currentSourceFile)
+    val row = editor.row + currentSourceFile.prefix.size
+    val col = editor.column + currentSourceFile.indent
+    val intOffset = col + code.split("\n")
+      .take(row)
       .map(_.length + 1)
       .sum
 
-    val flag = if (code.take(intOffset).endsWith(".")) "member" else "scope"
     val startTime = System.nanoTime()
 
     val f = Ajax.get(
-      url = s"complete?flag=$flag&offset=$intOffset&source=${encodeSource(code)}"
+      url = s"complete?offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
       val completeTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("complete", "complete", currentSource, completeTime)
