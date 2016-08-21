@@ -40,6 +40,7 @@ object Config {
   val analyticsID = config.getString("analyticsID")
   val helpUrl = config.getString("helpUrl")
   val scalaFiddleSourceUrl = config.getString("scalaFiddleSourceUrl")
+  val scalaFiddleEditUrl = config.getString("scalaFiddleEditUrl")
 
   val clientFiles = config.getStringList("clientFiles").asScala
 
@@ -51,6 +52,9 @@ object Config {
   val libCache = config.getString("libCache")
 
   val baseEnv = config.getString("baseEnv")
+
+  val logoLight = config.getString("logoLight")
+  val logoDark = config.getString("logoDark")
 
   val httpHeaders: List[HttpHeader] = config.getConfig("httpHeaders").entrySet().asScala.map { entry =>
     RawHeader(entry.getKey, entry.getValue.unwrapped().asInstanceOf[String])

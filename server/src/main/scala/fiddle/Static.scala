@@ -19,7 +19,7 @@ object Static {
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-static_highlight.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/mode-scala.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-eclipse.js",
-    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night_eighties.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night.js",
     s"/web/gzip.js"
   )
 
@@ -28,11 +28,11 @@ object Static {
     "/common.css"
   )
 
+  case class Button(id: String, value: String, title: String)
+
   val buttons = Seq(
-    ("run", "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized"),
-    ("reset", "Reset"),
-    ("share", "Share"),
-    ("help", "Help")
+    Button("run", "Run", "Ctrl/Cmd-Enter to run,\nShift-Ctrl/Cmd-Enter to run optimized"),
+    Button("reset", "Reset", "Reset back to original source")
   )
 
   // store concatenated and hashed resource blobs
@@ -44,9 +44,9 @@ object Static {
     // apply layout parameters
     val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "640").toInt).getOrElse(640)
     val customStyle = paramMap.getOrElse("style", "")
-    val themeCSS = paramMap.get("theme") match {
-      case Some("dark") => "/styles-dark.css"
-      case _ => "/styles-light.css"
+    val (themeCSS, logoSrc) = paramMap.get("theme") match {
+      case Some("dark") => ("/styles-dark.css", Config.logoDark)
+      case _ => ("/styles-light.css", Config.logoLight)
     }
     val useFast = paramMap.contains("fast")
     val allJS = joinResources(extJSFiles ++ srcFiles, ".js", ";\n")
@@ -54,18 +54,20 @@ object Static {
     val jsURLs = s"cache/$allJS" +: Config.extJS
     val cssURLs = s"cache/$allCSS" +: Config.extCSS
 
+    val editURL = Config.scalaFiddleEditUrl
     // convert baseEnv to JS string variable
-    val baseEnv = s"""var baseEnv = ${Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n")};"""
+    val baseEnv =
+    s"""var baseEnv = ${Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n")};"""
 
     // parse which buttons to hide
     val toHide = paramMap.get("hideButtons").map(_.split(',')).getOrElse(Array.empty)
-    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b._1)).map { case (bName, bTitle) =>
-      div(title := bTitle, id := s"$bName-icon", cls := "icon")(
-        svg(width := 21, height := 21)(use(xLinkHref := s"#sym_$bName"))
+    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b.id)).map { case Button(bId, bValue, bTitle) =>
+      div(title := bTitle, id := s"$bId-icon", cls := "icon")(
+        svg(width := 21, height := 21)(use(xLinkHref := s"#sym_$bId")), span(cls := "button", bValue)
       )
     }
     val (direction, ratio) = paramMap.getOrElse("layout", "h50") match {
-      case layoutRE(d, r) => (d, r.toInt)
+      case layoutRE(d, r) => (d, r.toInt min 85 max 15)
       case _ => ("h", 50)
     }
     val editorSize = ratio.toInt
@@ -77,37 +79,26 @@ object Static {
         """.stripMargin
     val vertCSS =
       s"""
+         |.main {
+         |    flex-direction: column;
+         |}
          |#editorWrap {
-         |    bottom: $outputSize%;
-         |    right: 0;
+         |    flex: 0 0 $editorSize%;
          |}
          |#sandbox {
-         |    top: $editorSize%;
-         |    left: 0;
-         |    border-top: 0;
-         |}
-         |.label {
-         |    flex-direction: row;
-         |}
-         |.label svg {
-         |    margin: 0.1em 0.5em;
-         |}
-         |.sharebox {
-         |    top: 50px;
-         |    right: 15px;
+         |    flex: 0 0 $outputSize%;
+         |    border-top-width: 1px;
          |}
          """.stripMargin
     val layout = direction match {
       case "h" =>
         s"""
            |#editorWrap {
-           |    bottom: 0;
-           |    right: $outputSize%;
+           |    flex: 0 0 $editorSize%;
            |}
            |#sandbox {
-           |    top: 0;
-           |    left: $editorSize%;
-           |    border-left: 1px solid;
+           |    flex: 0 0 $outputSize%;
+           |    border-left-width: 1px;
            |}
            |@media only screen and (max-width: ${responsiveWidth}px) {
            |$vertCSS
@@ -120,7 +111,7 @@ object Static {
       head(
         meta(charset := "utf-8"),
         meta(name := "viewport", content := "width=device-width, initial-scale=1"),
-        meta(name := "author", content := "Li Haoyi and Otto Chrons"),
+        meta(name := "author", content := "Otto Chrons and Li Haoyi"),
         tags2.title("ScalaFiddle"),
         for (jsURL <- jsURLs) yield script(`type` := "application/javascript", src := jsURL),
         for (cssURL <- cssURLs) yield link(rel := "stylesheet", href := cssURL),
@@ -173,30 +164,34 @@ object Static {
             |</svg>
           """.stripMargin),
 
-        div(id := "editorWrap")(
-          div(id := "fiddleSelectorDiv", style := "display: none")(
-            span(cls := "normal", "Select fiddle "),
-            select(id := "fiddleSelector")
-          ),
-          div(id := "editorContainer")(
-            div(cls := "label", visibleButtons),
-            div(cls := "sharebox", id := "sharebox")(
-              div(cls := "header", "Share this Scala Fiddle"),
-              div(button(id := "gist-button", "Create a gist")),
-              div(cls := "smallheader", "Share a link"),
-              div(cls := "sharelink", input(tpe := "text", id := "sharelink"))
+        div(cls := "top")(
+          header(
+            div(cls := "left")(
+              visibleButtons,
+              div(id := "fiddleSelectorDiv", style := "display: none")(
+                select(id := "fiddleSelector")
+              )
             ),
-            pre(id := "editor")
+            div(cls := "right")(
+              div(cls := "logo")(
+                a(href := "", id := "editLink", target := "_blank", img(src := logoSrc))
+              )
+            )
+          ),
+          div(cls := "main")(
+            div(id := "editorWrap")(
+              div(id := "editor")
+            ),
+            div(id := "sandbox")(
+              iframe(
+                id := "codeframe",
+                width := "100%",
+                height := "100%",
+                attr("frameborder") := "0",
+                attr("sandbox") := "allow-scripts",
+                src := s"codeframe?theme=${paramMap.getOrElse("theme", "light")}")
+            )
           )
-        ),
-        div(id := "sandbox")(
-          iframe(
-            id := "codeframe",
-            width := "100%",
-            height := "100%",
-            attr("frameborder") := "0",
-            attr("sandbox") := "allow-scripts",
-            src := s"codeframe?theme=${paramMap.getOrElse("theme", "light")}")
         )
       ),
       script(`type` := "text/javascript", raw(
@@ -211,7 +206,7 @@ object Static {
              |""".stripMargin
         else "")),
       script(`type` := "text/javascript", raw(baseEnv)),
-      script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.helpUrl}", "${Config.scalaFiddleSourceUrl}", baseEnv)"""))
+      script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
     ).toString()
     ByteString(pageHtml, "UTF-8")
   }
@@ -260,6 +255,7 @@ object Static {
               |    case "code":
               |      eval(msg.data);
               |      eval("var sf = ScalaFiddle();if(typeof sf.main === 'function') sf.main();");
+              |      e.source.postMessage("evalCompleted", "*");
               |      break;
               |  }
               |});

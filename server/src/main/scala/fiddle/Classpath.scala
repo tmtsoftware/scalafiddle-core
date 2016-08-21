@@ -160,8 +160,11 @@ class Classpath {
     log.debug(s"Artifacts: ${depArts.map(_._2.url).mkString("\n")}")
     // load all JARs
     val artifacts = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, Files.readAllBytes(f.toPath))).run)).run.flatMap {
-      case \/-(dep) => Some(dep)
-      case -\/(error) => throw new Exception(s"Unable to load a library: ${error.describe}")
+      case \/-(dep) =>
+        log.debug(s"Cached ${dep._1.module.organization}-${dep._1.module.name}=${dep._1.version}")
+        Some(dep)
+      case -\/(error) =>
+        throw new Exception(s"Unable to load a library: ${error.describe}")
     }
     // create a result map
     results.map { case (lib, resolution) =>
@@ -170,7 +173,7 @@ class Classpath {
   }
 
   def resolveDeps(deps: Seq[Dependency]): Seq[Dependency] = {
-    deps.groupBy(_.moduleVersion).map { case (_, versions) =>
+    deps.groupBy(_.module).map { case (_, versions) =>
       // sort by version, select latest
       versions.sortBy(lib => new ComparableVersion(lib.version)).last
     }.toSeq

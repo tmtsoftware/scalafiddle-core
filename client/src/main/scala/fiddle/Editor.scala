@@ -92,23 +92,21 @@ class Editor(bindings: Seq[(String, String, () => Any)],
 }
 
 object Editor {
-  def initEditorIn(id: String) = {
+  lazy val initEditor: js.Dynamic = {
     val theme = Client.queryParams.get("theme") match {
-      case Some("dark") => "ace/theme/tomorrow_night_eighties"
+      case Some("dark") => "ace/theme/tomorrow_night"
       case _ => "ace/theme/eclipse"
     }
-    val editor = global.ace.edit(id)
+    val editor = global.ace.edit("editor")
     editor.setTheme(theme)
     editor.renderer.setShowGutter(false)
     editor.renderer.setOption("showFoldWidgets", false)
     editor.setShowPrintMargin(false)
     editor.$blockScrolling = Double.PositiveInfinity
-    editor
-  }
-  lazy val initEditor: js.Dynamic = {
-    val editor = initEditorIn("editor")
     editor.getSession().setMode("ace/mode/scala")
     editor.getSession().setOption("useWorker", false)
+    if(Client.previewMode)
+      editor.setReadOnly(true)
     editor
   }
 }

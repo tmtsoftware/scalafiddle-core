@@ -39,17 +39,11 @@ class Compiler(classPath: Classpath, code: String) {
     val userLibs = extLibDefs.map(lib => ExtLib(lib)).collect {
       case lib if Config.extLibs.contains(lib) => lib
       case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
-    }.toSeq
+    }.toList
     // add DOM and Scalatags if they are missing
-    val domLib = if (userLibs.exists { case ExtLib("org.scala-js", "scalajs-dom", _, false) => true; case _ => false })
-      None
-    else
-      Some(ExtLib("org.scala-js", "scalajs-dom", "0.9.1", false))
-    val scalatagsLib = if (userLibs.exists { case ExtLib("com.lihaoyi", "scalatags", _, false) => true; case _ => false })
-      None
-    else
-      Some(ExtLib("com.lihaoyi", "scalatags", "0.6.0", false))
-    val finalLibs = userLibs ++ domLib ++ scalatagsLib
+    val domLib = ExtLib("org.scala-js", "scalajs-dom", "0.9.1", false)
+    val scalatagsLib = ExtLib("com.lihaoyi", "scalatags", "0.6.0", false)
+    val finalLibs = domLib :: scalatagsLib :: userLibs
     log.debug(s"Full dependencies: $finalLibs")
     finalLibs.toSet
   }

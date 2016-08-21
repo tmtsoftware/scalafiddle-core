@@ -1,6 +1,7 @@
 package fiddle
 
 import java.net.URLDecoder
+import java.util.UUID
 
 import fiddle.JsVal.jsVal2jsAny
 import org.scalajs.dom
@@ -24,38 +25,32 @@ class Gzip(data: js.Array[Byte]) extends js.Object {
   def compress(): Uint8Array = js.native
 }
 
-case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil, indent:Int = 0)
+case class SourceFile(name: String, code: String, prefix: List[String] = Nil, postfix: List[String] = Nil, indent: Int = 0,
+  fiddleId: Option[String] = None, id: String = UUID.randomUUID().toString)
 
-class Client(templateId: String, envId: String, helpUrl: String) {
+class Client(editURL: String) {
   implicit val RedLogger = fiddle.Client.RedLogger
   var sourceFiles = Seq(SourceFile("ScalaFiddle.scala", ""))
-  var currentSource = sourceFiles.head.name
+  var currentSource = sourceFiles.head.id
+  var currentSourceName = sourceFiles.head.name
 
-  def currentSourceFile = sourceFiles.find(_.name == currentSource).get
+  def currentSourceFile = sourceFiles.find(_.id == currentSource).get
 
   val command = Channel[Future[CompilerResponse]]()
 
   val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
   val resetIcon = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
-  val shareIcon = dom.document.getElementById("share-icon").asInstanceOf[HTMLElement]
-  val helpIcon = dom.document.getElementById("help-icon").asInstanceOf[HTMLElement]
-  val shareBox = dom.document.getElementById("sharebox").asInstanceOf[HTMLElement]
-  val shareLink = dom.document.getElementById("sharelink").asInstanceOf[HTMLInputElement]
-  val gistButton = dom.document.getElementById("gist-button").asInstanceOf[HTMLButtonElement]
   def codeFrame = dom.document.getElementById("codeframe").asInstanceOf[HTMLIFrameElement]
-  val editorContainerDiv = dom.document.getElementById("editorContainer").asInstanceOf[HTMLElement]
   val fiddleSelectorDiv = dom.document.getElementById("fiddleSelectorDiv").asInstanceOf[HTMLElement]
   val fiddleSelector = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
+  val editLink = dom.document.getElementById("editLink").asInstanceOf[HTMLAnchorElement]
 
   def exec(s: String) = {
     Client.clear()
 
-    try {
+    showStatus("RUNNING")
+    js.timers.setTimeout(20) {
       Client.sendFrameCmd("code", s)
-    } catch {
-      case e: Throwable =>
-        Client.logError(e.toString)
-        showError(e.toString)
     }
   }
 
@@ -74,7 +69,6 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   val editor: Editor = new Editor(Seq(
     ("Compile", "Enter", () => fastOpt),
     ("FullOptimize", "Shift-Enter", () => fullOpt),
-    ("Save", "S", share _),
     ("Complete", "Space", () => editor.complete()),
     ("Parse", "Alt-Enter", parseFull _)
   ), complete, RedLogger)
@@ -84,7 +78,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val p = Promise[Unit]
     codeFrame.onload = (e: Event) => {
       runIcon.classList.add("active")
-      showStatus("Compiling")
+      showStatus("COMPILING")
       p.complete(Success(()))
     }
     codeFrame.src = codeFrame.src
@@ -93,7 +87,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
 
   def endCompilation(): Unit = {
     runIcon.classList.remove("active")
-    showStatus("Output")
+    showStatus("RESULT")
     editor.focus()
   }
 
@@ -105,7 +99,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   def reconstructSource(source: String, srcFile: SourceFile): String = {
-    val indented = source.split("\n").map(l => (" " * srcFile.indent) + l ).map(_ + "\n").mkString
+    val indented = source.split("\n").map(l => (" " * srcFile.indent) + l).map(_ + "\n").mkString
     // use map instead of mkString to prevent an empty list from generating a single line
     srcFile.prefix.map(_ + "\n").mkString + indented + "\n" + srcFile.postfix.map(_ + "\n").mkString
   }
@@ -118,7 +112,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val compressedBuffer = new Gzip(fullSource.toJSArray).compress()
     val compressedSource = new Array[Byte](compressedBuffer.length)
     var i = 0
-    while(i < compressedBuffer.length) {
+    while (i < compressedBuffer.length) {
       compressedSource(i) = compressedBuffer.get(i).toByte
       i += 1
     }
@@ -132,7 +126,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
       url = s"compile?opt=$opt&source=${encodeSource(reconstructSource(code, currentSourceFile))}"
     ).map { res =>
       val compileTime = (System.nanoTime() - startTime) / 1000000
-      EventTracker.sendEvent("compile", tag, currentSource, compileTime)
+      EventTracker.sendEvent("compile", tag, currentSourceName, compileTime)
       read[CompilerResponse](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
@@ -159,7 +153,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
   }
 
   // attach handlers to icons
-  if(runIcon != null) {
+  if (runIcon != null) {
     runIcon.onclick = (e: MouseEvent) => {
       if (e.shiftKey)
         fullOpt
@@ -168,58 +162,19 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     }
   }
 
-  if(resetIcon != null) {
+  if (resetIcon != null) {
     resetIcon.onclick = (e: MouseEvent) => {
-      EventTracker.sendEvent("reset", "reset", currentSource)
+      EventTracker.sendEvent("reset", "reset", currentSourceName)
       selectSource(currentSource)
       editor.focus()
     }
   }
 
-  if(shareIcon != null) {
-    shareIcon.onclick = (e: MouseEvent) => {
-      share()
-    }
-  }
-
-  if(helpIcon != null) {
-    helpIcon.onclick = (e: MouseEvent) => {
-      help()
-    }
-  }
-
-  shareBox.onmousedown = (e: MouseEvent) => {
-    e.stopPropagation()
-  }
-
-  gistButton.onclick = (e: MouseEvent) => {
-    save()
-    closeShare()
-  }
-
   fiddleSelector.onchange = (e: Event) => {
-    val sel = fiddleSelector.options(fiddleSelector.selectedIndex).text
+    val sel = fiddleSelector.options(fiddleSelector.selectedIndex).value
     dom.console.log(s"Fiddle selected $sel")
     updateSource(editor.code)
     selectSource(sel)
-  }
-
-  val outsideClickHandler: MouseEvent => Unit = e => closeShare()
-
-  def help(): Unit = {
-    dom.window.open(helpUrl, "_blank")
-  }
-
-  def share(): Unit = {
-    EventTracker.sendEvent("share", "open", currentSource)
-    shareBox.style.display = "inherit"
-    dom.document.body.addEventListener("mousedown", outsideClickHandler)
-    shareLink.value = dom.window.location.href
-  }
-
-  def closeShare(): Unit = {
-    shareBox.style.display = "none"
-    dom.document.body.removeEventListener("mousedown", outsideClickHandler)
   }
 
   def showStatus(status: String) = {
@@ -249,7 +204,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
       case l if l.nonEmpty => l.min
       case _ => 0
     }
-    SourceFile(src.name, main.reverse.map(_.drop(indent)).mkString("", "\n", "\n"), pre.reverse, post.reverse, indent)
+    src.copy(code = main.reverse.map(_.drop(indent)).mkString("", "\n", "\n"), prefix = pre.reverse, postfix = post.reverse, indent = indent)
   }
 
   def setSources(sources: Seq[SourceFile]): Unit = {
@@ -258,28 +213,31 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     sourceFiles = sources.map(extractCode)
     fiddleSelector.innerHTML = ""
     sourceFiles.foreach { source =>
-      fiddleSelector.add(option(value := source.name)(source.name).render)
+      fiddleSelector.add(option(value := source.id)(source.name).render)
     }
     if (sourceFiles.size > 1) {
       fiddleSelectorDiv.style.display = "inherit"
-      editorContainerDiv.classList.add("selectorVisible")
     } else {
       fiddleSelectorDiv.style.display = "none"
-      editorContainerDiv.classList.remove("selectorVisible")
     }
-    selectSource(sourceFiles.head.name)
+    selectSource(sourceFiles.head.id)
   }
 
-  def selectSource(name: String): Unit = {
-    sourceFiles.find(_.name == name).foreach { src =>
-      currentSource = src.name
+  def selectSource(id: String): Unit = {
+    sourceFiles.find(_.id == id).foreach { src =>
+      currentSource = src.id
+      currentSourceName = src.name
       editor.sess.setValue(src.code)
+      editLink.href = src.fiddleId match {
+        case Some(fiddleId) => editURL + "sf/" + fiddleId
+        case None => editURL
+      }
     }
   }
 
   def updateSource(code: String): Unit = {
     sourceFiles = sourceFiles.collect {
-      case sf: SourceFile if sf.name == currentSource => sf.copy(code = code)
+      case sf: SourceFile if sf.id == currentSource => sf.copy(code = code)
       case sf => sf
     }
   }
@@ -319,7 +277,7 @@ class Client(templateId: String, envId: String, helpUrl: String) {
       url = s"complete?offset=$intOffset&source=${encodeSource(code)}"
     ).map { res =>
       val completeTime = (System.nanoTime() - startTime) / 1000000
-      EventTracker.sendEvent("complete", "complete", currentSource, completeTime)
+      EventTracker.sendEvent("complete", "complete", currentSourceName, completeTime)
       read[List[(String, String)]](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
@@ -333,39 +291,6 @@ class Client(templateId: String, envId: String, helpUrl: String) {
     val res = await(f)
     res
   }
-
-  def save(): Unit = task * async {
-    val files = new js.Object().asInstanceOf[js.Dynamic]
-    updateSource(editor.code)
-    sourceFiles.foreach { src =>
-      files.updateDynamic(src.name)(JsVal.obj("content" -> reconstructSource(src.code, src)))
-    }
-    val data = JsVal.obj(
-      "description" -> "ScalaFiddle gist",
-      "public" -> true,
-      "files" -> files
-    ).toString()
-
-    val res = await(Ajax.post("https://api.github.com/gists", data = data))
-    val result = JsVal.parse(res.responseText)
-    import scalatags.JsDom.all._
-    val gistId = result("id").asString
-    val url = s"https://gist.github.com/anonymous/$gistId"
-    showStatus("Uploaded")
-    EventTracker.sendEvent("share", "save", currentSource)
-    Client.clear()
-    Client.printOutput("ScalaFiddle uploaded to a gist at ", a(href := url, target := "_blank")(url))
-    // build a link to show the uploaded source in Scala Fiddle
-    val params = Client.queryParams
-      .filterKeys(name => name != "gist" && name != "source")
-      .updated("gist", gistId)
-      .updated("files", sourceFiles.map(_.name).mkString(","))
-      .map { case (k, v) => s"$k=${js.URIUtils.encodeURIComponent(v)}" }
-      .mkString("&")
-    val sfUrl = s"embed?$params"
-    Client.printOutput("Open the uploaded fiddle ", a(href := sfUrl, target := "_blank")("in a new tab"))
-    dom.console.log(s"ScalaFiddle uploaded to $url")
-  }
 }
 
 @JSExport("Client")
@@ -374,12 +299,17 @@ object Client {
 
   var intervalHandles = List.empty[SetIntervalHandle]
   var timeoutHandles = List.empty[SetTimeoutHandle]
-  
+
   dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
     dom.console.log("dom.onerror")
     Client.logError(event.toString)
   }
-  
+
+  // listen to messages from the iframe
+  dom.window.addEventListener("message", (e: MessageEvent) => {
+    sendFrameCmd("label", "RESULT")
+  })
+
   def parseUriParameters(search: String): Map[String, String] = {
     search.drop(1).split('&').filter(_.nonEmpty).map { part =>
       val pair = part.split("=")
@@ -391,11 +321,11 @@ object Client {
 
   var initializing = true
   val queryParams = parseUriParameters(dom.window.location.search)
-  val templateId = queryParams.getOrElse("template", "default")
+  val previewMode = queryParams.contains("preview")
   val envId = queryParams.getOrElse("env", "default")
   val codeFrame = dom.document.getElementById("codeframe").asInstanceOf[HTMLIFrameElement]
 
-  dom.console.log(s"queryParams: $queryParams, templateId: $templateId")
+  dom.console.log(s"queryParams: $queryParams")
 
   def logError(s: String): Unit = {
     dom.console.error(s)
@@ -431,25 +361,23 @@ object Client {
     (lastSource :: prevSources).filter(_.code.replaceAll("\\s", "").nonEmpty).reverse
   }
 
+  def defaultCode(id: String) =
+    s"""println("There was an error loading fiddle with identifier '$id'")
+        |println("Loading an empty application so you can get started")
+    """.stripMargin
+
   @JSExport
-  def main(useFast: Boolean, helpUrl: String, scalaFiddleSourceUrl: String, baseEnv: String): Unit = task * async {
+  def main(useFast: Boolean, scalaFiddleSourceUrl: String, scalaFiddleEditUrl: String, baseEnv: String): Unit = task * async {
     clear()
     Editor.initEditor
-    val client = new Client(templateId, envId, helpUrl)
-    // is a gist specified?
-    if (queryParams.contains("gist")) {
-      val gistId = queryParams("gist")
-      val files = queryParams.get("files").map(_.split(',').toList.filter(_.nonEmpty)).getOrElse(Nil)
-      client.showStatus("Loading")
-      val sources = await(loadGist(gistId, files))
-      client.setSources(sources)
-      if (useFast)
-        client.fastOpt
-      else
-        client.fullOpt
-    } else if (queryParams.contains("sfid")) {
+    val client = new Client(scalaFiddleEditUrl)
+    if (queryParams.contains("sfid")) {
       val ids = queryParams("sfid").split(",").toList
-      val sources = await(Future.sequence(ids.map(id => loadSource(scalaFiddleSourceUrl + id))))
+      val sources = await(Future.sequence(ids.map { id =>
+        loadSource(scalaFiddleSourceUrl, id) recover {
+          case e => SourceFile("ScalaFiddle.scala", baseEnv).copy(code = defaultCode(id))
+        }
+      }))
       client.setSources(sources)
       if (useFast)
         client.fastOpt
@@ -471,29 +399,6 @@ object Client {
     initializing = false
   }
 
-  val defaultCode =
-    """
-      |println("Looks like there was an error loading the default Gist!")
-      |println("Loading an empty application so you can get started")
-    """.stripMargin
-
-  def loadGist(gistId: String, files: Seq[String]): Future[Seq[SourceFile]] = {
-    Ajax.get("https://api.github.com/gists/" + gistId).map { res =>
-      val result = JsVal.parse(res.responseText)
-      val fileList = if (files.isEmpty) {
-        Seq(result("files").keys.head)
-      } else if (files == Seq("*")) {
-        // take all files from the gist
-        result("files").keys
-      } else {
-        files.filter(f => result("files").keys.exists(_.equalsIgnoreCase(f)))
-      }
-      fileList.map { fileName =>
-        SourceFile(fileName, result("files")(fileName)("content").asString)
-      }
-    }.recover { case e => Seq(SourceFile("ScalaFiddle.scala", defaultCode)) }
-  }
-
   val fiddleName = """\s*// \$FiddleName\s+(.+)$""".r
 
   def parseName(source: String): Option[String] = {
@@ -502,11 +407,11 @@ object Client {
     }
   }
 
-  def loadSource(url: String): Future[SourceFile] = {
-    Ajax.get(url).map { res =>
+  def loadSource(url: String, id: String): Future[SourceFile] = {
+    Ajax.get(url + id).map { res =>
       val source = res.responseText
       val name = parseName(source).getOrElse("ScalaFiddle")
-      SourceFile(name, source)
+      SourceFile(name, source, fiddleId = Some(id))
     }
   }
 
