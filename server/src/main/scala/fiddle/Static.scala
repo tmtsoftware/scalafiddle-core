@@ -253,9 +253,14 @@ object Static {
               |      panel.innerHTML = msg.data;
               |      break;
               |    case "code":
-              |      eval(msg.data);
-              |      eval("var sf = ScalaFiddle();if(typeof sf.main === 'function') sf.main();");
-              |      e.source.postMessage("evalCompleted", "*");
+              |      try {
+              |        eval(msg.data);
+              |        eval("var sf = ScalaFiddle();if(typeof sf.main === 'function') sf.main();");
+              |      } catch(ex) {
+              |        panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '</pre>')
+              |      } finally {
+              |        e.source.postMessage("evalCompleted", "*");
+              |      }
               |      break;
               |  }
               |});

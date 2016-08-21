@@ -60,8 +60,8 @@ object Server extends App {
           }
         } ~ path("codeframe") {
           respondWithHeaders(Config.httpHeaders) {
-            // code frame can be cached for a long time (7d for now)
-            respondWithHeader(`Cache-Control`(`max-age`(7 * 60L * 60L * 24L))) {
+            // code frame can be cached for a long time (1h for now)
+            respondWithHeader(`Cache-Control`(`max-age`(60L * 60L))) {
               parameterMap { paramMap =>
                 complete {
                   HttpEntity(
