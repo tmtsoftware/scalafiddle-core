@@ -48,7 +48,7 @@ object Static {
       case Some("dark") => ("/styles-dark.css", Config.logoDark)
       case _ => ("/styles-light.css", Config.logoLight)
     }
-    val useFast = paramMap.contains("fast")
+    val useFull = paramMap.contains("full")
     val allJS = joinResources(extJSFiles ++ srcFiles, ".js", ";\n")
     val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
     val jsURLs = s"cache/$allJS" +: Config.extJS
@@ -206,7 +206,7 @@ object Static {
              |""".stripMargin
         else "")),
       script(`type` := "text/javascript", raw(baseEnv)),
-      script(`type` := "text/javascript", raw(s"""Client().main($useFast, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
+      script(`type` := "text/javascript", raw(s"""Client().main($useFull, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
     ).toString()
     ByteString(pageHtml, "UTF-8")
   }
@@ -257,7 +257,7 @@ object Static {
               |        eval(msg.data);
               |        eval("var sf = ScalaFiddle();if(typeof sf.main === 'function') sf.main();");
               |      } catch(ex) {
-              |        panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '</pre>')
+              |        panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '\n' + ex.stack + '</pre>')
               |      } finally {
               |        e.source.postMessage("evalCompleted", "*");
               |      }
