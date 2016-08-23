@@ -14,11 +14,13 @@ import scala.reflect.io
 import scala.tools.nsc
 import scala.tools.nsc.Settings
 import scala.tools.nsc.backend.JavaPlatform
+import scala.tools.nsc.io.AbstractFile
 import scala.tools.nsc.plugins.Plugin
 import scala.tools.nsc.reporters.ConsoleReporter
 import scala.tools.nsc.typechecker.Analyzer
 import scala.tools.nsc.util.ClassPath.JavaContext
 import scala.tools.nsc.util._
+import scala.util.Try
 
 /**
   * Handles the interaction between scala-js-fiddle and
@@ -64,12 +66,22 @@ class Compiler(classPath: Classpath, code: String) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
       override def findClass(name: String): Class[_] = {
         log.debug("Looking for Class " + name)
-        val fileName = name.replace('.', '/') + ".class"
+        val libs = classPath.compilerLibraries(extLibs)
+
+        def findClassInLibs(): Option[AbstractFile] = {
+          val parts = name.split('.')
+          libs.map(dir => {
+            Try {
+              parts.dropRight(1)
+                .foldLeft[AbstractFile](dir)((parent, next) => parent.lookupName(next, directory = true))
+                .lookupName(parts.last + ".class", directory = false)
+            } getOrElse null
+          }).find(_ != null)
+        }
+
         val res = classCache.getOrElseUpdate(
           name,
-          classPath.compilerLibraries(extLibs)
-            .map(_.lookupPathUnchecked(fileName, false))
-            .find(_ != null).map { f =>
+          findClassInLibs().map { f =>
             val data = f.toByteArray
             this.defineClass(name, data, 0, data.length)
           }
