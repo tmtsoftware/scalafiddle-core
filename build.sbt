@@ -97,6 +97,8 @@ lazy val server = project
       "org.apache.maven" % "maven-artifact" % "3.3.9",
       "io.get-coursier" %% "coursier" % "1.0.0-M13",
       "io.get-coursier" %% "coursier-cache" % "1.0.0-M13",
+      "org.xerial.snappy" % "snappy-java" % "1.1.2.1",
+      "org.xerial.larray" %% "larray" % "0.3.4",
       "com.lihaoyi" %% "utest" % "0.3.0" % "test"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",

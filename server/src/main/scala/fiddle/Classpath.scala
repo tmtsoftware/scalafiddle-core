@@ -1,7 +1,7 @@
 package fiddle
 
 import java.io._
-import java.nio.file.Files
+import java.nio.file.{Files, Paths}
 import java.util.zip.ZipInputStream
 
 import akka.actor.ActorSystem
@@ -157,7 +157,22 @@ class Classpath {
       }
     }
     val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._2.url).map(_._2.head).toSeq
-    log.debug(s"Artifacts: ${depArts.map(_._2.url).mkString("\n")}")
+    // log.debug(s"Artifacts: ${depArts.map(_._2.url).mkString("\n")}")
+
+/*
+    val jars = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => f.toPath).run)).run.map {
+      case \/-(dep) =>
+        dep
+      case -\/(error) =>
+        throw new Exception(s"Unable to load a library: ${error.describe}")
+    }
+
+    val ffs = FlatFileSystem.build(Paths.get(Config.libCache), jars)
+    val testClass = ffs.load("diode/Implicits$.sjsir")
+    log.debug(testClass.map("%02X" format _).mkString(" "))
+    System.exit(0)
+*/
+
     // load all JARs
     val artifacts = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, Files.readAllBytes(f.toPath))).run)).run.flatMap {
       case \/-(dep) =>
