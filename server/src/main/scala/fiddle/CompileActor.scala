@@ -4,8 +4,6 @@ import akka.actor.{Actor, Props}
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
 
 import scala.collection.mutable
-import scala.concurrent.Await
-import scala.concurrent.duration._
 import scala.util.Try
 
 sealed abstract class Optimizer

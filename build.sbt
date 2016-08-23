@@ -12,7 +12,7 @@ val commonSettings = Seq(
   version := "1.0.0-SNAPSHOT"
 )
 
-val akkaVersion = "2.4.4"
+val akkaVersion = "2.4.9"
 val asyncVersion = "0.9.1"
 val aceVersion = "1.2.2"
 val domVersion = "0.9.1"
@@ -84,7 +84,6 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
       "com.typesafe.akka" %% "akka-http-core" % akkaVersion,
       "com.typesafe.akka" %% "akka-http-experimental" % akkaVersion,
-      "com.typesafe.akka" %% "akka-http-spray-json-experimental" % akkaVersion,
       "ch.qos.logback" % "logback-classic" % "1.1.3",
       "org.scala-js" % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js" %% "scalajs-tools" % scalaJSVersion,

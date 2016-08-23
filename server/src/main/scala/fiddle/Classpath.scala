@@ -14,8 +14,8 @@ import org.scalajs.core.tools.io._
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future, Promise}
 import scala.reflect.io.{Streamable, VirtualDirectory}
 import scalaz.concurrent.Task
 
