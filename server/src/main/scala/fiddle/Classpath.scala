@@ -251,8 +251,6 @@ class Classpath {
   log.debug("Loading external libraries")
   val (commonLibs, extLibraries, ffs, absffs) = loadCoursier(Config.extLibs)
 
-  val classCache = new FlatClassLoader(ffs)
-
   val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
 
   /**

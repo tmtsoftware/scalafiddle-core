@@ -63,10 +63,9 @@ class Compiler(classPath: Classpath, code: String) {
   def inMemClassloader = {
     new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
+      val libs = classPath.compilerLibraries(extLibs)
+
       override def findClass(name: String): Class[_] = {
-        classPath.classCache.findClass(name)
-/*
-        val libs = classPath.compilerLibraries(extLibs)
 
         def findClassInLibs(): Option[AbstractFile] = {
           val parts = name.split('.')
@@ -93,7 +92,6 @@ class Compiler(classPath: Classpath, code: String) {
           case Some(cls) =>
             cls
         }
-*/
       }
     }
   }
