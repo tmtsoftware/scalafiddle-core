@@ -19,13 +19,19 @@ case class FlatFile(path: String, offset: Long, compressedSize: Int, origSize: I
 
 case class FlatJar(name: String, files: Seq[FlatFile])
 
-class FlatFileSystem(dataFile: Path, val jars: Seq[FlatJar], val index: Map[String, FlatFile]) {
-  val data = LArray.mmap(dataFile.toFile, MMapMode.READ_ONLY)
+class FlatFileSystem(data: MappedLByteArray, val jars: Seq[FlatJar], val index: Map[String, FlatFile]) {
 
   def exists(path: String) = index.contains(path)
 
+  def load(flatJar: FlatJar, path: String): Array[Byte] = {
+    load(jars.find(_.name == flatJar.name).get.files.find(_.path == path).get)
+  }
+
   def load(path: String): Array[Byte] = {
-    val file = index(path)
+    load(index(path))
+  }
+
+  def load(file: FlatFile): Array[Byte] = {
     val address = data.address + file.offset
     val content = LArray.of[Byte](file.origSize).asInstanceOf[RawByteArray[Byte]]
 
@@ -35,6 +41,11 @@ class FlatFileSystem(dataFile: Path, val jars: Seq[FlatJar], val index: Map[Stri
     content.free
     bytes
   }
+
+  def filter(f: Set[String]): FlatFileSystem = {
+    val newJars = jars.filter(j => f.contains(j.name))
+    new FlatFileSystem(data, newJars, FlatFileSystem.createIndex(newJars))
+  }
 }
 
 object FlatFileSystem {
@@ -43,7 +54,8 @@ object FlatFileSystem {
   def apply(location: Path): FlatFileSystem = {
     val jars = readMetadata(location)
     val index: Map[String, FlatFile] = createIndex(jars)
-    new FlatFileSystem(location.resolve("data"), jars, index)
+    val data = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)
+    new FlatFileSystem(data, jars, index)
   }
 
   private def createIndex(jars: Seq[FlatJar]): Map[String, FlatFile] = {
@@ -101,6 +113,7 @@ object FlatFileSystem {
     val json = write(finalJars)
     Files.write(json, location.resolve("index.json").toFile, StandardCharsets.UTF_8)
 
-    new FlatFileSystem(dataFile.toPath, finalJars, createIndex(finalJars))
+    val data = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)
+    new FlatFileSystem(data, finalJars, createIndex(finalJars))
   }
 }

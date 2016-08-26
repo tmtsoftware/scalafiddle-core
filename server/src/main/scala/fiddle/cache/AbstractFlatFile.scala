@@ -7,7 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.tools.nsc.io.AbstractFile
 import scala.reflect.io._
 
-class AbstractFlatFile(flatFile: FlatFile, ffs: FlatFileSystem) extends AbstractFile {
+class AbstractFlatFile(flatFile: FlatFile, flatJar: FlatJar, ffs: FlatFileSystem) extends AbstractFile {
   override val path = flatFile.path
   override val name: String = path.split('/').last
   override def absolute: AbstractFile = this
@@ -22,7 +22,7 @@ class AbstractFlatFile(flatFile: FlatFile, ffs: FlatFileSystem) extends Abstract
   }
 
   override def toByteArray: Array[Byte] = {
-    ffs.load(flatFile.path)
+    ffs.load(flatJar, flatFile.path)
   }
 
   override def output: OutputStream = unsupported()
@@ -83,7 +83,7 @@ class AbstractFlatJar(val flatJar: FlatJar, ffs: FlatFileSystem) {
     flatJar.files.foreach { file =>
       val path = "" +: file.path.split('/')
       val parent = findParent(path.dropRight(1))
-      val newFile = new AbstractFlatFile(file, ffs)
+      val newFile = new AbstractFlatFile(file, flatJar, ffs)
       parent.children.append(newFile)
     }
   }

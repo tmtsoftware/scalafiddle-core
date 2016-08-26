@@ -2,7 +2,6 @@ package fiddle
 
 import java.io._
 import java.nio.file.{Files, Paths}
-import java.util.zip.ZipInputStream
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -17,7 +16,7 @@ import org.slf4j.LoggerFactory
 import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.reflect.io.{Streamable, VirtualDirectory}
+import scala.reflect.io.Streamable
 import scala.tools.nsc.io.AbstractFile
 import scalaz.concurrent.Task
 
@@ -36,7 +35,7 @@ class VirtualFlatJarFile(flatJar: FlatJar, ffs: FlatFileSystem) extends VirtualJ
 
   override val sjsirFiles: Seq[VirtualScalaJSIRFile with RelativeVirtualFile] = {
     flatJar.files.filter(_.path.endsWith("sjsir")).map { file =>
-      val content = ffs.load(file.path)
+      val content = ffs.load(flatJar, file.path)
       new JarEntryIRFile(flatJar.name, file.path).withContent(content).withVersion(Some(path))
     }
   }
@@ -252,48 +251,14 @@ class Classpath {
   log.debug("Loading external libraries")
   val (commonLibs, extLibraries, ffs, absffs) = loadCoursier(Config.extLibs)
 
+  val classCache = new FlatClassLoader(ffs)
+
   val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
-
-  /**
-    * The loaded files shaped for Scalac to use
-    */
-  def lib4compiler(name: String, bytes: Array[Byte]) = {
-    log.debug(s"Loading $name for Scalac")
-    val in = new ZipInputStream(new ByteArrayInputStream(bytes))
-    val entries = Iterator
-      .continually(in.getNextEntry)
-      .takeWhile(_ != null)
-      .map((_, Streamable.bytes(in)))
-
-    val dir = new VirtualDirectory(name, None)
-    for {
-      (e, data) <- entries
-      if !e.isDirectory
-    } {
-      val tokens = e.getName.split("/")
-      var d = dir
-      for (t <- tokens.dropRight(1)) {
-        d = d.subdirectoryNamed(t).asInstanceOf[VirtualDirectory]
-      }
-      val f = d.fileNamed(tokens.last)
-      val o = f.bufferedOutput
-      o.write(data)
-      o.close()
-    }
-    in.close()
-    dir
-  }
 
   /**
     * The loaded files shaped for Scala-Js-Tools to use
     */
-//  def lib4linker(name: String, bytes: Array[Byte]) = {
     def lib4linker(file: AbstractFlatJar) = {
-/*
-    val jarFile = (new MemVirtualBinaryFile(name) with VirtualJarFile)
-      .withContent(bytes)
-      .withVersion(Some(name)) // unique through the lifetime of the server
-*/
     val jarFile = new VirtualFlatJarFile(file.flatJar, ffs)
     IRFileCache.IRContainer.Jar(jarFile)
   }

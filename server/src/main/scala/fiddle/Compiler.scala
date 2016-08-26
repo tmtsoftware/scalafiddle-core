@@ -42,10 +42,9 @@ class Compiler(classPath: Classpath, code: String) {
       case lib if Config.extLibs.contains(lib) => lib
       case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
     }.toList
-    // add DOM and Scalatags if they are missing
-    val domLib = ExtLib("org.scala-js", "scalajs-dom", "0.9.1", false)
-    val scalatagsLib = ExtLib("com.lihaoyi", "scalatags", "0.6.0", false)
-    val finalLibs = domLib :: scalatagsLib :: userLibs
+
+    // add default libs
+    val finalLibs = Config.defaultLibs.map(ExtLib(_)) ++ userLibs
     log.debug(s"Full dependencies: $finalLibs")
     finalLibs.toSet
   }
@@ -65,6 +64,8 @@ class Compiler(classPath: Classpath, code: String) {
     new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
       override def findClass(name: String): Class[_] = {
+        classPath.classCache.findClass(name)
+/*
         val libs = classPath.compilerLibraries(extLibs)
 
         def findClassInLibs(): Option[AbstractFile] = {
@@ -87,12 +88,12 @@ class Compiler(classPath: Classpath, code: String) {
         )
         res match {
           case None =>
-            println("Not Found Class " + name)
+            log.error("Not Found Class " + name)
             throw new ClassNotFoundException()
           case Some(cls) =>
-            log.debug("Found Class " + name)
             cls
         }
+*/
       }
     }
   }
