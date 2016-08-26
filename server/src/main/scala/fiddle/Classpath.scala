@@ -9,18 +9,37 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.FileIO
+import fiddle.cache._
 import org.apache.maven.artifact.versioning.ComparableVersion
-import org.scalajs.core.tools.io._
+import org.scalajs.core.tools.io.{RelativeVirtualFile, _}
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.reflect.io.{Streamable, VirtualDirectory}
+import scala.tools.nsc.io.AbstractFile
 import scalaz.concurrent.Task
 
 case class ExtLib(group: String, artifact: String, version: String, compileTimeOnly: Boolean) {
   override def toString: String = s"$group ${if (compileTimeOnly) "%%" else "%%%"} $artifact % $version"
+}
+
+class JarEntryIRFile(outerPath: String, val relativePath: String)
+  extends MemVirtualSerializedScalaJSIRFile(s"$outerPath:$relativePath")
+    with RelativeVirtualFile
+
+class VirtualFlatJarFile(flatJar: FlatJar, ffs: FlatFileSystem) extends VirtualJarFile {
+  override def content: Array[Byte] = null
+  override def path: String = flatJar.name
+  override def exists: Boolean = true
+
+  override val sjsirFiles: Seq[VirtualScalaJSIRFile with RelativeVirtualFile] = {
+    flatJar.files.filter(_.path.endsWith("sjsir")).map { file =>
+      val content = ffs.load(file.path)
+      new JarEntryIRFile(flatJar.name, file.path).withContent(content).withVersion(Some(path))
+    }
+  }
 }
 
 object ExtLib {
@@ -96,7 +115,7 @@ class Classpath {
     }
   }
 
-  val commonLibraries = {
+  def commonLibraries = {
     log.debug("Loading common libraries...")
     val jarFiles = baseLibs.par.map { name =>
       val stream = getClass.getResourceAsStream(name)
@@ -114,6 +133,31 @@ class Classpath {
       if vfile.exists && !vfile.isDirectory
     } yield {
       path.split("/").last -> vfile.toByteArray()
+    }
+    log.debug("Common libraries loaded...")
+    jarFiles ++ bootFiles
+  }
+
+  val commonJars = {
+    log.debug("Loading common libraries...")
+    val jarFiles = baseLibs.par.map { name =>
+      val stream = getClass.getResourceAsStream(name)
+      log.debug(s"Loading resource $name")
+      if (stream == null) {
+        throw new Exception(s"Classpath loading failed, jar $name not found")
+      }
+      name -> stream
+    }.seq
+
+    val bootFiles = for {
+      prop <- Seq(/*"java.class.path", */ "sun.boot.class.path")
+      path <- System.getProperty(prop).split(System.getProperty("path.separator"))
+      vfile = scala.reflect.io.File(path)
+      if vfile.exists && !vfile.isDirectory
+    } yield {
+      val name = "system/" + path.split(File.separatorChar).last
+      log.debug(s"Loading resource $name")
+      name -> vfile.inputStream()
     }
     log.debug("Common libraries loaded...")
     jarFiles ++ bootFiles
@@ -148,7 +192,7 @@ class Classpath {
     }).run
     results.foreach { case (lib, r) =>
       val root = r.rootDependencies.head
-      if(r.errors.nonEmpty) {
+      if (r.errors.nonEmpty) {
         log.error(r.errors.toString)
       }
       log.debug(s"Deps for ${root.moduleVersion}:")
@@ -159,21 +203,20 @@ class Classpath {
     val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._2.url).map(_._2.head).toSeq
     // log.debug(s"Artifacts: ${depArts.map(_._2.url).mkString("\n")}")
 
-/*
-    val jars = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => f.toPath).run)).run.map {
-      case \/-(dep) =>
-        dep
+    val jars = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, f.toPath)).run)).run.map {
+      case \/-((dep, path)) =>
+        (dep, path.toString, new FileInputStream(path.toFile))
       case -\/(error) =>
         throw new Exception(s"Unable to load a library: ${error.describe}")
     }
 
-    val ffs = FlatFileSystem.build(Paths.get(Config.libCache), jars)
-    val testClass = ffs.load("diode/Implicits$.sjsir")
-    log.debug(testClass.map("%02X" format _).mkString(" "))
-    System.exit(0)
-*/
+    val ffs = FlatFileSystem.build(Paths.get(Config.libCache), jars.map(j => (j._2, j._3)) ++ commonJars)
+    val absffs = new AbstractFlatFileSystem(ffs)
 
+    val jarFlatFiles = jars.map(jar => (jar._1, absffs.roots(jar._2)))
+    val commonJarFlatFiles = commonJars.map(jar => (jar._1, absffs.roots(jar._1))).toMap
     // load all JARs
+/*
     val artifacts = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, Files.readAllBytes(f.toPath))).run)).run.flatMap {
       case \/-(dep) =>
         log.debug(s"Cached ${dep._1.module.organization}-${dep._1.module.name}=${dep._1.version}")
@@ -181,10 +224,19 @@ class Classpath {
       case -\/(error) =>
         throw new Exception(s"Unable to load a library: ${error.describe}")
     }
+*/
     // create a result map
-    results.map { case (lib, resolution) =>
+/*
+    val extLibMap = results.map { case (lib, resolution) =>
       (lib, resolution.minDependencies.map(dep => (dep, artifacts.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
-    }
+    }.toMap
+*/
+    val commonLibs = commonJars.map { case (jar, _) => jar -> commonJarFlatFiles(jar)}
+    val extLibMap = results.map { case (lib, resolution) =>
+      (lib, resolution.minDependencies.map(dep => (dep, jarFlatFiles.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
+    }.toMap
+
+    (commonLibs, extLibMap, ffs, absffs)
   }
 
   def resolveDeps(deps: Seq[Dependency]): Seq[Dependency] = {
@@ -197,10 +249,8 @@ class Classpath {
   /**
     * External libraries loaded from repository
     */
-  val extLibraries = {
-    log.debug("Loading external libraries")
-    loadCoursier(Config.extLibs).toMap
-  }
+  log.debug("Loading external libraries")
+  val (commonLibs, extLibraries, ffs, absffs) = loadCoursier(Config.extLibs)
 
   val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
 
@@ -237,10 +287,14 @@ class Classpath {
   /**
     * The loaded files shaped for Scala-Js-Tools to use
     */
-  def lib4linker(name: String, bytes: Array[Byte]) = {
+//  def lib4linker(name: String, bytes: Array[Byte]) = {
+    def lib4linker(file: AbstractFlatJar) = {
+/*
     val jarFile = (new MemVirtualBinaryFile(name) with VirtualJarFile)
       .withContent(bytes)
       .withVersion(Some(name)) // unique through the lifetime of the server
+*/
+    val jarFile = new VirtualFlatJarFile(file.flatJar, ffs)
     IRFileCache.IRContainer.Jar(jarFile)
   }
 
@@ -249,14 +303,14 @@ class Classpath {
     * memory but is better than reaching all over the filesystem every time we
     * want to do something.
     */
-  val commonLibraries4compiler = commonLibraries.par.map { case (name, data) => lib4compiler(name, data) }.seq
-  val dependency4compiler = flatDeps.par.map { case (dep, data) => dep -> lib4compiler(s"${dep.module.organization}_${dep.module.name}_${dep.version}", data) }.seq
+  val commonLibraries4compiler = commonLibs.map { case (name, data) => data.root }.seq
+  val dependency4compiler = flatDeps.map { case (dep, data) => dep -> data.root }.seq
 
   /**
     * In memory cache of all the jars used in the linker.
     */
-  val commonLibraries4linker = commonLibraries.map { case (name, data) => lib4linker(name, data) }
-  val dependency4linker = flatDeps.map { case (dep, data) => dep -> lib4linker(s"${dep.module.organization}_${dep.module.name}_${dep.version}", data) }
+  val commonLibraries4linker = commonLibs.map { case (name, file) => lib4linker(file) }
+  val dependency4linker = flatDeps.map { case (dep, file) => dep -> lib4linker(file) }
 
   def deps(extLibs: Set[ExtLib]) = {
     val resolved = resolveDeps(extLibs.flatMap(lib => extLibraries(lib).map(_._1)).toList)
@@ -264,7 +318,7 @@ class Classpath {
     resolved
   }
 
-  def compilerLibraries(extLibs: Set[ExtLib]) = {
+  def compilerLibraries(extLibs: Set[ExtLib]): Seq[AbstractFile] = {
     commonLibraries4compiler ++ deps(extLibs).map(dep => dependency4compiler(dep))
   }
 

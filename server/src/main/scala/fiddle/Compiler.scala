@@ -65,7 +65,6 @@ class Compiler(classPath: Classpath, code: String) {
     new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
       override def findClass(name: String): Class[_] = {
-        log.debug("Looking for Class " + name)
         val libs = classPath.compilerLibraries(extLibs)
 
         def findClassInLibs(): Option[AbstractFile] = {
@@ -88,7 +87,7 @@ class Compiler(classPath: Classpath, code: String) {
         )
         res match {
           case None =>
-            log.debug("Not Found Class " + name)
+            println("Not Found Class " + name)
             throw new ClassNotFoundException()
           case Some(cls) =>
             log.debug("Found Class " + name)
@@ -178,6 +177,7 @@ class Compiler(classPath: Classpath, code: String) {
     log.debug("Compiling source:\n" + code)
     val singleFile = makeFile(code.getBytes("UTF-8"))
 
+    val startTime = System.nanoTime()
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
     val compiler = new nsc.Global(settings, reporter) with InMemoryGlobal {
       g =>
@@ -194,6 +194,8 @@ class Compiler(classPath: Classpath, code: String) {
     val run = new compiler.Run()
     run.compileFiles(List(singleFile))
 
+    val endTime = System.nanoTime()
+    log.debug(s"Compilation: ${(endTime-startTime)/1000} us")
     if (vd.iterator.isEmpty) None
     else {
       val things = for {

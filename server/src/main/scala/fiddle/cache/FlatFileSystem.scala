@@ -1,6 +1,6 @@
-package fiddle
+package fiddle.cache
 
-import java.io.{FileInputStream, FileOutputStream}
+import java.io.{FileInputStream, FileOutputStream, InputStream}
 import java.nio.file.Path
 import java.util.zip.{ZipEntry, ZipInputStream}
 
@@ -19,8 +19,8 @@ case class FlatFile(path: String, offset: Long, compressedSize: Int, origSize: I
 
 case class FlatJar(name: String, files: Seq[FlatFile])
 
-class FlatFileSystem(location: Path, jars: Seq[FlatJar], index: Map[String, FlatFile]) {
-  val data = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)
+class FlatFileSystem(dataFile: Path, val jars: Seq[FlatJar], val index: Map[String, FlatFile]) {
+  val data = LArray.mmap(dataFile.toFile, MMapMode.READ_ONLY)
 
   def exists(path: String) = index.contains(path)
 
@@ -43,7 +43,7 @@ object FlatFileSystem {
   def apply(location: Path): FlatFileSystem = {
     val jars = readMetadata(location)
     val index: Map[String, FlatFile] = createIndex(jars)
-    new FlatFileSystem(location, jars, index)
+    new FlatFileSystem(location.resolve("data"), jars, index)
   }
 
   private def createIndex(jars: Seq[FlatJar]): Map[String, FlatFile] = {
@@ -59,11 +59,11 @@ object FlatFileSystem {
     !entry.isDirectory && validExtensions.contains(Files.getFileExtension(entry.getName))
   }
 
-  def build(location: Path, jars: Seq[Path]): FlatFileSystem = {
+  def build(location: Path, jars: Seq[(String, InputStream)]): FlatFileSystem = {
     // if metadata already exists, read it in
     val existingJars = if (location.resolve("index.json").toFile.exists()) readMetadata(location) else Seq.empty[FlatJar]
 
-    val newJars = jars.filterNot(p => existingJars.exists(_.name == p.getFileName.toString))
+    val newJars = jars.filterNot(p => existingJars.exists(_.name == p._1))
 
     // make location path
     location.toFile.mkdirs()
@@ -74,9 +74,9 @@ object FlatFileSystem {
 
     // read through all new JARs, append contents to data and create metadata
     val addedJars = newJars.map { jarPath =>
-      val name = jarPath.getFileName.toString
+      val name = jarPath._1
       log.debug(s"Extracting JAR $name")
-      val fis = new FileInputStream(jarPath.toFile)
+      val fis = jarPath._2
       val jarStream = new ZipInputStream(fis)
       val entries = Iterator
         .continually(jarStream.getNextEntry)
@@ -84,6 +84,7 @@ object FlatFileSystem {
         .filter(validFile)
 
       val files = entries.map { entry =>
+        // read and compress the file
         val content = Streamable.bytes(jarStream)
         val compressed = Snappy.compress(content)
         fos.write(compressed)
@@ -100,6 +101,6 @@ object FlatFileSystem {
     val json = write(finalJars)
     Files.write(json, location.resolve("index.json").toFile, StandardCharsets.UTF_8)
 
-    new FlatFileSystem(location, finalJars, createIndex(finalJars))
+    new FlatFileSystem(dataFile.toPath, finalJars, createIndex(finalJars))
   }
 }

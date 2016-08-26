@@ -17,7 +17,7 @@ val asyncVersion = "0.9.1"
 val aceVersion = "1.2.2"
 val domVersion = "0.9.1"
 val scalatagsVersion = "0.6.0"
-val upickleVersion = "0.3.8"
+val upickleVersion = "0.4.1"
 
 lazy val root = project.in(file("."))
   .aggregate(client, page, server, runtime)
