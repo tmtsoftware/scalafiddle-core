@@ -52,6 +52,7 @@ object FlatFileSystem {
   val log = LoggerFactory.getLogger(getClass)
 
   def apply(location: Path): FlatFileSystem = {
+    location.toFile.mkdirs()
     val jars = readMetadata(location)
     val index: Map[String, FlatFile] = createIndex(jars)
     val data = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)

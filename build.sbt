@@ -20,12 +20,11 @@ val scalatagsVersion = "0.6.0"
 val upickleVersion = "0.4.1"
 
 lazy val root = project.in(file("."))
-  .aggregate(client, page, server, runtime)
+  .aggregate(page, server, runtime)
   .settings(
     (resources in(server, Compile)) ++= {
       (managedClasspath in(runtime, Compile)).value.map(_.data) ++ Seq(
-        (packageBin in(page, Compile)).value,
-        (fastOptJS in(client, Compile)).value.data
+        (packageBin in(page, Compile)).value
       )
     }
   )
@@ -33,24 +32,6 @@ lazy val root = project.in(file("."))
 lazy val shared = project
   .enablePlugins(ScalaJSPlugin)
   .settings(commonSettings)
-
-lazy val client = project
-  .dependsOn(page, shared)
-  .enablePlugins(ScalaJSPlugin)
-  .settings(commonSettings)
-  .settings(
-    libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % domVersion,
-      "com.lihaoyi" %%% "scalatags" % scalatagsVersion,
-      "com.lihaoyi" %%% "upickle" % upickleVersion,
-      "com.github.marklister" %%% "base64" % "0.2.2",
-      "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided"
-    ),
-    // rename output always to -opt.js
-    artifactPath in(Compile, fastOptJS) := ((crossTarget in(Compile, fastOptJS)).value /
-      ((moduleName in fastOptJS).value + "-opt.js")),
-    relativeSourceMaps := true
-  )
 
 lazy val page = project
   .enablePlugins(ScalaJSPlugin)

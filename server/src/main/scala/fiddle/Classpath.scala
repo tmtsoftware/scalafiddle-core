@@ -1,22 +1,17 @@
 package fiddle
 
 import java.io._
-import java.nio.file.{Files, Paths}
+import java.nio.file.Paths
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.FileIO
 import fiddle.cache._
 import org.apache.maven.artifact.versioning.ComparableVersion
 import org.scalajs.core.tools.io.{RelativeVirtualFile, _}
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
-import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.reflect.io.Streamable
 import scala.tools.nsc.io.AbstractFile
 import scalaz.concurrent.Task
 
@@ -75,67 +70,7 @@ class Classpath {
     s"/page_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}-${Config.version}.jar"
   )
 
-  val repoBase = "https://repo1.maven.org/maven2"
   val sjsVersion = s"_sjs${Config.scalaJSMainVersion}_${Config.scalaMainVersion}"
-
-  def buildRepoUri(ref: ExtLib) = {
-    ref match {
-      case ExtLib(group, artifact, version, false) =>
-        s"$repoBase/${group.replace('.', '/')}/$artifact$sjsVersion/$version/$artifact$sjsVersion-$version.jar"
-      case ExtLib(group, artifact, version, true) =>
-        s"$repoBase/${group.replace('.', '/')}/${artifact}_${Config.scalaMainVersion}/$version/${artifact}_${Config.scalaMainVersion}-$version.jar"
-    }
-  }
-
-  def loadExtLib(libDef: ExtLib) = {
-    val uri = buildRepoUri(libDef)
-    val name = libDef.group.replace('.', '_') + "_" + uri.split('/').last
-    // check if it has been loaded already
-    val f = new File(Config.libCache, name)
-    if (f.exists()) {
-      log.debug(s"Loading $name from ${Config.libCache}")
-      Future {(name, Files.readAllBytes(f.toPath))}
-    } else {
-      log.debug(s"Loading $name from $uri")
-      f.getParentFile.mkdirs()
-      Http().singleRequest(HttpRequest(uri = uri)).flatMap { response =>
-        val source = response.entity.dataBytes
-        // save to cache
-        val sink = FileIO.toPath(f.toPath)
-        source.runWith(sink).map { ioResponse =>
-          log.debug(s"Storing $name with ${ioResponse.count} bytes to cache")
-          (name, Files.readAllBytes(f.toPath))
-        }
-      } recover {
-        case e: Exception =>
-          log.debug(s"Error loading $uri: $e")
-          throw e
-      }
-    }
-  }
-
-  def commonLibraries = {
-    log.debug("Loading common libraries...")
-    val jarFiles = baseLibs.par.map { name =>
-      val stream = getClass.getResourceAsStream(name)
-      log.debug(s"Loading resource $name")
-      if (stream == null) {
-        throw new Exception(s"Classpath loading failed, jar $name not found")
-      }
-      name -> Streamable.bytes(stream)
-    }.seq
-
-    val bootFiles = for {
-      prop <- Seq(/*"java.class.path", */ "sun.boot.class.path")
-      path <- System.getProperty(prop).split(System.getProperty("path.separator"))
-      vfile = scala.reflect.io.File(path)
-      if vfile.exists && !vfile.isDirectory
-    } yield {
-      path.split("/").last -> vfile.toByteArray()
-    }
-    log.debug("Common libraries loaded...")
-    jarFiles ++ bootFiles
-  }
 
   val commonJars = {
     log.debug("Loading common libraries...")
@@ -214,28 +149,13 @@ class Classpath {
 
     val jarFlatFiles = jars.map(jar => (jar._1, absffs.roots(jar._2)))
     val commonJarFlatFiles = commonJars.map(jar => (jar._1, absffs.roots(jar._1))).toMap
-    // load all JARs
-/*
-    val artifacts = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, Files.readAllBytes(f.toPath))).run)).run.flatMap {
-      case \/-(dep) =>
-        log.debug(s"Cached ${dep._1.module.organization}-${dep._1.module.name}=${dep._1.version}")
-        Some(dep)
-      case -\/(error) =>
-        throw new Exception(s"Unable to load a library: ${error.describe}")
-    }
-*/
-    // create a result map
-/*
-    val extLibMap = results.map { case (lib, resolution) =>
-      (lib, resolution.minDependencies.map(dep => (dep, artifacts.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
-    }.toMap
-*/
+
     val commonLibs = commonJars.map { case (jar, _) => jar -> commonJarFlatFiles(jar)}
     val extLibMap = results.map { case (lib, resolution) =>
       (lib, resolution.minDependencies.map(dep => (dep, jarFlatFiles.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
     }.toMap
 
-    (commonLibs, extLibMap, ffs, absffs)
+    (commonLibs, extLibMap, ffs)
   }
 
   def resolveDeps(deps: Seq[Dependency]): Seq[Dependency] = {
@@ -249,7 +169,7 @@ class Classpath {
     * External libraries loaded from repository
     */
   log.debug("Loading external libraries")
-  val (commonLibs, extLibraries, ffs, absffs) = loadCoursier(Config.extLibs)
+  val (commonLibs, extLibraries, ffs) = loadCoursier(Config.extLibs)
 
   val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
 

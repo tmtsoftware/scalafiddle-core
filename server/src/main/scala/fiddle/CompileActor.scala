@@ -27,7 +27,7 @@ class CompileActor(classPath: Classpath) extends Actor {
         case Optimizer.Full => compiler.fullOpt _
       }
       try {
-        sender() ! doCompile(compiler, sourceCode, _ |> opt |> compiler.export)
+        sender() ! doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
       } catch {
         case e: Throwable =>
           sender() ! CompilerResponse(None, Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")), compiler.getLog.mkString("\n"))
