@@ -10,7 +10,6 @@ import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `no-cache`}
 import akka.http.scaladsl.model.headers.`Cache-Control`
 import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
-import akka.routing.FromConfig
 import akka.stream.ActorMaterializer
 import akka.util.{ByteString, Timeout}
 import org.slf4j.LoggerFactory
@@ -31,7 +30,7 @@ object Server extends App {
   val classPath = new Classpath
 
   // create compiler router
-  val compilerRouter = system.actorOf(FromConfig.props(CompileActor.props(classPath)), "compilerRouter")
+  val compilerActor = system.actorOf(CompileActor.props(classPath), "compilerActor")
 
   import MediaTypes._
 
@@ -46,7 +45,7 @@ object Server extends App {
               case _ =>
                 throw new IllegalArgumentException(s"$opt is not a valid opt value")
             }
-            val res = ask(compilerRouter, CompileSource(decodeSource(source), optimizer))
+            val res = ask(compilerActor, CompileSource(decodeSource(source), optimizer))
               .mapTo[CompilerResponse]
               .map { cr =>
                 val result = write(cr)
@@ -62,7 +61,7 @@ object Server extends App {
       } ~ path("complete") {
         parameters('source, 'offset) { (source, offset) =>
           ctx =>
-            val res = ask(compilerRouter, CompleteSource(decodeSource(source), offset.toInt))
+            val res = ask(compilerActor, CompleteSource(decodeSource(source), offset.toInt))
               .mapTo[Try[List[(String, String)]]]
               .map {
                 case Success(cr) =>

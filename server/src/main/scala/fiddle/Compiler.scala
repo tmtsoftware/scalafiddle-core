@@ -3,6 +3,7 @@ package fiddle
 import java.io.{PrintWriter, Writer}
 
 import akka.util.ByteString
+import fiddle.cache.{AutoCompleteCache, CompilerCache, LinkerCache}
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
 import org.scalajs.core.tools.logging._
@@ -142,10 +143,11 @@ class Compiler(classPath: Classpath, code: String) {
   def autocomplete(pos: Int): List[(String, String)] = {
     import scala.tools.nsc.interactive._
 
+    val startTime = System.nanoTime()
     // global can be reused, just create new runs for new compiler invocations
-    val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(_ => ())
+    val (settings, reporter, _, jCtx, jDirs) = initGlobalBits(_ => ())
     settings.processArgumentString("-Ypresentation-any-thread")
-    val compiler = new nsc.interactive.Global(settings, reporter) with InMemoryGlobal {
+    val compiler = AutoCompleteCache.getOrUpdate(extLibs, new nsc.interactive.Global(settings, reporter) with InMemoryGlobal {
       g =>
       def ctx = jCtx
       def dirs = jDirs
@@ -155,18 +157,21 @@ class Compiler(classPath: Classpath, code: String) {
         val cl = inMemClassloader
         override def findMacroClassLoader() = cl
       }
-    }
+    })
 
+    compiler.reporter.reset()
     val startOffset = pos
     val source = code.take(startOffset) + "_CURSOR_ " + code.drop(startOffset)
     val run = new compiler.TyperRun
     val unit = compiler.newCompilationUnit(source, "ScalaFiddle.scala")
     val richUnit = new compiler.RichCompilationUnit(unit.source)
-    log.debug(s"Source: ${source.take(startOffset)}${scala.Console.RED}|${scala.Console.RESET}${source.drop(startOffset)}")
+    //log.debug(s"Source: ${source.take(startOffset)}${scala.Console.RED}|${scala.Console.RESET}${source.drop(startOffset)}")
     compiler.unitOfFile(richUnit.source.file) = richUnit
     val results = compiler.completionsAt(richUnit.position(startOffset)).matchingResults()
 
-    log.debug(s"Completion results: ${results.take(20)}")
+    val endTime = System.nanoTime()
+    log.debug(s"AutoCompletion time: ${(endTime - startTime) / 1000} us")
+    log.debug(s"AutoCompletion results: ${results.take(20)}")
 
     results.map(r => (r.sym.signatureString, r.symNameDropLocal.decoded)).distinct
   }
@@ -178,7 +183,7 @@ class Compiler(classPath: Classpath, code: String) {
 
     val startTime = System.nanoTime()
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
-    val compiler = new nsc.Global(settings, reporter) with InMemoryGlobal {
+    val compiler = CompilerCache.getOrUpdate(extLibs, new nsc.Global(settings, reporter) with InMemoryGlobal {
       g =>
       def ctx = jCtx
       def dirs = jDirs
@@ -188,24 +193,32 @@ class Compiler(classPath: Classpath, code: String) {
         val cl = inMemClassloader
         override def findMacroClassLoader() = cl
       }
-    }
+    })
 
-    val run = new compiler.Run()
-    run.compileFiles(List(singleFile))
+    compiler.reporter.reset()
+    compiler.settings.outputDirs.setSingleOutput(vd)
+    try {
+      val run = new compiler.Run()
+      run.compileFiles(List(singleFile))
 
-    val endTime = System.nanoTime()
-    log.debug(s"Compilation: ${(endTime-startTime)/1000} us")
-    if (vd.iterator.isEmpty) None
-    else {
-      val things = for {
-        x <- vd.iterator.to[collection.immutable.Traversable]
-        if x.name.endsWith(".sjsir")
-      } yield {
-        val f = new MemVirtualSerializedScalaJSIRFile(x.path)
-        f.content = x.toByteArray
-        f: VirtualScalaJSIRFile
+      val endTime = System.nanoTime()
+      log.debug(s"Compilation: ${(endTime - startTime) / 1000} us")
+      if (vd.iterator.isEmpty) None
+      else {
+        val things = for {
+          x <- vd.iterator.to[collection.immutable.Traversable]
+          if x.name.endsWith(".sjsir")
+        } yield {
+          val f = new MemVirtualSerializedScalaJSIRFile(x.path)
+          f.content = x.toByteArray
+          f: VirtualScalaJSIRFile
+        }
+        Some(things.toSeq)
       }
-      Some(things.toSeq)
+    } catch {
+      case e: Throwable =>
+        CompilerCache.remove(extLibs)
+        throw e
     }
   }
 
@@ -218,19 +231,25 @@ class Compiler(classPath: Classpath, code: String) {
   def fullOpt(userFiles: Seq[VirtualScalaJSIRFile]): VirtualJSFile =
     link(userFiles, fullOpt = true)
 
-  def link(userFiles: Seq[VirtualScalaJSIRFile],
-    fullOpt: Boolean): VirtualJSFile = {
+  def link(userFiles: Seq[VirtualScalaJSIRFile], fullOpt: Boolean): VirtualJSFile = {
     val semantics =
       if (fullOpt) Semantics.Defaults.optimized
       else Semantics.Defaults
 
-    val linker = Linker(
+    val linker = LinkerCache.getOrUpdate(extLibs, Linker(
       semantics = semantics,
       withSourceMap = false,
       useClosureCompiler = fullOpt)
+    )
 
     val output = WritableMemVirtualJSFile("output.js")
-    linker.link(classPath.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
+    try {
+      linker.link(classPath.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
+    } catch {
+      case e: Throwable =>
+        LinkerCache.remove(extLibs)
+        throw e
+    }
     output
   }
 

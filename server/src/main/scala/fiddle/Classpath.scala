@@ -28,7 +28,7 @@ class VirtualFlatJarFile(flatJar: FlatJar, ffs: FlatFileSystem) extends VirtualJ
   override def path: String = flatJar.name
   override def exists: Boolean = true
 
-  override val sjsirFiles: Seq[VirtualScalaJSIRFile with RelativeVirtualFile] = {
+  override def sjsirFiles: Seq[VirtualScalaJSIRFile with RelativeVirtualFile] = {
     flatJar.files.filter(_.path.endsWith("sjsir")).map { file =>
       val content = ffs.load(flatJar, file.path)
       new JarEntryIRFile(flatJar.name, file.path).withContent(content).withVersion(Some(path))
@@ -135,7 +135,6 @@ class Classpath {
       }
     }
     val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._2.url).map(_._2.head).toSeq
-    // log.debug(s"Artifacts: ${depArts.map(_._2.url).mkString("\n")}")
 
     val jars = Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, f.toPath)).run)).run.map {
       case \/-((dep, path)) =>
@@ -150,7 +149,7 @@ class Classpath {
     val jarFlatFiles = jars.map(jar => (jar._1, absffs.roots(jar._2)))
     val commonJarFlatFiles = commonJars.map(jar => (jar._1, absffs.roots(jar._1))).toMap
 
-    val commonLibs = commonJars.map { case (jar, _) => jar -> commonJarFlatFiles(jar)}
+    val commonLibs = commonJars.map { case (jar, _) => jar -> commonJarFlatFiles(jar) }
     val extLibMap = results.map { case (lib, resolution) =>
       (lib, resolution.minDependencies.map(dep => (dep, jarFlatFiles.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
     }.toMap
@@ -176,7 +175,7 @@ class Classpath {
   /**
     * The loaded files shaped for Scala-Js-Tools to use
     */
-    def lib4linker(file: AbstractFlatJar) = {
+  def lib4linker(file: AbstractFlatJar) = {
     val jarFile = new VirtualFlatJarFile(file.flatJar, ffs)
     IRFileCache.IRContainer.Jar(jarFile)
   }
@@ -205,16 +204,17 @@ class Classpath {
     commonLibraries4compiler ++ deps(extLibs).map(dep => dependency4compiler(dep))
   }
 
-  val linkerCaches = mutable.Map.empty[Set[ExtLib], Seq[IRFileCache.VirtualRelativeIRFile]]
+  val irCache = new IRFileCache
+  val linkerCaches = new LRUCache[Seq[IRFileCache.VirtualRelativeIRFile]] {
+    override val cacheSize = 1
+  }
 
   def linkerLibraries(extLibs: Set[ExtLib]) = {
     this.synchronized {
-      linkerCaches.getOrElseUpdate(extLibs, {
+      linkerCaches.getOrUpdate(extLibs, {
         val loadedJars = commonLibraries4linker ++ deps(extLibs).map(dep => dependency4linker(dep))
-        val cache = (new IRFileCache).newCache
-        val res = cache.cached(loadedJars)
-        log.debug(s"Cached $extLibs")
-        res
+        val cache = irCache.newCache
+        cache.cached(loadedJars)
       })
     }
   }

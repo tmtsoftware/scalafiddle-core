@@ -84,7 +84,7 @@ lazy val server = project
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     testFrameworks += new TestFramework("utest.runner.Framework"),
-    javaOptions in Revolver.reStart ++= Seq("-Xmx2g", "-Xss4m"),
+    javaOptions in Revolver.reStart ++= Seq("-Xmx3g", "-Xss4m"),
     javaOptions in Universal ++= Seq("-J-Xss4m"),
     resourceGenerators in Compile += Def.task {
       // store build version in a property file
