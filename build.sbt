@@ -1,5 +1,6 @@
 import sbt._
 import Keys._
+import Settings.versions
 
 val commonSettings = Seq(
   scalacOptions := Seq(
@@ -9,23 +10,14 @@ val commonSettings = Seq(
     "-feature"
   ),
   scalaVersion := "2.11.8",
-  version := "1.0.0-SNAPSHOT"
+  version := versions.fiddle
 )
 
-val akkaVersion = "2.4.9"
-val asyncVersion = "0.9.1"
-val aceVersion = "1.2.2"
-val domVersion = "0.9.1"
-val scalatagsVersion = "0.6.0"
-val upickleVersion = "0.4.1"
-
 lazy val root = project.in(file("."))
-  .aggregate(page, server, runtime)
+  .aggregate(page, compilerServer, runtime, client, router)
   .settings(
-    (resources in(server, Compile)) ++= {
-      (managedClasspath in(runtime, Compile)).value.map(_.data) ++ Seq(
-        (packageBin in(page, Compile)).value
-      )
+    (resources in(router, Compile)) ++= {
+      Seq((fastOptJS in(client, Compile)).value.data)
     }
   )
 
@@ -33,13 +25,32 @@ lazy val shared = project
   .enablePlugins(ScalaJSPlugin)
   .settings(commonSettings)
 
+lazy val client = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(shared)
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.scala-js" %%% "scalajs-dom" % versions.dom,
+      "com.lihaoyi" %%% "scalatags" % versions.scalatags,
+      "com.lihaoyi" %%% "upickle" % versions.upickle,
+      "com.github.marklister" %%% "base64" % "0.2.2",
+      "org.scala-lang.modules" %% "scala-async" % versions.async % "provided"
+    ),
+    // rename output always to -opt.js
+    artifactPath in(Compile, fastOptJS) := ((crossTarget in(Compile, fastOptJS)).value /
+      ((moduleName in fastOptJS).value + "-opt.js")),
+    relativeSourceMaps := true
+  )
+
+
 lazy val page = project
   .enablePlugins(ScalaJSPlugin)
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % domVersion,
-      "com.lihaoyi" %%% "scalatags" % scalatagsVersion
+      "org.scala-js" %%% "scalajs-dom" % versions.dom,
+      "com.lihaoyi" %%% "scalatags" % versions.scalatags
     )
   )
 
@@ -52,7 +63,7 @@ lazy val runtime = project
     )
   )
 
-lazy val server = project
+lazy val compilerServer = project.in(file("compiler-server"))
   .dependsOn(shared)
   .enablePlugins(JavaAppPackaging)
   .enablePlugins(sbtdocker.DockerPlugin)
@@ -61,29 +72,24 @@ lazy val server = project
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-      "com.typesafe.akka" %% "akka-actor" % akkaVersion,
-      "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
-      "com.typesafe.akka" %% "akka-http-core" % akkaVersion,
-      "com.typesafe.akka" %% "akka-http-experimental" % akkaVersion,
+      "com.typesafe.akka" %% "akka-actor" % versions.akka,
+      "com.typesafe.akka" %% "akka-slf4j" % versions.akka,
+      "com.typesafe.akka" %% "akka-http-core" % versions.akka,
+      "com.typesafe.akka" %% "akka-http-experimental" % versions.akka,
       "ch.qos.logback" % "logback-classic" % "1.1.3",
       "org.scala-js" % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js" %% "scalajs-tools" % scalaJSVersion,
-      "org.scala-lang.modules" %% "scala-async" % asyncVersion % "provided",
-      "com.lihaoyi" %% "scalatags" % scalatagsVersion,
-      "org.webjars" % "ace" % aceVersion,
-      "org.webjars" % "normalize.css" % "2.1.3",
-      "com.lihaoyi" %% "upickle" % upickleVersion,
+      "org.scala-lang.modules" %% "scala-async" % versions.async % "provided",
+      "com.lihaoyi" %% "scalatags" % versions.scalatags,
+      "com.lihaoyi" %% "upickle" % versions.upickle,
+      "io.get-coursier" %% "coursier" % versions.coursier,
+      "io.get-coursier" %% "coursier-cache" % versions.coursier,
       "com.github.marklister" %% "base64" % "0.2.2",
-      "ch.megard" %% "akka-http-cors" % "0.1.4",
       "org.apache.maven" % "maven-artifact" % "3.3.9",
-      "io.get-coursier" %% "coursier" % "1.0.0-M13",
-      "io.get-coursier" %% "coursier-cache" % "1.0.0-M13",
       "org.xerial.snappy" % "snappy-java" % "1.1.2.1",
-      "org.xerial.larray" %% "larray" % "0.3.4",
-      "com.lihaoyi" %% "utest" % "0.3.0" % "test"
+      "org.xerial.larray" %% "larray" % "0.3.4"
     ),
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
-    testFrameworks += new TestFramework("utest.runner.Framework"),
     javaOptions in Revolver.reStart ++= Seq("-Xmx3g", "-Xss4m"),
     javaOptions in Universal ++= Seq("-J-Xss4m"),
     resourceGenerators in Compile += Def.task {
@@ -94,7 +100,7 @@ lazy val server = project
            |version=${version.value}
            |scalaVersion=${scalaVersion.value}
            |scalaJSVersion=$scalaJSVersion
-           |aceVersion=$aceVersion
+           |aceVersion=${versions.ace}
            |""".stripMargin
       IO.write(file, contents)
       Seq(file)
@@ -120,6 +126,69 @@ lazy val server = project
       ImageName(
         namespace = Some("scalafiddle"),
         repository = "scalafiddle-core",
+        tag = Some(version.value)
+      )
+    )
+  )
+
+lazy val router = (project in file("router"))
+  .enablePlugins(JavaAppPackaging)
+  .enablePlugins(sbtdocker.DockerPlugin)
+  .dependsOn(shared)
+  .settings(Revolver.settings: _*)
+  .settings(commonSettings)
+  .settings(
+    name := "scalafiddle-router",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-actor" % versions.akka,
+      "com.typesafe.akka" %% "akka-slf4j" % versions.akka,
+      "com.typesafe.akka" %% "akka-http-core" % versions.akka,
+      "com.typesafe.akka" %% "akka-http-experimental" % versions.akka,
+      "com.lihaoyi" %% "scalatags" % versions.scalatags,
+      "org.webjars" % "ace" % versions.ace,
+      "org.webjars" % "normalize.css" % "2.1.3",
+      "com.lihaoyi" %% "upickle" % versions.upickle,
+      "ch.megard" %% "akka-http-cors" % "0.1.4",
+      "ch.qos.logback" % "logback-classic" % "1.1.7"
+    ),
+    javaOptions in Revolver.reStart ++= Seq("-Xmx1g"),
+    scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
+    resourceGenerators in Compile += Def.task {
+      // store build version in a property file
+      val file = (resourceManaged in Compile).value / "version.properties"
+      val contents =
+        s"""
+           |version=${version.value}
+           |scalaVersion=${scalaVersion.value}
+           |scalaJSVersion=$scalaJSVersion
+           |aceVersion=${versions.ace}
+           |""".stripMargin
+      IO.write(file, contents)
+      Seq(file)
+    }.taskValue,
+    (resources in Compile) ++= {
+      Seq((fullOptJS in(client, Compile)).value.data)
+    },
+    dockerfile in docker := {
+      val appDir: File = stage.value
+      val targetDir = "/app"
+
+      new Dockerfile {
+        from("java:8")
+        entryPoint(s"$targetDir/bin/${executableScriptName.value}")
+        copy(appDir, targetDir)
+        expose(8080)
+      }
+    },
+    imageNames in docker := Seq(
+      ImageName(
+        namespace = Some("scalafiddle"),
+        repository = "scalafiddle-router",
+        tag = Some("latest")
+      ),
+      ImageName(
+        namespace = Some("scalafiddle"),
+        repository = "scalafiddle-router",
         tag = Some(version.value)
       )
     )
