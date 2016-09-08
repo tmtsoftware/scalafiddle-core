@@ -74,6 +74,7 @@ lazy val compilerServer = project.in(file("compiler-server"))
       "ch.qos.logback" % "logback-classic" % "1.1.3",
       "org.scala-js" % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js" %% "scalajs-tools" % scalaJSVersion,
+      "org.scalamacros" %% "paradise" % versions.macroParadise cross CrossVersion.full,
       "org.scala-lang.modules" %% "scala-async" % versions.async % "provided",
       "com.lihaoyi" %% "scalatags" % versions.scalatags,
       "com.lihaoyi" %% "upickle" % versions.upickle,

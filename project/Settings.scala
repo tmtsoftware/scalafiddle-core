@@ -21,6 +21,7 @@ object Settings {
   object versions {
     val fiddle = "1.0.2-SNAPSHOT"
     val scala = "2.11.8"
+    val macroParadise = "2.1.0"
     val akka = "2.4.10"
     val upickle = "0.4.1"
     val ace = "1.2.2"

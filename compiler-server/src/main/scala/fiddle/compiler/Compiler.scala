@@ -103,7 +103,10 @@ class Compiler(libManager: LibraryManager, code: String) {
     g: scala.tools.nsc.Global =>
     def ctx: JavaContext
     def dirs: Vector[DirectoryClassPath]
-    override lazy val plugins = List[Plugin](new org.scalajs.core.compiler.ScalaJSPlugin(this))
+    override lazy val plugins = List[Plugin](
+      new org.scalajs.core.compiler.ScalaJSPlugin(this),
+      new org.scalamacros.paradise.Plugin(this)
+    )
     override lazy val platform: ThisPlatform = new JavaPlatform {
       val global: g.type = g
       override def classPath = new JavaClassPath(dirs, ctx)

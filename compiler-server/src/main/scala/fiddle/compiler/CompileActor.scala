@@ -43,7 +43,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
               log.error(e, "Error while loading libraries")
               context.self ! PoisonPill
           }
-          
+
         case CompilationRequest(id, sourceCode, optimizer) =>
           val compiler = new Compiler(libraryManager, sourceCode)
           try {
