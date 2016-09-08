@@ -19,6 +19,9 @@ object Config {
   val scalaFiddleSourceUrl = config.getString("scalaFiddleSourceUrl")
   val scalaFiddleEditUrl = config.getString("scalaFiddleEditUrl")
 
+  val defaultLibs = config.getStringList("defaultLibs").asScala
+  val extLibs = config.getString("extLibs")
+
   val corsOrigins = config.getStringList("corsOrigins").asScala
 
   object compiler {

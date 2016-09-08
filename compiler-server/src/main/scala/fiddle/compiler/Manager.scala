@@ -18,7 +18,7 @@ class Manager extends Actor with ActorLogging {
 
   def connect(): Unit = {
     // WebSocket flow
-    val wsFlow: Flow[Message, Message, Any] = ActorFlow.actorRef[Message, Message](out => CompileActor.props(null, out, context.self), overflowStrategy = OverflowStrategy.fail)
+    val wsFlow: Flow[Message, Message, Any] = ActorFlow.actorRef[Message, Message](out => CompileActor.props(out, context.self), overflowStrategy = OverflowStrategy.fail)
     val (upgradeResponse, _) = Http().singleWebSocketRequest(WebSocketRequest(Config.routerUrl), wsFlow)
     upgradeResponse.map { upgrade =>
       // just like a regular http request we can access response status which is available via upgrade.response.status

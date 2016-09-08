@@ -1,6 +1,6 @@
 package fiddle.compiler.cache
 
-import fiddle.compiler.ExtLib
+import fiddle.shared.ExtLib
 
 import scala.collection.mutable
 

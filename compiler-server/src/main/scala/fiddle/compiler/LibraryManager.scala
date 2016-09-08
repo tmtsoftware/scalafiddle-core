@@ -1,11 +1,13 @@
 package fiddle.compiler
 
 import java.io._
+import java.nio.channels.{FileLock, OverlappingFileLockException}
 import java.nio.file.Paths
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import fiddle.compiler.cache._
+import fiddle.shared.ExtLib
 import org.apache.maven.artifact.versioning.ComparableVersion
 import org.scalajs.core.tools.io.{RelativeVirtualFile, _}
 import org.slf4j.LoggerFactory
@@ -13,10 +15,6 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
 import scala.tools.nsc.io.AbstractFile
 import scalaz.concurrent.Task
-
-case class ExtLib(group: String, artifact: String, version: String, compileTimeOnly: Boolean) {
-  override def toString: String = s"$group ${if (compileTimeOnly) "%%" else "%%%"} $artifact % $version"
-}
 
 class JarEntryIRFile(outerPath: String, val relativePath: String)
   extends MemVirtualSerializedScalaJSIRFile(s"$outerPath:$relativePath")
@@ -35,26 +33,12 @@ class VirtualFlatJarFile(flatJar: FlatJar, ffs: FlatFileSystem) extends VirtualJ
   }
 }
 
-object ExtLib {
-  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
-  val repoRE = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
-
-  def apply(libDef: String): ExtLib = libDef match {
-    case repoSJSRE(group, artifact, version) =>
-      ExtLib(group, artifact, version, false)
-    case repoRE(group, artifact, version) =>
-      ExtLib(group, artifact, version, true)
-    case _ =>
-      throw new IllegalArgumentException(s"Library definition '$libDef' is not correct")
-  }
-}
-
 /**
   * Loads the jars that make up the classpath of the scala-js-fiddle
   * compiler and re-shapes it into the correct structure to satisfy
   * scala-compile and scalajs-tools
   */
-class Classpath {
+class LibraryManager(val depLibs: Seq[ExtLib]) {
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
   implicit val ec = system.dispatcher
@@ -73,7 +57,7 @@ class Classpath {
 
   val commonJars = {
     log.debug("Loading common libraries...")
-    val jarFiles = baseLibs.par.map { name =>
+    val jarFiles = baseLibs.map { name =>
       val stream = getClass.getResourceAsStream(name)
       log.debug(s"Loading resource $name")
       if (stream == null) {
@@ -142,18 +126,41 @@ class Classpath {
         throw new Exception(s"Unable to load a library: ${error.describe}")
     }
 
-    val ffs = FlatFileSystem.build(Paths.get(Config.libCache), jars.map(j => (j._2, j._3)) ++ commonJars)
-    val absffs = new AbstractFlatFileSystem(ffs)
+    // acquire an exclusive lock to prevent others from updating the FFS at the same time
+    Paths.get(Config.libCache).toFile.mkdirs()
+    val lockFile = Paths.get(Config.libCache).resolve("ffs.lck").toFile
+    val lockChannel = new RandomAccessFile(lockFile, "rw").getChannel
+    var lock: FileLock = null
+    try {
+      while (lock == null) {
+        try {
+          lock = lockChannel.tryLock()
+        } catch {
+          case e: OverlappingFileLockException =>
+            lock = null
+        }
+        if (lock == null) {
+          print("\rAcquiring lock...")
+          Thread.sleep(1000)
+        }
+      }
 
-    val jarFlatFiles = jars.map(jar => (jar._1, absffs.roots(jar._2)))
-    val commonJarFlatFiles = commonJars.map(jar => (jar._1, absffs.roots(jar._1))).toMap
+      val ffs = FlatFileSystem.build(Paths.get(Config.libCache), jars.map(j => (j._2, j._3)) ++ commonJars)
+      val absffs = new AbstractFlatFileSystem(ffs)
 
-    val commonLibs = commonJars.map { case (jar, _) => jar -> commonJarFlatFiles(jar) }
-    val extLibMap = results.map { case (lib, resolution) =>
-      (lib, resolution.minDependencies.map(dep => (dep, jarFlatFiles.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
-    }.toMap
+      val jarFlatFiles = jars.map(jar => (jar._1, absffs.roots(jar._2)))
+      val commonJarFlatFiles = commonJars.map(jar => (jar._1, absffs.roots(jar._1))).toMap
 
-    (commonLibs, extLibMap, ffs)
+      val commonLibs = commonJars.map { case (jar, _) => jar -> commonJarFlatFiles(jar) }
+      val extLibMap = results.map { case (lib, resolution) =>
+        (lib, resolution.minDependencies.map(dep => (dep, jarFlatFiles.find(_._1.moduleVersion == dep.moduleVersion).get._2)))
+      }.toMap
+
+      (commonLibs, extLibMap, ffs)
+    } finally {
+      lock.release()
+      lockChannel.close()
+    }
   }
 
   def resolveDeps(deps: Seq[Dependency]): Seq[Dependency] = {
@@ -167,7 +174,7 @@ class Classpath {
     * External libraries loaded from repository
     */
   log.debug("Loading external libraries")
-  val (commonLibs, extLibraries, ffs) = loadCoursier(Config.extLibs)
+  val (commonLibs, extLibraries, ffs) = loadCoursier(depLibs)
 
   val flatDeps = extLibraries.flatMap(_._2).groupBy(_._1).mapValues(_.head._2)
 

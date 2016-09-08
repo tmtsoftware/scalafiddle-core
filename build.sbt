@@ -15,11 +15,6 @@ val commonSettings = Seq(
 
 lazy val root = project.in(file("."))
   .aggregate(page, compilerServer, runtime, client, router)
-  .settings(
-    (resources in(router, Compile)) ++= {
-      Seq((fastOptJS in(client, Compile)).value.data)
-    }
-  )
 
 lazy val shared = project
   .enablePlugins(ScalaJSPlugin)
@@ -84,11 +79,15 @@ lazy val compilerServer = project.in(file("compiler-server"))
       "com.lihaoyi" %% "upickle" % versions.upickle,
       "io.get-coursier" %% "coursier" % versions.coursier,
       "io.get-coursier" %% "coursier-cache" % versions.coursier,
-      "com.github.marklister" %% "base64" % "0.2.2",
       "org.apache.maven" % "maven-artifact" % "3.3.9",
       "org.xerial.snappy" % "snappy-java" % "1.1.2.1",
       "org.xerial.larray" %% "larray" % "0.3.4"
     ),
+    (resources in Compile) ++= {
+      (managedClasspath in(runtime, Compile)).value.map(_.data) ++ Seq(
+        (packageBin in(page, Compile)).value
+      )
+    },
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
     javaOptions in Revolver.reStart ++= Seq("-Xmx3g", "-Xss4m"),
     javaOptions in Universal ++= Seq("-J-Xss4m"),
@@ -148,6 +147,7 @@ lazy val router = (project in file("router"))
       "org.webjars" % "ace" % versions.ace,
       "org.webjars" % "normalize.css" % "2.1.3",
       "com.lihaoyi" %% "upickle" % versions.upickle,
+      "com.github.marklister" %% "base64" % "0.2.2",
       "ch.megard" %% "akka-http-cors" % "0.1.4",
       "ch.qos.logback" % "logback-classic" % "1.1.7"
     ),

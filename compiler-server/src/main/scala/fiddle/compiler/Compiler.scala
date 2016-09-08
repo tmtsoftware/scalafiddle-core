@@ -1,9 +1,7 @@
 package fiddle.compiler
 
-import java.io.{PrintWriter, Writer}
-
-import akka.util.ByteString
 import fiddle.compiler.cache.{AutoCompleteCache, CompilerCache, LinkerCache}
+import fiddle.shared.ExtLib
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
 import org.scalajs.core.tools.logging._
@@ -11,13 +9,14 @@ import org.scalajs.core.tools.sem.Semantics
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
+import scala.reflect.internal.util.Position
 import scala.reflect.io
 import scala.tools.nsc
 import scala.tools.nsc.Settings
 import scala.tools.nsc.backend.JavaPlatform
 import scala.tools.nsc.io.AbstractFile
 import scala.tools.nsc.plugins.Plugin
-import scala.tools.nsc.reporters.ConsoleReporter
+import scala.tools.nsc.reporters.StoreReporter
 import scala.tools.nsc.typechecker.Analyzer
 import scala.tools.nsc.util.ClassPath.JavaContext
 import scala.tools.nsc.util._
@@ -27,7 +26,7 @@ import scala.util.Try
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
-class Compiler(classPath: Classpath, code: String) {
+class Compiler(libManager: LibraryManager, code: String) {
   self =>
   val log = LoggerFactory.getLogger(getClass)
   val sjsLogger = new Log4jLogger()
@@ -40,14 +39,12 @@ class Compiler(classPath: Classpath, code: String) {
 
   lazy val extLibs = {
     val userLibs = extLibDefs.map(lib => ExtLib(lib)).collect {
-      case lib if Config.extLibs.contains(lib) => lib
+      case lib if libManager.depLibs.contains(lib) => lib
       case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
     }.toList
 
-    // add default libs
-    val finalLibs = Config.defaultLibs.map(ExtLib(_)) ++ userLibs
-    log.debug(s"Full dependencies: $finalLibs")
-    finalLibs.toSet
+    log.debug(s"Full dependencies: $userLibs")
+    userLibs.toSet
   }
 
   /**
@@ -64,7 +61,7 @@ class Compiler(classPath: Classpath, code: String) {
   def inMemClassloader = {
     new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
-      val libs = classPath.compilerLibraries(extLibs)
+      val libs = libManager.compilerLibraries(extLibs)
 
       override def findClass(name: String): Class[_] = {
 
@@ -121,22 +118,11 @@ class Compiler(classPath: Classpath, code: String) {
   def initGlobalBits(logger: String => Unit) = {
     val vd = new io.VirtualDirectory("(memory)", None)
     val jCtx = new JavaContext()
-    val jDirs = classPath.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
+    val jDirs = libManager.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
-    val writer = new Writer {
-      var inner = ByteString()
-      def write(cbuf: Array[Char], off: Int, len: Int): Unit = {
-        inner = inner ++ ByteString.fromArray(cbuf.map(_.toByte), off, len)
-      }
-      def flush(): Unit = {
-        logger(inner.utf8String)
-        inner = ByteString()
-      }
-      def close(): Unit = ()
-    }
-    val reporter = new ConsoleReporter(settings, scala.Console.in, new PrintWriter(writer))
+    val reporter = new StoreReporter
     (settings, reporter, vd, jCtx, jDirs)
   }
 
@@ -176,7 +162,7 @@ class Compiler(classPath: Classpath, code: String) {
     results.map(r => (r.sym.signatureString, r.symNameDropLocal.decoded)).distinct
   }
 
-  def compile(logger: String => Unit = _ => ()): Option[Seq[VirtualScalaJSIRFile]] = {
+  def compile(logger: String => Unit = _ => ()): (String, Option[Seq[VirtualScalaJSIRFile]]) = {
 
     log.debug("Compiling source:\n" + code)
     val singleFile = makeFile(code.getBytes("UTF-8"))
@@ -203,8 +189,18 @@ class Compiler(classPath: Classpath, code: String) {
 
       val endTime = System.nanoTime()
       log.debug(s"Compilation: ${(endTime - startTime) / 1000} us")
-      if (vd.iterator.isEmpty) None
-      else {
+      // print errors
+      val errors = compiler.reporter.asInstanceOf[StoreReporter].infos.map { info =>
+        val label = info.severity.toString match {
+          case "ERROR"   => "error: "
+          case "WARNING" => "warning: "
+          case "INFO"    => ""
+        }
+        Position.formatMessage(info.pos, label + info.msg, false)
+      }.mkString("\n")
+      if (vd.iterator.isEmpty) {
+        (errors, None)
+      } else {
         val things = for {
           x <- vd.iterator.to[collection.immutable.Traversable]
           if x.name.endsWith(".sjsir")
@@ -213,7 +209,7 @@ class Compiler(classPath: Classpath, code: String) {
           f.content = x.toByteArray
           f: VirtualScalaJSIRFile
         }
-        Some(things.toSeq)
+        (errors, Some(things.toSeq))
       }
     } catch {
       case e: Throwable =>
@@ -244,7 +240,7 @@ class Compiler(classPath: Classpath, code: String) {
 
     val output = WritableMemVirtualJSFile("output.js")
     try {
-      linker.link(classPath.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
+      linker.link(libManager.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
     } catch {
       case e: Throwable =>
         LinkerCache.remove(extLibs)

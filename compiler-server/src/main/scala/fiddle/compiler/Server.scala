@@ -14,8 +14,6 @@ object Server extends App {
   implicit val materializer = ActorMaterializer()
   implicit val ec = system.dispatcher
   val log = LoggerFactory.getLogger(getClass)
-  // initialize classpath singleton, loads all libraries
-  //val classPath = new Classpath
 
   log.info(s"Scala Fiddle compiler ${Config.version}")
 

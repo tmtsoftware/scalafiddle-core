@@ -1,6 +1,7 @@
 package fiddle.client
 
 import fiddle._
+import fiddle.shared.{CompletionResponse, EditorAnnotation}
 
 import scala.async.Async.{async, await}
 import scala.concurrent.Future
@@ -15,7 +16,7 @@ import scala.scalajs.js.{Dynamic => Dyn}
   * do exactly what we want.
   */
 class Editor(bindings: Seq[(String, String, () => Any)],
-  completions: () => Future[Seq[(String, String)]],
+  completions: () => Future[CompletionResponse],
   implicit val logger: Logger) {
   lazy val Autocomplete = js.Dynamic.global.require("ace/autocomplete").Autocomplete
   def sess = editor.getSession()
@@ -74,7 +75,7 @@ class Editor(bindings: Seq[(String, String, () => Any)],
 
     ed.completers = js.Array(JsVal.obj(
       "getCompletions" -> { (editor: Dyn, session: Dyn, pos: Dyn, prefix: Dyn, callback: Dyn) => task * async {
-        val things = await(completions()).map { case (name, value) =>
+        val things = await(completions()).completions.map { case (name, value) =>
           JsVal.obj(
             "value" -> value,
             "caption" -> (value + name)

@@ -3,6 +3,7 @@ package fiddle.client
 import java.net.URLDecoder
 import java.util.UUID
 
+import fiddle.shared.{CompilationResponse, CompilerMessage, CompilerResponse, CompletionResponse}
 import fiddle.{client, _}
 import org.scalajs.dom
 import org.scalajs.dom.ext.Ajax
@@ -36,7 +37,7 @@ class Client(editURL: String) {
 
   def currentSourceFile = sourceFiles.find(_.id == currentSource).get
 
-  val command = Channel[Future[CompilerResponse]]()
+  val command = Channel[Future[CompilationResponse]]()
 
   val runIcon = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
   val resetIcon = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
@@ -120,7 +121,7 @@ class Client(editURL: String) {
     Encoder(compressedSource).toBase64
   }
 
-  def compileServer(code: String, opt: String): Future[CompilerResponse] = {
+  def compileServer(code: String, opt: String): Future[CompilationResponse] = {
     val tag = s"${if (Client.initializing) "initial-" else ""}$opt"
     val startTime = System.nanoTime()
     Ajax.get(
@@ -128,7 +129,7 @@ class Client(editURL: String) {
     ).map { res =>
       val compileTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("compile", tag, currentSourceName, compileTime)
-      read[CompilerResponse](res.responseText)
+      read[CompilationResponse](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
         showError(s"Error: ${e.xhr.responseText}")
@@ -243,7 +244,7 @@ class Client(editURL: String) {
     }
   }
 
-  def compile(res: Future[CompilerResponse]): Future[Option[String]] = {
+  def compile(res: Future[CompilationResponse]): Future[Option[String]] = {
     res.map { response =>
       endCompilation()
       val prefixLines = currentSourceFile.prefix.size
@@ -263,7 +264,7 @@ class Client(editURL: String) {
     }
   }
 
-  def complete() = async {
+  def complete(): Future[CompletionResponse] = async {
     val code = reconstructSource(editor.code, currentSourceFile)
     val row = editor.row + currentSourceFile.prefix.size
     val col = editor.column + currentSourceFile.indent
@@ -279,7 +280,7 @@ class Client(editURL: String) {
     ).map { res =>
       val completeTime = (System.nanoTime() - startTime) / 1000000
       EventTracker.sendEvent("complete", "complete", currentSourceName, completeTime)
-      read[List[(String, String)]](res.responseText)
+      read[CompletionResponse](res.responseText)
     } recover {
       case e: dom.ext.AjaxException =>
         showError(s"Error: ${e.xhr.responseText}")

@@ -2,7 +2,9 @@ package fiddle.router
 
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-
+import java.util.UUID
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.util.zip.GZIPInputStream
 import akka.actor._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -18,12 +20,14 @@ import akka.util.Timeout
 import ch.megard.akka.http.cors.{CorsDirectives, CorsSettings}
 import fiddle.router.cache.Cache
 import fiddle.router.frontend.Static
+import fiddle.shared._
 import org.slf4j.LoggerFactory
+import upickle.default._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class WebService(system: ActorSystem, router: ActorRef, cache: Cache) {
+class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
   implicit val actorSystem = system
   implicit val timeout = Timeout(30.seconds)
   implicit val materializer = ActorMaterializer()
@@ -94,17 +98,34 @@ class WebService(system: ActorSystem, router: ActorRef, cache: Cache) {
                 toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration)))
               case Left(error) =>
                 HttpResponse(StatusCodes.BadRequest, entity = error)
+            } recover {
+              case e: Throwable =>
+                log.error("Internal error", e)
+                HttpResponse(StatusCodes.InternalServerError)
             }
         }
     }
   }
 
-  def forwardRequest(request: HttpRequest): Future[Either[StatusCode, Array[Byte]]] = {
-    // filter generated headers away
-    val newReq = request.withHeaders(request.headers.filterNot(_.name == "Timeout-Access"))
-    ask(router, RouteRequest(newReq)).mapTo[Either[StatusCode, Array[Byte]]]
+  def decodeSource(b64: String): String = {
+    import com.github.marklister.base64.Base64._
+    implicit def scheme: B64Scheme = base64Url
+    // decode base64 and gzip
+    val compressedSource = Decoder(b64).toByteArray
+    val bis = new ByteArrayInputStream(compressedSource)
+    val zis = new GZIPInputStream(bis)
+    val buf = new Array[Byte](1024)
+    val bos = new ByteArrayOutputStream()
+    var len = 0
+    while ( {len = zis.read(buf); len > 0}) {
+      bos.write(buf, 0, len)
+    }
+    zis.close()
+    bos.close()
+    val source = new String(bos.toByteArray, StandardCharsets.UTF_8)
+    // add default libraries
+    source + Config.defaultLibs.map(lib => s"// $$FiddleDependency $lib").mkString("\n", "\n", "\n")
   }
-
 
   val extRoute: Route = {
     encodeResponse {
@@ -129,16 +150,28 @@ class WebService(system: ActorSystem, router: ActorRef, cache: Cache) {
           handleRejections(CorsDirectives.corsRejectionHandler) {
             CorsDirectives.cors(settings) {
               parameterMap { paramMap =>
-                extractRequest { request =>
-                  complete {
-                    cacheOr("compile", paramMap, compileValidator, 3600 * 24 * 90) {
-                      forwardRequest(request).map {
-                        case Right(data) =>
-                          Right(data)
-                        case Left(errorCode) =>
-                          Left("Compilation error")
-                      }
-                    }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
+                extractClientIP { clientIP =>
+                  extractRequest { request =>
+                    complete {
+                      cacheOr("compile", paramMap, compileValidator, 3600 * 24 * 90) {
+                        val remoteIP = clientIP.toIP.map(_.ip.getHostAddress).getOrElse("localhost")
+                        log.debug(s"Compile request from $remoteIP")
+                        val compileId = UUID.randomUUID().toString
+                        val source = decodeSource(paramMap("source"))
+                        ask(compilerManager, CompilationRequest(compileId, source, paramMap("opt"))).mapTo[Either[String, CompilerResponse]].map {
+                          case Right(response: CompilationResponse) =>
+                            Right(write(response).getBytes("UTF-8"))
+                          case Left(error) =>
+                            Left(error)
+                          case _ =>
+                            Left("Internal error")
+                        } recover {
+                          case e: Exception =>
+                            compilerManager ! CancelCompilation(compileId)
+                            throw e
+                        }
+                      }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
+                    }
                   }
                 }
               }
@@ -151,11 +184,19 @@ class WebService(system: ActorSystem, router: ActorRef, cache: Cache) {
                 extractRequest { request =>
                   complete {
                     cacheOr("complete", paramMap, completeValidator, 3600 * 24 * 90) {
-                      forwardRequest(request).map {
-                        case Right(data) =>
-                          Right(data)
-                        case Left(errorCode) =>
-                          Left("Compilation error")
+                      val compileId = UUID.randomUUID().toString
+                      val source = decodeSource(paramMap("source"))
+                      ask(compilerManager, CompletionRequest(compileId, source, paramMap("offset").toInt)).mapTo[Either[String, CompilerResponse]].map {
+                        case Right(response: CompletionResponse) =>
+                          Right(write(response).getBytes("UTF-8"))
+                        case Left(error) =>
+                          Left(error)
+                        case _ =>
+                          Left("Internal error")
+                      } recover {
+                        case e: Exception =>
+                          compilerManager ! CancelCompilation(compileId)
+                          throw e
                       }
                     }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
                   }
@@ -190,7 +231,7 @@ class WebService(system: ActorSystem, router: ActorRef, cache: Cache) {
     }
   }
 
-  def wsFlow: Flow[Message, Message, Any] = ActorFlow.actorRef[Message, Message](out => CompilerService.props(out), () => ())
+  def wsFlow: Flow[Message, Message, Any] = ActorFlow.actorRef[Message, Message](out => CompilerService.props(out, compilerManager), () => ())
 
   val compilerRoute: Route = {
     path("compiler") {
