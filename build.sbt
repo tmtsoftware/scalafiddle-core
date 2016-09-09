@@ -65,6 +65,7 @@ lazy val compilerServer = project.in(file("compiler-server"))
   .settings(commonSettings)
   .settings(Revolver.settings: _*)
   .settings(
+    name := "scalafiddle-core",
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
       "com.typesafe.akka" %% "akka-actor" % versions.akka,
