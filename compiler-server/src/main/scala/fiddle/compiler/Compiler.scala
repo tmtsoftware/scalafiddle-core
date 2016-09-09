@@ -235,7 +235,10 @@ class Compiler(libManager: LibraryManager, code: String) {
       if (fullOpt) Semantics.Defaults.optimized
       else Semantics.Defaults
 
-    val linker = LinkerCache.getOrUpdate(extLibs, Linker(
+    // add parameters as fake libraries to make caching work correctly
+    val libs = extLibs + ExtLib("semantics", "optimized", fullOpt.toString, false)
+
+    val linker = LinkerCache.getOrUpdate(libs, Linker(
       semantics = semantics,
       withSourceMap = false,
       useClosureCompiler = fullOpt)

@@ -211,9 +211,7 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
   }
 
   val irCache = new IRFileCache
-  val linkerCaches = new LRUCache[Seq[IRFileCache.VirtualRelativeIRFile]] {
-    override val cacheSize = 1
-  }
+  val linkerCaches = new LRUCache[Seq[IRFileCache.VirtualRelativeIRFile]]("IRFiles")
 
   def linkerLibraries(extLibs: Set[ExtLib]) = {
     this.synchronized {

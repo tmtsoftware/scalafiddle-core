@@ -19,6 +19,7 @@ object Config {
   val routerUrl = config.getString("routerUrl")
 
   val libCache = config.getString("libCache")
+  val compilerCacheSize = config.getInt("compilerCacheSize")
 
   // read the generated version data
   protected val versionProps = new Properties()
