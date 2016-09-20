@@ -59,7 +59,7 @@ lazy val runtime = project
   )
 
 lazy val compilerServer = project.in(file("compiler-server"))
-  .dependsOn(shared)
+  .dependsOn(shared, page)
   .enablePlugins(JavaAppPackaging)
   .enablePlugins(sbtdocker.DockerPlugin)
   .settings(commonSettings)
@@ -176,7 +176,7 @@ lazy val router = (project in file("router"))
       val targetDir = "/app"
 
       new Dockerfile {
-        from("java:8")
+        from("openjdk:8")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
         expose(8080)

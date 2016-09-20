@@ -35,11 +35,16 @@ object Fiddle {
   val draw = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
   val panel = getElem[html.Div]("output")
 
-  def println(ss: String) = {
-    print(div(ss))
+  def println(ss: Any) = {
+    ss match {
+      case m: Modifier@unchecked =>
+        print(div(m))
+      case _ =>
+        print(div(ss.toString))
+    }
   }
 
-  def println(ss: Modifier*) = {
+  def printDiv(ss: Modifier*) = {
     print(div(ss))
   }
 
