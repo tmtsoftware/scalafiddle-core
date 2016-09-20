@@ -238,18 +238,17 @@ class Compiler(libManager: LibraryManager, code: String) {
     // add parameters as fake libraries to make caching work correctly
     val libs = extLibs + ExtLib("semantics", "optimized", fullOpt.toString, false)
 
-    val linker = LinkerCache.getOrUpdate(libs, Linker(
-      semantics = semantics,
-      withSourceMap = false,
-      useClosureCompiler = fullOpt)
-    )
-
     val output = WritableMemVirtualJSFile("output.js")
     try {
+      val linker = LinkerCache.getOrUpdate(libs, Linker(
+        semantics = semantics,
+        withSourceMap = false,
+        useClosureCompiler = fullOpt)
+      )
       linker.link(libManager.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
     } catch {
       case e: Throwable =>
-        LinkerCache.remove(extLibs)
+        LinkerCache.remove(libs)
         throw e
     }
     output

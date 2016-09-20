@@ -34,9 +34,8 @@ class LRUCache[T](name: String) {
   }
 
   def remove(libs: Set[ExtLib]): Unit = {
+    log.debug(s"Removing from cache: $name")
     val hash = hashLibs(libs)
     cache.remove(hash)
   }
 }
-
-

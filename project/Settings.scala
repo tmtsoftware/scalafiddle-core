@@ -14,7 +14,6 @@ object Settings {
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {
     val fiddle = "1.0.3"
-    val scala = "2.11.8"
     val macroParadise = "2.1.0"
     val akka = "2.4.10"
     val upickle = "0.4.1"

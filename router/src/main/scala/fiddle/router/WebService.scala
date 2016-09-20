@@ -27,6 +27,14 @@ import upickle.default._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
+sealed trait CacheValue
+
+case class CacheResult(data: Array[Byte]) extends CacheValue
+
+case class CacheResultWithExp(data: Array[Byte], expiration: Int) extends CacheValue
+
+case class CacheError(error: String) extends CacheValue
+
 class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
   implicit val actorSystem = system
   implicit val timeout = Timeout(30.seconds)
@@ -80,7 +88,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
   }
 
   def cacheOr(path: String, params: Map[String, String], validator: ParamValidator, expiration: Int)
-    (value: => Future[Either[String, Array[Byte]]])(toResponse: Array[Byte] => HttpResponse): Future[HttpResponse] = {
+    (value: => Future[CacheValue])(toResponse: Array[Byte] => HttpResponse): Future[HttpResponse] = {
     validateParams(params, validator) match {
       case Some(error) =>
         Future.successful(HttpResponse(StatusCodes.BadRequest, entity = error))
@@ -93,10 +101,13 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
             Future.successful(toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration))))
           case None =>
             value map {
-              case Right(data) =>
+              case CacheResult(data) =>
                 cache.put(hash, data, expiration)
                 toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration)))
-              case Left(error) =>
+              case CacheResultWithExp(data, expOverride) =>
+                cache.put(hash, data, expOverride)
+                toResponse(data).withHeaders(`Cache-Control`(`max-age`(expOverride)))
+              case CacheError(error) =>
                 HttpResponse(StatusCodes.BadRequest, entity = error)
             } recover {
               case e: Throwable =>
@@ -133,7 +144,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
         path("embed") {
           parameterMap { paramMap =>
             complete {
-              cacheOr("embed", paramMap, embedValidator, 3600)(Future.successful(Right(Static.renderPage(Config.clientFiles, paramMap)))) { data =>
+              cacheOr("embed", paramMap, embedValidator, 3600)(Future.successful(CacheResult(Static.renderPage(Config.clientFiles, paramMap)))) { data =>
                 HttpResponse(entity = HttpEntity(`text/html` withCharset `UTF-8`, data))
               }
             }
@@ -141,7 +152,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
         } ~ path("codeframe") {
           parameterMap { paramMap =>
             complete {
-              cacheOr("codeframe", paramMap, codeframeValidator, 3600)(Future.successful(Right(Static.renderCodeFrame(paramMap)))) { data =>
+              cacheOr("codeframe", paramMap, codeframeValidator, 3600)(Future.successful(CacheResult(Static.renderCodeFrame(paramMap)))) { data =>
                 HttpResponse(entity = HttpEntity(`text/html` withCharset `UTF-8`, data))
               }
             }
@@ -159,12 +170,14 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                         val compileId = UUID.randomUUID().toString
                         val source = decodeSource(paramMap("source"))
                         ask(compilerManager, CompilationRequest(compileId, source, paramMap("opt"))).mapTo[Either[String, CompilerResponse]].map {
+                          case Right(response: CompilationResponse) if response.annotations.isEmpty =>
+                            CacheResult(write(response).getBytes("UTF-8"))
                           case Right(response: CompilationResponse) =>
-                            Right(write(response).getBytes("UTF-8"))
+                            CacheResultWithExp(write(response).getBytes("UTF-8"), 15)
                           case Left(error) =>
-                            Left(error)
+                            CacheError(error)
                           case _ =>
-                            Left("Internal error")
+                            CacheError("Internal error")
                         } recover {
                           case e: Exception =>
                             compilerManager ! CancelCompilation(compileId)
@@ -187,12 +200,14 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                       val compileId = UUID.randomUUID().toString
                       val source = decodeSource(paramMap("source"))
                       ask(compilerManager, CompletionRequest(compileId, source, paramMap("offset").toInt)).mapTo[Either[String, CompilerResponse]].map {
-                        case Right(response: CompletionResponse) =>
-                          Right(write(response).getBytes("UTF-8"))
+                        case Right(response: CompletionResponse) if response.completions.nonEmpty =>
+                          CacheResult(write(response).getBytes("UTF-8"))
+                        case Right(response: CompletionResponse) if response.completions.isEmpty =>
+                          CacheResultWithExp(write(response).getBytes("UTF-8"), 15)
                         case Left(error) =>
-                          Left(error)
+                          CacheError(error)
                         case _ =>
-                          Left("Internal error")
+                          CacheError("Internal error")
                       } recover {
                         case e: Exception =>
                           compilerManager ! CancelCompilation(compileId)
@@ -217,9 +232,9 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
               Future.successful {
                 Static.fetchResource(hash) match {
                   case Some(src) =>
-                    Right(src)
+                    CacheResult(src)
                   case None =>
-                    Left("")
+                    CacheError("")
                 }
               }
             }(data => HttpResponse(entity = HttpEntity(contentType, data)))
