@@ -8,7 +8,7 @@ import java.util.zip.GZIPInputStream
 import akka.actor._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.CacheDirectives.`max-age`
+import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `no-cache`}
 import akka.http.scaladsl.model.headers.{HttpOrigin, HttpOriginRange, `Cache-Control`}
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
@@ -31,7 +31,7 @@ sealed trait CacheValue
 
 case class CacheResult(data: Array[Byte]) extends CacheValue
 
-case class CacheResultWithExp(data: Array[Byte], expiration: Int) extends CacheValue
+case class NoCacheResult(data: Array[Byte]) extends CacheValue
 
 case class CacheError(error: String) extends CacheValue
 
@@ -104,9 +104,8 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
               case CacheResult(data) =>
                 cache.put(hash, data, expiration)
                 toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration)))
-              case CacheResultWithExp(data, expOverride) =>
-                cache.put(hash, data, expOverride)
-                toResponse(data).withHeaders(`Cache-Control`(`max-age`(expOverride)))
+              case NoCacheResult(data) =>
+                toResponse(data).withHeaders(`Cache-Control`(`no-cache`))
               case CacheError(error) =>
                 HttpResponse(StatusCodes.BadRequest, entity = error)
             } recover {
@@ -173,7 +172,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                           case Right(response: CompilationResponse) if response.annotations.isEmpty =>
                             CacheResult(write(response).getBytes("UTF-8"))
                           case Right(response: CompilationResponse) =>
-                            CacheResultWithExp(write(response).getBytes("UTF-8"), 15)
+                            NoCacheResult(write(response).getBytes("UTF-8"))
                           case Left(error) =>
                             CacheError(error)
                           case _ =>
@@ -203,7 +202,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                         case Right(response: CompletionResponse) if response.completions.nonEmpty =>
                           CacheResult(write(response).getBytes("UTF-8"))
                         case Right(response: CompletionResponse) if response.completions.isEmpty =>
-                          CacheResultWithExp(write(response).getBytes("UTF-8"), 15)
+                          NoCacheResult(write(response).getBytes("UTF-8"))
                         case Left(error) =>
                           CacheError(error)
                         case _ =>
