@@ -4,6 +4,7 @@ import akka.actor._
 import fiddle.shared._
 import upickle.default._
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.mutable
 
 case class RegisterCompiler(id: String, compilerService: ActorRef)
@@ -16,6 +17,8 @@ case class CancelCompilation(id: String)
 
 case class CancelCompletion(id: String)
 
+case object RefreshLibraries
+
 class CompilerManager extends Actor with ActorLogging {
   import CompilerManager._
 
@@ -25,6 +28,12 @@ class CompilerManager extends Actor with ActorLogging {
   var currentLibs = loadLibraries(Config.extLibs, Config.defaultLibs)
 
   def now = System.currentTimeMillis()
+
+  override def preStart(): Unit = {
+    super.preStart()
+    // schedule a periodic library update
+    context.system.scheduler.schedule(Config.refreshLibraries, Config.refreshLibraries, context.self, RefreshLibraries)
+  }
 
   def loadLibraries(uri: String, defaultLibs: Seq[String]): Seq[ExtLib] = {
     val data = if (uri.startsWith("file:")) {
@@ -114,6 +123,21 @@ class CompilerManager extends Actor with ActorLogging {
           log.error(s"No compilation pending for compiler $id")
       }
       processQueue()
+
+    case RefreshLibraries =>
+      try {
+        log.debug("Refreshing libraries")
+        val newLibs = loadLibraries(Config.extLibs, Config.defaultLibs)
+        // are there any changes?
+        if(newLibs.toSet != currentLibs.toSet) {
+          currentLibs = newLibs
+          // inform all connected compilers
+          compilers.values.foreach { _.compilerService ! UpdateLibraries(currentLibs)}
+        }
+      } catch {
+        case e: Throwable =>
+          log.error(s"Error while refreshing libraries", e)
+      }
   }
 }
 

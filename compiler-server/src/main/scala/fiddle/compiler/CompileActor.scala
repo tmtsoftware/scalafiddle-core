@@ -41,7 +41,8 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
           } recover {
             case e =>
               log.error(e, "Error while loading libraries")
-              context.self ! PoisonPill
+              if (libraryManager == null)
+                context.self ! PoisonPill
           }
 
         case CompilationRequest(id, sourceCode, optimizer) =>
@@ -69,7 +70,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
           }
 
         case Pong =>
-          // no action
+        // no action
 
         case other =>
           log.error(s"Unsupported compiler message $other")
@@ -100,7 +101,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
     val output = mutable.Buffer.empty[String]
 
     val (logSpam, res) = compiler.compile(output.append(_))
-    if(logSpam.nonEmpty)
+    if (logSpam.nonEmpty)
       println(s"Compiler errors: $logSpam")
 
     CompilationResponse(res.map(processor), parseErrors(logSpam), logSpam)

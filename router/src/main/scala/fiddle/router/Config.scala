@@ -1,10 +1,12 @@
 package fiddle.router
 
 import java.util.Properties
+import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.FiniteDuration
 
 object Config {
   protected val config = ConfigFactory.load().getConfig("fiddle")
@@ -21,6 +23,7 @@ object Config {
 
   val defaultLibs = config.getStringList("defaultLibs").asScala
   val extLibs = config.getString("extLibs")
+  val refreshLibraries = FiniteDuration(config.getDuration("refreshLibraries").toMillis, TimeUnit.MILLISECONDS)
 
   val corsOrigins = config.getStringList("corsOrigins").asScala
 

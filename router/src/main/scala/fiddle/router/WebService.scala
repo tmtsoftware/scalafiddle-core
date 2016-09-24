@@ -169,7 +169,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                         val compileId = UUID.randomUUID().toString
                         val source = decodeSource(paramMap("source"))
                         ask(compilerManager, CompilationRequest(compileId, source, paramMap("opt"))).mapTo[Either[String, CompilerResponse]].map {
-                          case Right(response: CompilationResponse) if response.annotations.isEmpty =>
+                          case Right(response: CompilationResponse) if response.jsCode.isDefined =>
                             CacheResult(write(response).getBytes("UTF-8"))
                           case Right(response: CompilationResponse) =>
                             NoCacheResult(write(response).getBytes("UTF-8"))

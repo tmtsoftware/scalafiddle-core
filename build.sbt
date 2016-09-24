@@ -30,7 +30,8 @@ lazy val client = project
       "com.lihaoyi" %%% "scalatags" % versions.scalatags,
       "com.lihaoyi" %%% "upickle" % versions.upickle,
       "com.github.marklister" %%% "base64" % "0.2.2",
-      "org.scala-lang.modules" %% "scala-async" % versions.async % "provided"
+      "org.scala-lang.modules" %% "scala-async" % versions.async % "provided",
+      "org.scalatest" %%% "scalatest" % versions.scalatest % "test"
     ),
     // rename output always to -opt.js
     artifactPath in(Compile, fastOptJS) := ((crossTarget in(Compile, fastOptJS)).value /
@@ -83,7 +84,8 @@ lazy val compilerServer = project.in(file("compiler-server"))
       "io.get-coursier" %% "coursier-cache" % versions.coursier,
       "org.apache.maven" % "maven-artifact" % "3.3.9",
       "org.xerial.snappy" % "snappy-java" % "1.1.2.1",
-      "org.xerial.larray" %% "larray" % "0.3.4"
+      "org.xerial.larray" %% "larray" % "0.3.4",
+      "org.scalatest" %% "scalatest" % versions.scalatest % "test"
     ),
     (resources in Compile) ++= {
       (managedClasspath in(runtime, Compile)).value.map(_.data) ++ Seq(
@@ -151,6 +153,7 @@ lazy val router = (project in file("router"))
       "com.lihaoyi" %% "upickle" % versions.upickle,
       "com.github.marklister" %% "base64" % "0.2.2",
       "ch.megard" %% "akka-http-cors" % "0.1.4",
+      "org.scalatest" %% "scalatest" % versions.scalatest % "test",
       "ch.qos.logback" % "logback-classic" % "1.1.7"
     ),
     javaOptions in Revolver.reStart ++= Seq("-Xmx1g"),
