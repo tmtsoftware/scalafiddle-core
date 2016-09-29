@@ -2,6 +2,7 @@ package fiddle.router
 
 import akka.actor._
 import fiddle.shared._
+import org.slf4j.LoggerFactory
 import upickle.default._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -26,6 +27,7 @@ class CompilerManager extends Actor with ActorLogging {
   var compilerQueue = mutable.Queue.empty[(CompilerRequest, ActorRef)]
   val compilationPending = mutable.Map.empty[String, ActorRef]
   var currentLibs = loadLibraries(Config.extLibs, Config.defaultLibs)
+  val dependencyRE = """ *// \$FiddleDependency (.+)""".r
 
   def now = System.currentTimeMillis()
 
@@ -51,35 +53,60 @@ class CompilerManager extends Actor with ActorLogging {
     (extLibs ++ defaultLibs).map(ExtLib(_))
   }
 
-  def selectCompiler(): Option[CompilerInfo] = {
-    compilers.values.find(_.state == CompilerState.Ready)
+  def extractLibs(source: String): Set[ExtLib] = {
+    val codeLines = source.replaceAll("\r", "").split('\n')
+    codeLines.collect {
+      case dependencyRE(dep) => ExtLib(dep)
+    }.toSet
+  }
+
+  def selectCompiler(req: CompilerRequest): Option[CompilerInfo] = {
+    // extract libs from the source
+    val libs = extractLibs(req.source)
+    // check that all libs are supported
+    libs.foreach(lib => if (!currentLibs.contains(lib)) throw new IllegalArgumentException(s"Library $lib is not supported"))
+    // select the best available compiler server based on:
+    // 1) time of last activity
+    // 2) set of libraries
+    log.debug(compilers.values.toList.toString)
+    compilers.values.toSeq.filter(_.state == CompilerState.Ready)
+      .sortBy(_.lastActivity).zipWithIndex
+      .sortBy(info => if (info._1.lastLibs == libs) -1 else info._2) // use index to ensure stable sort
+      .headOption.map(_._1.copy(lastLibs = libs))
   }
 
   def updateCompilerState(id: String, newState: CompilerState) = {
     if (compilers.contains(id)) {
-      compilers.update(id, compilers(id).copy(state = newState))
+      compilers.update(id, compilers(id).copy(state = newState, lastActivity = System.currentTimeMillis()))
     }
   }
 
   def processQueue(): Unit = {
-    if(compilerQueue.nonEmpty) {
-      selectCompiler() match {
-        case Some(compilerInfo) =>
-          val (req, source) = compilerQueue.dequeue()
-          updateCompilerState(compilerInfo.id, CompilerState.Compiling)
-          compilationPending += compilerInfo.id -> source
-          compilerInfo.compilerService ! req
-          // process next in queue
-          processQueue()
-        case None =>
+    if (compilerQueue.nonEmpty) {
+      val (req, sourceActor) = compilerQueue.front
+      try {
+        selectCompiler(req) match {
+          case Some(compilerInfo) =>
+            // remove from queue
+            compilerQueue.dequeue()
+            compilers.update(compilerInfo.id, compilerInfo.copy(state = CompilerState.Compiling))
+            compilationPending += compilerInfo.id -> sourceActor
+            compilerInfo.compilerService ! req
+            // process next in queue
+            processQueue()
+          case None =>
           // no compiler available
+        }
+      } catch {
+        case e: Throwable =>
+          sourceActor ! Left(e.getMessage)
       }
     }
   }
 
   def receive = {
     case RegisterCompiler(id, compilerService) =>
-      compilers += id -> CompilerInfo(id, compilerService, CompilerState.Initializing, now)
+      compilers += id -> CompilerInfo(id, compilerService, CompilerState.Initializing, now, "unknown", Set.empty)
       // send current libraries
       compilerService ! UpdateLibraries(currentLibs)
       context.watch(compilerService)
@@ -129,10 +156,10 @@ class CompilerManager extends Actor with ActorLogging {
         log.debug("Refreshing libraries")
         val newLibs = loadLibraries(Config.extLibs, Config.defaultLibs)
         // are there any changes?
-        if(newLibs.toSet != currentLibs.toSet) {
+        if (newLibs.toSet != currentLibs.toSet) {
           currentLibs = newLibs
           // inform all connected compilers
-          compilers.values.foreach { _.compilerService ! UpdateLibraries(currentLibs)}
+          compilers.values.foreach {_.compilerService ! UpdateLibraries(currentLibs)}
         }
       } catch {
         case e: Throwable =>
@@ -144,6 +171,6 @@ class CompilerManager extends Actor with ActorLogging {
 object CompilerManager {
   def props = Props(new CompilerManager)
 
-  case class CompilerInfo(id: String, compilerService: ActorRef, state: CompilerState, lastActivity: Long)
+  case class CompilerInfo(id: String, compilerService: ActorRef, state: CompilerState, lastActivity: Long, lastClient: String, lastLibs: Set[ExtLib])
 
 }

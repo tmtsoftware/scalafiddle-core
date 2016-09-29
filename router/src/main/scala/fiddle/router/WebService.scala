@@ -168,7 +168,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                         log.debug(s"Compile request from $remoteIP")
                         val compileId = UUID.randomUUID().toString
                         val source = decodeSource(paramMap("source"))
-                        ask(compilerManager, CompilationRequest(compileId, source, paramMap("opt"))).mapTo[Either[String, CompilerResponse]].map {
+                        ask(compilerManager, CompilationRequest(compileId, source, clientIP.toString, paramMap("opt"))).mapTo[Either[String, CompilerResponse]].map {
                           case Right(response: CompilationResponse) if response.jsCode.isDefined =>
                             CacheResult(write(response).getBytes("UTF-8"))
                           case Right(response: CompilationResponse) =>
@@ -193,26 +193,28 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
           handleRejections(CorsDirectives.corsRejectionHandler) {
             CorsDirectives.cors(settings) {
               parameterMap { paramMap =>
-                extractRequest { request =>
-                  complete {
-                    cacheOr("complete", paramMap, completeValidator, 3600 * 24 * 90) {
-                      val compileId = UUID.randomUUID().toString
-                      val source = decodeSource(paramMap("source"))
-                      ask(compilerManager, CompletionRequest(compileId, source, paramMap("offset").toInt)).mapTo[Either[String, CompilerResponse]].map {
-                        case Right(response: CompletionResponse) if response.completions.nonEmpty =>
-                          CacheResult(write(response).getBytes("UTF-8"))
-                        case Right(response: CompletionResponse) if response.completions.isEmpty =>
-                          NoCacheResult(write(response).getBytes("UTF-8"))
-                        case Left(error) =>
-                          CacheError(error)
-                        case _ =>
-                          CacheError("Internal error")
-                      } recover {
-                        case e: Exception =>
-                          compilerManager ! CancelCompilation(compileId)
-                          throw e
-                      }
-                    }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
+                extractClientIP { clientIP =>
+                  extractRequest { request =>
+                    complete {
+                      cacheOr("complete", paramMap, completeValidator, 3600 * 24 * 90) {
+                        val compileId = UUID.randomUUID().toString
+                        val source = decodeSource(paramMap("source"))
+                        ask(compilerManager, CompletionRequest(compileId, source, clientIP.toString, paramMap("offset").toInt)).mapTo[Either[String, CompilerResponse]].map {
+                          case Right(response: CompletionResponse) if response.completions.nonEmpty =>
+                            CacheResult(write(response).getBytes("UTF-8"))
+                          case Right(response: CompletionResponse) if response.completions.isEmpty =>
+                            NoCacheResult(write(response).getBytes("UTF-8"))
+                          case Left(error) =>
+                            CacheError(error)
+                          case _ =>
+                            CacheError("Internal error")
+                        } recover {
+                          case e: Exception =>
+                            compilerManager ! CancelCompilation(compileId)
+                            throw e
+                        }
+                      }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
+                    }
                   }
                 }
               }

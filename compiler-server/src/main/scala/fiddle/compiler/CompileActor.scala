@@ -45,7 +45,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
                 context.self ! PoisonPill
           }
 
-        case CompilationRequest(id, sourceCode, optimizer) =>
+        case CompilationRequest(id, sourceCode, _, optimizer) =>
           val compiler = new Compiler(libraryManager, sourceCode)
           try {
             val opt = optimizer match {
@@ -60,7 +60,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
               sendOut(CompilationResponse(None, Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")), compiler.getLog.mkString("\n")))
           }
 
-        case CompletionRequest(id, sourceCode, offset) =>
+        case CompletionRequest(id, sourceCode, _, offset) =>
           val compiler = new Compiler(libraryManager, sourceCode)
           try {
             sendOut(CompletionResponse(compiler.autocomplete(offset.toInt)))

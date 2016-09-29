@@ -13,11 +13,12 @@ case class UpdateLibraries(libs: Seq[ExtLib]) extends CompilerMessage
 trait CompilerRequest {
   def id: String
   def source: String
+  def clientAddress: String
 }
 
-case class CompilationRequest(id: String, source: String, opt: String) extends CompilerMessage with CompilerRequest
+case class CompilationRequest(id: String, source: String, clientAddress: String, opt: String) extends CompilerMessage with CompilerRequest
 
-case class CompletionRequest(id: String, source: String, offset: Int) extends CompilerMessage with CompilerRequest
+case class CompletionRequest(id: String, source: String, clientAddress: String, offset: Int) extends CompilerMessage with CompilerRequest
 
 trait CompilerResponse
 
