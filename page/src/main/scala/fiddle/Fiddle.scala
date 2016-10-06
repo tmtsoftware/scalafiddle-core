@@ -37,6 +37,8 @@ object Fiddle {
 
   def println(ss: Any) = {
     ss match {
+      case null =>
+        print(div("null"))
       case m: Modifier@unchecked =>
         print(div(m))
       case _ =>
