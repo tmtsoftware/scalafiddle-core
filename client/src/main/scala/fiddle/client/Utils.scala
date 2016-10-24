@@ -4,6 +4,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
+import scala.scalajs.js.annotation.JSGlobalScope
 
 case class Channel[T]() {
   private[this] var value: Promise[T] = null
@@ -88,7 +89,8 @@ object EventTracker {
 }
 
 @js.native
-object GoogleAnalytics extends js.GlobalScope {
+@JSGlobalScope
+object GoogleAnalytics extends js.Object {
   def ga(send: String, event: String, category: String, action: String, label: String): Unit = js.native
   def ga(send: String, event: String, category: String, action: String, label: String, value: Long): Unit = js.native
 }
