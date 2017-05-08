@@ -9,11 +9,12 @@ val commonSettings = Seq(
     "-deprecation",
     "-feature"
   ),
-  scalaVersion := "2.11.8",
+  scalaVersion := "2.11.11",
   version := versions.fiddle
 )
 
-lazy val root = project.in(file("."))
+lazy val root = project
+  .in(file("."))
   .aggregate(page, compilerServer, runtime, client, router)
 
 lazy val shared = project
@@ -26,19 +27,18 @@ lazy val client = project
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % versions.dom,
-      "com.lihaoyi" %%% "scalatags" % versions.scalatags,
-      "com.lihaoyi" %%% "upickle" % versions.upickle,
-      "com.github.marklister" %%% "base64" % "0.2.2",
-      "org.scala-lang.modules" %% "scala-async" % versions.async % "provided",
-      "org.scalatest" %%% "scalatest" % versions.scalatest % "test"
+      "org.scala-js"           %%% "scalajs-dom" % versions.dom,
+      "com.lihaoyi"            %%% "scalatags"   % versions.scalatags,
+      "com.lihaoyi"            %%% "upickle"     % versions.upickle,
+      "com.github.marklister"  %%% "base64"      % "0.2.2",
+      "org.scala-lang.modules" %% "scala-async"  % versions.async % "provided",
+      "org.scalatest"          %%% "scalatest"   % versions.scalatest % "test"
     ),
     // rename output always to -opt.js
-    artifactPath in(Compile, fastOptJS) := ((crossTarget in(Compile, fastOptJS)).value /
+    artifactPath in (Compile, fastOptJS) := ((crossTarget in (Compile, fastOptJS)).value /
       ((moduleName in fastOptJS).value + "-opt.js")),
     relativeSourceMaps := true
   )
-
 
 lazy val page = project
   .enablePlugins(ScalaJSPlugin)
@@ -46,7 +46,7 @@ lazy val page = project
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % versions.dom,
-      "com.lihaoyi" %%% "scalatags" % versions.scalatags
+      "com.lihaoyi"  %%% "scalatags"   % versions.scalatags
     )
   )
 
@@ -54,12 +54,13 @@ lazy val runtime = project
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "org.scala-js" %% "scalajs-library" % scalaJSVersion,
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value
+      "org.scala-js"   %% "scalajs-library" % scalaJSVersion,
+      "org.scala-lang" % "scala-reflect"    % scalaVersion.value
     )
   )
 
-lazy val compilerServer = project.in(file("compiler-server"))
+lazy val compilerServer = project
+  .in(file("compiler-server"))
   .dependsOn(shared, page)
   .enablePlugins(JavaAppPackaging)
   .enablePlugins(sbtdocker.DockerPlugin)
@@ -68,28 +69,28 @@ lazy val compilerServer = project.in(file("compiler-server"))
   .settings(
     name := "scalafiddle-core",
     libraryDependencies ++= Seq(
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-      "com.typesafe.akka" %% "akka-actor" % versions.akka,
-      "com.typesafe.akka" %% "akka-slf4j" % versions.akka,
-      "com.typesafe.akka" %% "akka-http-core" % versions.akka,
-      "com.typesafe.akka" %% "akka-http-experimental" % versions.akka,
-      "ch.qos.logback" % "logback-classic" % "1.1.3",
-      "org.scala-js" % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
-      "org.scala-js" %% "scalajs-tools" % scalaJSVersion,
-      "org.scalamacros" %% "paradise" % versions.macroParadise cross CrossVersion.full,
-      "org.scala-lang.modules" %% "scala-async" % versions.async % "provided",
-      "com.lihaoyi" %% "scalatags" % versions.scalatags,
-      "com.lihaoyi" %% "upickle" % versions.upickle,
-      "io.get-coursier" %% "coursier" % versions.coursier,
-      "io.get-coursier" %% "coursier-cache" % versions.coursier,
-      "org.apache.maven" % "maven-artifact" % "3.3.9",
-      "org.xerial.snappy" % "snappy-java" % "1.1.2.1",
-      "org.xerial.larray" %% "larray" % "0.3.4",
-      "org.scalatest" %% "scalatest" % versions.scalatest % "test"
+      "org.scala-lang"         % "scala-compiler"   % scalaVersion.value,
+      "com.typesafe.akka"      %% "akka-actor"      % versions.akka,
+      "com.typesafe.akka"      %% "akka-stream"     % versions.akka,
+      "com.typesafe.akka"      %% "akka-slf4j"      % versions.akka,
+      "com.typesafe.akka"      %% "akka-http"       % versions.akkaHttp,
+      "ch.qos.logback"         % "logback-classic"  % "1.1.10",
+      "org.scala-js"           % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
+      "org.scala-js"           %% "scalajs-tools"   % scalaJSVersion,
+      "org.scalamacros"        %% "paradise"        % versions.macroParadise cross CrossVersion.full,
+      "org.scala-lang.modules" %% "scala-async"     % versions.async % "provided",
+      "com.lihaoyi"            %% "scalatags"       % versions.scalatags,
+      "com.lihaoyi"            %% "upickle"         % versions.upickle,
+      "io.get-coursier"        %% "coursier"        % versions.coursier,
+      "io.get-coursier"        %% "coursier-cache"  % versions.coursier,
+      "org.apache.maven"       % "maven-artifact"   % "3.3.9",
+      "org.xerial.snappy"      % "snappy-java"      % "1.1.2.1",
+      "org.xerial.larray"      %% "larray"          % "0.3.4",
+      "org.scalatest"          %% "scalatest"       % versions.scalatest % "test"
     ),
     (resources in Compile) ++= {
-      (managedClasspath in(runtime, Compile)).value.map(_.data) ++ Seq(
-        (packageBin in(page, Compile)).value
+      (managedClasspath in (runtime, Compile)).value.map(_.data) ++ Seq(
+        (packageBin in (page, Compile)).value
       )
     },
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
@@ -111,7 +112,7 @@ lazy val compilerServer = project.in(file("compiler-server"))
     scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
     dockerfile in docker := {
       val appDir: File = stage.value
-      val targetDir = "/app"
+      val targetDir    = "/app"
 
       new Dockerfile {
         from("java:8")
@@ -143,18 +144,18 @@ lazy val router = (project in file("router"))
   .settings(
     name := "scalafiddle-router",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % versions.akka,
-      "com.typesafe.akka" %% "akka-slf4j" % versions.akka,
-      "com.typesafe.akka" %% "akka-http-core" % versions.akka,
-      "com.typesafe.akka" %% "akka-http-experimental" % versions.akka,
-      "com.lihaoyi" %% "scalatags" % versions.scalatags,
-      "org.webjars" % "ace" % versions.ace,
-      "org.webjars" % "normalize.css" % "2.1.3",
-      "com.lihaoyi" %% "upickle" % versions.upickle,
-      "com.github.marklister" %% "base64" % "0.2.2",
-      "ch.megard" %% "akka-http-cors" % "0.1.4",
-      "org.scalatest" %% "scalatest" % versions.scalatest % "test",
-      "ch.qos.logback" % "logback-classic" % "1.1.7"
+      "com.typesafe.akka"     %% "akka-actor"     % versions.akka,
+      "com.typesafe.akka"     %% "akka-stream"    % versions.akka,
+      "com.typesafe.akka"     %% "akka-slf4j"     % versions.akka,
+      "com.typesafe.akka"     %% "akka-http"      % versions.akkaHttp,
+      "com.lihaoyi"           %% "scalatags"      % versions.scalatags,
+      "org.webjars"           % "ace"             % versions.ace,
+      "org.webjars"           % "normalize.css"   % "2.1.3",
+      "com.lihaoyi"           %% "upickle"        % versions.upickle,
+      "com.github.marklister" %% "base64"         % "0.2.2",
+      "ch.megard"             %% "akka-http-cors" % "0.2.1",
+      "org.scalatest"         %% "scalatest"      % versions.scalatest % "test",
+      "ch.qos.logback"        % "logback-classic" % "1.1.10"
     ),
     javaOptions in Revolver.reStart ++= Seq("-Xmx1g"),
     scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
@@ -172,11 +173,12 @@ lazy val router = (project in file("router"))
       Seq(file)
     }.taskValue,
     (resources in Compile) ++= {
-      Seq((fullOptJS in(client, Compile)).value.data)
+      // Seq((fullOptJS in (client, Compile)).value.data)
+      Seq((fastOptJS in (client, Compile)).value.data)
     },
     dockerfile in docker := {
       val appDir: File = stage.value
-      val targetDir = "/app"
+      val targetDir    = "/app"
 
       new Dockerfile {
         from("openjdk:8")

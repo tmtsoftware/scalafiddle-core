@@ -5,7 +5,7 @@ import org.scalajs.dom.html
 
 import scala.concurrent.{Future, Promise}
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.annotation.JSExportTopLevel
 import scala.util.Try
 import scalatags.JsDom.all._
 
@@ -13,13 +13,13 @@ import scalatags.JsDom.all._
   * API for things that belong to the page, and are useful to both the fiddle
   * client, user code as well as exported read-only pages.
   */
-@JSExport
+@JSExportTopLevel("Fiddle")
 object Fiddle {
 
   object colors {
-    def red = span(color := "#E95065")
-    def blue = span(color := "#46BDDF")
-    def green = span(color := "#52D273")
+    def red    = span(color := "#E95065")
+    def blue   = span(color := "#46BDDF")
+    def green  = span(color := "#52D273")
     def yellow = span(color := "#E5C453")
     def orange = span(color := "#E57255")
   }
@@ -31,15 +31,15 @@ object Fiddle {
   def getElem[T](id: String) = dom.document.getElementById(id).asInstanceOf[T]
 
   val sandbox = getElem[html.Div]("container")
-  val canvas = getElem[html.Canvas]("canvas")
-  val draw = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
-  val panel = getElem[html.Div]("output")
+  val canvas  = getElem[html.Canvas]("canvas")
+  val draw    = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
+  val panel   = getElem[html.Div]("output")
 
   def println(ss: Any) = {
     ss match {
       case null =>
         print(div("null"))
-      case m: Modifier@unchecked =>
+      case m: Modifier @unchecked =>
         print(div(m))
       case _ =>
         print(div(ss.toString))

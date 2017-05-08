@@ -11,5 +11,3 @@ object CompilerState {
   case object Compiling extends CompilerState
 
 }
-
-

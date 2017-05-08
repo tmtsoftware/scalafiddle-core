@@ -17,14 +17,14 @@ case class IntValidator(min: Int = 0, max: Int = Int.MaxValue) extends Validator
       min <= i && i < max
     } match {
       case Failure(_) | Success(false) => Some(s"Expected an integer between $min and $max")
-      case _ => None
+      case _                           => None
     }
   }
 }
 
 case class ListValidator(options: String*) extends Validator {
   override def isInvalid(input: String): Option[String] = {
-    if(options.contains(input))
+    if (options.contains(input))
       None
     else
       Some(s"$input is not a valid value")

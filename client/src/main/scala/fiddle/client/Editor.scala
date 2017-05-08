@@ -16,14 +16,14 @@ import scala.scalajs.js.{Dynamic => Dyn}
   * do exactly what we want.
   */
 class Editor(bindings: Seq[(String, String, () => Any)],
-  completions: () => Future[CompletionResponse],
-  implicit val logger: Logger) {
+             completions: () => Future[CompletionResponse],
+             implicit val logger: Logger) {
   lazy val Autocomplete = js.Dynamic.global.require("ace/autocomplete").Autocomplete
-  def sess = editor.getSession()
-  def aceDoc = sess.getDocument()
-  def code = sess.getValue().asInstanceOf[String]
-  def row = editor.getCursorPosition().row.asInstanceOf[Int]
-  def column = editor.getCursorPosition().column.asInstanceOf[Int]
+  def sess              = editor.getSession()
+  def aceDoc            = sess.getDocument()
+  def code              = sess.getValue().asInstanceOf[String]
+  def row               = editor.getCursorPosition().row.asInstanceOf[Int]
+  def column            = editor.getCursorPosition().column.asInstanceOf[Int]
 
   def complete() = {
     if (!js.DynamicImplicits.truthValue(editor.completer))
@@ -40,12 +40,14 @@ class Editor(bindings: Seq[(String, String, () => Any)],
     if (annotations.nonEmpty) {
       editor.renderer.setShowGutter(true)
       val aceAnnotations = annotations.map { ann =>
-        JsVal.obj(
-          "row" -> ann.row,
-          "col" -> ann.col,
-          "text" -> ann.text.mkString("\n"),
-          "type" -> ann.tpe
-        ).value
+        JsVal
+          .obj(
+            "row"  -> ann.row,
+            "col"  -> ann.col,
+            "text" -> ann.text.mkString("\n"),
+            "type" -> ann.tpe
+          )
+          .value
       }.toJSArray
       editor.getSession().setAnnotations(aceAnnotations)
     } else {
@@ -62,29 +64,37 @@ class Editor(bindings: Seq[(String, String, () => Any)],
 
     for ((name, key, func) <- bindings) {
       val binding = s"Ctrl-$key|Cmd-$key"
-      ed.commands.addCommand(JsVal.obj(
-        "name" -> name,
-        "bindKey" -> JsVal.obj(
-          "win" -> binding,
-          "mac" -> binding,
-          "sender" -> "editor|cli"
-        ),
-        "exec" -> func
-      ))
+      ed.commands.addCommand(
+        JsVal.obj(
+          "name" -> name,
+          "bindKey" -> JsVal.obj(
+            "win"    -> binding,
+            "mac"    -> binding,
+            "sender" -> "editor|cli"
+          ),
+          "exec" -> func
+        ))
     }
 
-    ed.completers = js.Array(JsVal.obj(
-      "getCompletions" -> { (editor: Dyn, session: Dyn, pos: Dyn, prefix: Dyn, callback: Dyn) => task * async {
-        val things = await(completions()).completions.map { case (name, value) =>
-          JsVal.obj(
-            "value" -> value,
-            "caption" -> (value + name)
-          ).value
-        }
-        callback(null, js.Array(things: _*))
-      }
-      }
-    ).value)
+    ed.completers = js.Array(
+      JsVal
+        .obj(
+          "getCompletions" -> { (editor: Dyn, session: Dyn, pos: Dyn, prefix: Dyn, callback: Dyn) =>
+            task * async {
+              val things = await(completions()).completions.map {
+                case (name, value) =>
+                  JsVal
+                    .obj(
+                      "value"   -> value,
+                      "caption" -> (value + name)
+                    )
+                    .value
+              }
+              callback(null, js.Array(things: _*))
+            }
+          }
+        )
+        .value)
 
     ed.getSession().setTabSize(2)
 
@@ -96,7 +106,7 @@ object Editor {
   lazy val initEditor: js.Dynamic = {
     val theme = Client.queryParams.get("theme") match {
       case Some("dark") => "ace/theme/tomorrow_night"
-      case _ => "ace/theme/eclipse"
+      case _            => "ace/theme/eclipse"
     }
     val editor = global.ace.edit("editor")
     editor.setTheme(theme)
@@ -106,7 +116,7 @@ object Editor {
     editor.$blockScrolling = Double.PositiveInfinity
     editor.getSession().setMode("ace/mode/scala")
     editor.getSession().setOption("useWorker", false)
-    if(Client.previewMode)
+    if (Client.previewMode)
       editor.setReadOnly(true)
     editor
   }

@@ -8,8 +8,8 @@ import scala.collection.mutable
 
 class LRUCache[T](name: String) {
   protected val cacheSize = Config.compilerCacheSize
-  private val cache = mutable.ListMap.empty[Int, T]
-  private val log = LoggerFactory.getLogger(getClass)
+  private val cache       = mutable.ListMap.empty[Int, T]
+  private val log         = LoggerFactory.getLogger(getClass)
 
   def getOrUpdate(libs: Set[ExtLib], update: => T): T = {
     val hash = hashLibs(libs)
@@ -21,7 +21,7 @@ class LRUCache[T](name: String) {
       case None =>
         log.debug(s"Cache miss for $name")
         val value = update
-        if(cache.size >= cacheSize) {
+        if (cache.size >= cacheSize) {
           cache.iterator.drop(cacheSize - 1).foreach(cache -= _._1)
         }
         cache += hash -> value

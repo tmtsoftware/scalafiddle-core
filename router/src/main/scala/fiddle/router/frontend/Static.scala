@@ -48,31 +48,33 @@ object Static {
   def renderPage(srcFiles: Seq[String], paramMap: Map[String, String]): Array[Byte] = {
     // apply layout parameters
     val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "640").toInt).getOrElse(640)
-    val customStyle = paramMap.getOrElse("style", "")
+    val customStyle     = paramMap.getOrElse("style", "")
     val (themeCSS, logoSrc) = paramMap.get("theme") match {
       case Some("dark") => ("/styles-dark.css", Config.logoDark)
-      case _ => ("/styles-light.css", Config.logoLight)
+      case _            => ("/styles-light.css", Config.logoLight)
     }
     val fullOpt = paramMap.contains("fullOpt")
-    val allJS = joinResources(extJSFiles ++ srcFiles, ".js", ";\n")
-    val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
-    val jsURLs = s"cache/$allJS" +: Config.extJS
+    val allJS   = joinResources(extJSFiles ++ srcFiles, ".js", ";\n")
+    val allCSS  = joinResources(cssFiles :+ themeCSS, ".css", "\n")
+    val jsURLs  = s"cache/$allJS" +: Config.extJS
     val cssURLs = s"cache/$allCSS" +: Config.extCSS
 
     // convert baseEnv to JS string variable
     val baseEnv =
-    s"""var baseEnv = ${Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n")};"""
+      s"""var baseEnv = ${Config.baseEnv.split('\n').map(l => s"""'$l\\n'""").mkString(" +\n")};"""
 
     // parse which buttons to hide
     val toHide = paramMap.get("hideButtons").map(_.split(',')).getOrElse(Array.empty)
-    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b.id)).map { case Button(bId, bValue, bTitle) =>
-      div(title := bTitle, id := s"$bId-icon", cls := "icon")(
-        svg(width := 21, height := 21)(use(xLinkHref := s"#sym_$bId")), span(cls := "button", bValue)
-      )
+    val visibleButtons: Seq[Modifier] = buttons.filterNot(b => toHide.contains(b.id)).map {
+      case Button(bId, bValue, bTitle) =>
+        div(title := bTitle, id := s"$bId-icon", cls := "icon")(
+          svg(width := 21, height := 21)(use(xLinkHref := s"#sym_$bId")),
+          span(cls := "button", bValue)
+        )
     }
     val (direction, ratio) = paramMap.getOrElse("layout", "h50") match {
       case layoutRE(d, r) => (d, r.toInt min 85 max 15)
-      case _ => ("h", 50)
+      case _              => ("h", 50)
     }
     val editorSize = ratio.toInt
     val outputSize = 100 - editorSize
@@ -117,13 +119,12 @@ object Static {
         meta(name := "viewport", content := "width=device-width, initial-scale=1"),
         meta(name := "author", content := "Otto Chrons and Li Haoyi"),
         tags2.title("ScalaFiddle"),
-        for (jsURL <- jsURLs) yield script(`type` := "application/javascript", src := jsURL),
+        for (jsURL  <- jsURLs) yield script(`type` := "application/javascript", src := jsURL),
         for (cssURL <- cssURLs) yield link(rel := "stylesheet", href := cssURL),
         scalatags.Text.tags2.style(raw(layout))
       ),
       body(
-        raw(
-          """
+        raw("""
             |<svg xmlns="http://www.w3.org/2000/svg">
             | <symbol id="sym_help" viewBox="0 0 24 24">
             |   <g>
@@ -167,7 +168,6 @@ object Static {
             |</svg>
             |</svg>
           """.stripMargin),
-
         div(cls := "top")(
           header(
             div(cls := "left")(
@@ -193,14 +193,17 @@ object Static {
                 height := "100%",
                 attr("frameborder") := "0",
                 attr("sandbox") := "allow-scripts",
-                src := s"codeframe?theme=${paramMap.getOrElse("theme", "light")}")
+                src := s"codeframe?theme=${paramMap.getOrElse("theme", "light")}"
+              )
             )
           )
         )
       ),
-      script(`type` := "text/javascript", raw(
-        if (Config.analyticsID.nonEmpty)
-          s"""
+      script(
+        `type` := "text/javascript",
+        raw(
+          if (Config.analyticsID.nonEmpty)
+            s"""
              |(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
              |(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
              |m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
@@ -208,9 +211,11 @@ object Static {
              |ga('create', '${Config.analyticsID}', 'auto');
              |ga('send', 'pageview');
              |""".stripMargin
-        else "")),
+          else "")
+      ),
       script(`type` := "text/javascript", raw(baseEnv)),
-      script(`type` := "text/javascript", raw(s"""Client().main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
+      script(`type` := "text/javascript",
+             raw(s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
     ).toString()
     pageHtml.getBytes(StandardCharsets.UTF_8)
   }
@@ -218,9 +223,9 @@ object Static {
   def renderCodeFrame(paramMap: Map[String, String]): Array[Byte] = {
     val themeCSS = paramMap.get("theme") match {
       case Some("dark") => "/styles-dark.css"
-      case _ => "/styles-light.css"
+      case _            => "/styles-light.css"
     }
-    val allCSS = joinResources(cssFiles :+ themeCSS, ".css", "\n")
+    val allCSS  = joinResources(cssFiles :+ themeCSS, ".css", "\n")
     val cssURLs = s"cache/$allCSS" +: Config.extCSS
 
     val pageHtml = "<!DOCTYPE html>" + html(
@@ -234,8 +239,9 @@ object Static {
           div(cls := "label")(span(id := "output-tag", "Output")),
           canvas(id := "canvas", style := "position: absolute"),
           div(id := "output"),
-          script(`type` := "text/javascript", raw(
-            """
+          script(
+            `type` := "text/javascript",
+            raw("""
               |var label = document.getElementById("output-tag");
               |var canvas = document.getElementById("canvas");
               |var panel = document.getElementById("output");
@@ -259,7 +265,7 @@ object Static {
               |    case "code":
               |      try {
               |        eval(msg.data);
-              |        eval("var sf = ScalaFiddle();if(typeof sf.main === 'function') sf.main();");
+              |        eval("var sf = ScalaFiddle;if(typeof sf === 'function' && typeof sf().main === 'function') sf().main();");
               |      } catch(ex) {
               |        panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '\n' + ex.stack + '</pre>')
               |      } finally {
@@ -281,13 +287,15 @@ object Static {
     // files need a bit of glue between them to work properly in concatenated form
     val glue = glueStr.getBytes
     // read all resources and calculate both hash and concatenated string
-    val data = resources.map { res =>
-      log.debug(s"Loading reseource $res")
-      val stream = getClass.getResourceAsStream(res)
-      val data = Stream.continually(stream.read).takeWhile(_ != -1).map(_.toByte).toArray ++ glue
-      hash.update(data)
-      data
-    }.reduceLeft(_ ++ _)
+    val data = resources
+      .map { res =>
+        log.debug(s"Loading reseource $res")
+        val stream = getClass.getResourceAsStream(res)
+        val data   = Stream.continually(stream.read).takeWhile(_ != -1).map(_.toByte).toArray ++ glue
+        hash.update(data)
+        data
+      }
+      .reduceLeft(_ ++ _)
     (hash.digest().map("%02x".format(_)).mkString, data)
   }
 

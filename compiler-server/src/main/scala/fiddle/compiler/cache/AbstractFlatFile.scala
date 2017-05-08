@@ -8,15 +8,15 @@ import scala.tools.nsc.io.AbstractFile
 import scala.reflect.io._
 
 class AbstractFlatFile(flatFile: FlatFile, flatJar: FlatJar, ffs: FlatFileSystem) extends AbstractFile {
-  override val path = flatFile.path
-  override val name: String = path.split('/').last
-  override def absolute: AbstractFile = this
+  override val path                    = flatFile.path
+  override val name: String            = path.split('/').last
+  override def absolute: AbstractFile  = this
   override def container: AbstractFile = NoAbstractFile
-  override def file: File = null
-  override def create(): Unit = unsupported()
-  override def delete(): Unit = unsupported()
-  override def isDirectory: Boolean = false
-  val lastModified: Long = System.currentTimeMillis
+  override def file: File              = null
+  override def create(): Unit          = unsupported()
+  override def delete(): Unit          = unsupported()
+  override def isDirectory: Boolean    = false
+  val lastModified: Long               = System.currentTimeMillis
   override def input: InputStream = {
     new ByteArrayInputStream(ffs.load(flatFile.path))
   }
@@ -25,9 +25,9 @@ class AbstractFlatFile(flatFile: FlatFile, flatJar: FlatJar, ffs: FlatFileSystem
     ffs.load(flatJar, flatFile.path)
   }
 
-  override def output: OutputStream = unsupported()
-  override def iterator: Iterator[AbstractFile] = Iterator.empty
-  override def lookupName(name: String, directory: Boolean): AbstractFile = null
+  override def output: OutputStream                                                = unsupported()
+  override def iterator: Iterator[AbstractFile]                                    = Iterator.empty
+  override def lookupName(name: String, directory: Boolean): AbstractFile          = null
   override def lookupNameUnchecked(name: String, directory: Boolean): AbstractFile = null
 
   override def toString(): String = s"AFF($name)"
@@ -35,16 +35,16 @@ class AbstractFlatFile(flatFile: FlatFile, flatJar: FlatJar, ffs: FlatFileSystem
 
 class AbstractFlatDir(val path: String, val children: ArrayBuffer[AbstractFile] = ArrayBuffer.empty) extends AbstractFile {
   private lazy val files: Map[String, AbstractFile] = children.map(c => c.name -> c)(collection.breakOut)
-  override val name: String = path.split('/').last
-  override def absolute: AbstractFile = this
-  override def container: AbstractFile = NoAbstractFile
-  override def file: File = null
-  override def create(): Unit = unsupported()
-  override def delete(): Unit = unsupported()
-  override def isDirectory: Boolean = true
-  val lastModified: Long = System.currentTimeMillis
-  override def input: InputStream = unsupported()
-  override def output: OutputStream = unsupported()
+  override val name: String                         = path.split('/').last
+  override def absolute: AbstractFile               = this
+  override def container: AbstractFile              = NoAbstractFile
+  override def file: File                           = null
+  override def create(): Unit                       = unsupported()
+  override def delete(): Unit                       = unsupported()
+  override def isDirectory: Boolean                 = true
+  val lastModified: Long                            = System.currentTimeMillis
+  override def input: InputStream                   = unsupported()
+  override def output: OutputStream                 = unsupported()
   override def iterator: Iterator[AbstractFile] = {
     children.iterator
   }
@@ -81,8 +81,8 @@ class AbstractFlatJar(val flatJar: FlatJar, ffs: FlatFileSystem) {
     }
 
     flatJar.files.foreach { file =>
-      val path = "" +: file.path.split('/')
-      val parent = findParent(path.dropRight(1))
+      val path    = "" +: file.path.split('/')
+      val parent  = findParent(path.dropRight(1))
       val newFile = new AbstractFlatFile(file, flatJar, ffs)
       parent.children.append(newFile)
     }

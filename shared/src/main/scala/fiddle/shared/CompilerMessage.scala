@@ -16,14 +16,20 @@ trait CompilerRequest {
   def clientAddress: String
 }
 
-case class CompilationRequest(id: String, source: String, clientAddress: String, opt: String) extends CompilerMessage with CompilerRequest
+case class CompilationRequest(id: String, source: String, clientAddress: String, opt: String)
+    extends CompilerMessage
+    with CompilerRequest
 
-case class CompletionRequest(id: String, source: String, clientAddress: String, offset: Int) extends CompilerMessage with CompilerRequest
+case class CompletionRequest(id: String, source: String, clientAddress: String, offset: Int)
+    extends CompilerMessage
+    with CompilerRequest
 
 trait CompilerResponse
 
 case class EditorAnnotation(row: Int, col: Int, text: Seq[String], tpe: String)
 
-case class CompilationResponse(jsCode: Option[String], annotations: Seq[EditorAnnotation], log: String) extends CompilerResponse with CompilerMessage
+case class CompilationResponse(jsCode: Option[String], annotations: Seq[EditorAnnotation], log: String)
+    extends CompilerResponse
+    with CompilerMessage
 
 case class CompletionResponse(completions: List[(String, String)]) extends CompilerResponse with CompilerMessage

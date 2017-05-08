@@ -8,7 +8,7 @@ import fiddle.router.cache.FileCache
 object Server extends App {
   val system = ActorSystem()
 
-  val cache = new FileCache(Paths.get(Config.cacheDir))
+  val cache           = new FileCache(Paths.get(Config.cacheDir))
   val compilerManager = system.actorOf(CompilerManager.props)
 
   val webService = new WebService(system, cache, compilerManager)

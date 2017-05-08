@@ -23,11 +23,11 @@ case object RefreshLibraries
 class CompilerManager extends Actor with ActorLogging {
   import CompilerManager._
 
-  val compilers = mutable.Map.empty[String, CompilerInfo]
-  var compilerQueue = mutable.Queue.empty[(CompilerRequest, ActorRef)]
+  val compilers          = mutable.Map.empty[String, CompilerInfo]
+  var compilerQueue      = mutable.Queue.empty[(CompilerRequest, ActorRef)]
   val compilationPending = mutable.Map.empty[String, ActorRef]
-  var currentLibs = loadLibraries(Config.extLibs, Config.defaultLibs)
-  val dependencyRE = """ *// \$FiddleDependency (.+)""".r
+  var currentLibs        = loadLibraries(Config.extLibs, Config.defaultLibs)
+  val dependencyRE       = """ *// \$FiddleDependency (.+)""".r
 
   def now = System.currentTimeMillis()
 
@@ -43,8 +43,16 @@ class CompilerManager extends Actor with ActorLogging {
       scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
     } else if (uri.startsWith("http")) {
       // load from internet
-      System.setProperty("http.agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.29 Safari/537.36")
-      scala.io.Source.fromURL(uri, "UTF-8").mkString
+      System.setProperty(
+        "http.agent",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.29 Safari/537.36")
+      try {
+        scala.io.Source.fromURL(uri, "UTF-8").mkString
+      } catch {
+        case e: Throwable =>
+          log.error(e, s"Unable to load libraries")
+          "[]"
+      }
     } else {
       // load from resources
       scala.io.Source.fromInputStream(getClass.getResourceAsStream(uri), "UTF-8").mkString
@@ -64,15 +72,19 @@ class CompilerManager extends Actor with ActorLogging {
     // extract libs from the source
     val libs = extractLibs(req.source)
     // check that all libs are supported
-    libs.foreach(lib => if (!currentLibs.contains(lib)) throw new IllegalArgumentException(s"Library $lib is not supported"))
+    libs.foreach(lib =>
+      if (!currentLibs.contains(lib)) throw new IllegalArgumentException(s"Library $lib is not supported"))
     // select the best available compiler server based on:
     // 1) time of last activity
     // 2) set of libraries
     log.debug(compilers.values.toList.toString)
-    compilers.values.toSeq.filter(_.state == CompilerState.Ready)
-      .sortBy(_.lastActivity).zipWithIndex
+    compilers.values.toSeq
+      .filter(_.state == CompilerState.Ready)
+      .sortBy(_.lastActivity)
+      .zipWithIndex
       .sortBy(info => if (info._1.lastLibs == libs) -1 else info._2) // use index to ensure stable sort
-      .headOption.map(_._1.copy(lastLibs = libs))
+      .headOption
+      .map(_._1.copy(lastLibs = libs))
   }
 
   def updateCompilerState(id: String, newState: CompilerState) = {
@@ -159,7 +171,7 @@ class CompilerManager extends Actor with ActorLogging {
         if (newLibs.toSet != currentLibs.toSet) {
           currentLibs = newLibs
           // inform all connected compilers
-          compilers.values.foreach {_.compilerService ! UpdateLibraries(currentLibs)}
+          compilers.values.foreach { _.compilerService ! UpdateLibraries(currentLibs) }
         }
       } catch {
         case e: Throwable =>
@@ -171,6 +183,11 @@ class CompilerManager extends Actor with ActorLogging {
 object CompilerManager {
   def props = Props(new CompilerManager)
 
-  case class CompilerInfo(id: String, compilerService: ActorRef, state: CompilerState, lastActivity: Long, lastClient: String, lastLibs: Set[ExtLib])
+  case class CompilerInfo(id: String,
+                          compilerService: ActorRef,
+                          state: CompilerState,
+                          lastActivity: Long,
+                          lastClient: String,
+                          lastLibs: Set[ExtLib])
 
 }

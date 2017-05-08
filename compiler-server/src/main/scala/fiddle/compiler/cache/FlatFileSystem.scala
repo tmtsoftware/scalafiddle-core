@@ -53,9 +53,9 @@ object FlatFileSystem {
 
   def apply(location: Path): FlatFileSystem = {
     location.toFile.mkdirs()
-    val jars = readMetadata(location)
+    val jars                         = readMetadata(location)
     val index: Map[String, FlatFile] = createIndex(jars)
-    val data = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)
+    val data                         = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)
     new FlatFileSystem(data, jars, index)
   }
 
@@ -82,14 +82,14 @@ object FlatFileSystem {
     location.toFile.mkdirs()
 
     val dataFile = location.resolve("data").toFile
-    val fos = new FileOutputStream(dataFile, true)
-    var offset = dataFile.length()
+    val fos      = new FileOutputStream(dataFile, true)
+    var offset   = dataFile.length()
 
     // read through all new JARs, append contents to data and create metadata
     val addedJars = newJars.map { jarPath =>
       val name = jarPath._1
       log.debug(s"Extracting JAR $name")
-      val fis = jarPath._2
+      val fis       = jarPath._2
       val jarStream = new ZipInputStream(fis)
       val entries = Iterator
         .continually(jarStream.getNextEntry)
@@ -98,7 +98,7 @@ object FlatFileSystem {
 
       val files = entries.map { entry =>
         // read and compress the file
-        val content = Streamable.bytes(jarStream)
+        val content    = Streamable.bytes(jarStream)
         val compressed = Snappy.compress(content)
         fos.write(compressed)
         val ff = FlatFile(entry.getName, offset, compressed.length, content.length)
@@ -111,7 +111,7 @@ object FlatFileSystem {
     fos.close()
 
     val finalJars = existingJars ++ addedJars
-    val json = write(finalJars)
+    val json      = write(finalJars)
     Files.write(json, location.resolve("index.json").toFile, StandardCharsets.UTF_8)
 
     val data = LArray.mmap(location.resolve("data").toFile, MMapMode.READ_ONLY)

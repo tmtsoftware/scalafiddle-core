@@ -2,6 +2,8 @@ package fiddle.compiler
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, PoisonPill, Props}
 import akka.http.scaladsl.model.ws.TextMessage
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Sink
 import fiddle.shared._
 import org.scalajs.core.tools.io.VirtualScalaJSIRFile
 import upickle.default._
@@ -12,8 +14,9 @@ import scala.concurrent.duration._
 
 class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLogging {
   import context.dispatcher
+  implicit val materializer = ActorMaterializer()(context)
 
-  var timer: Cancellable = _
+  var timer: Cancellable             = _
   var libraryManager: LibraryManager = _
 
   override def preStart(): Unit = {
@@ -30,74 +33,82 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
     case Ping =>
       sendOut(Ping)
 
-    case TextMessage.Strict(msg) =>
-      read[CompilerMessage](msg) match {
-        case UpdateLibraries(extLibs) =>
-          log.debug(s"Received ${extLibs.size} libraries")
-          // library loading can take some time, run in another thread
-          Future(new LibraryManager(extLibs)).map { mgr =>
-            libraryManager = mgr
-            sendOut(CompilerReady)
-          } recover {
-            case e =>
-              log.error(e, "Error while loading libraries")
-              if (libraryManager == null)
-                context.self ! PoisonPill
-          }
-
-        case CompilationRequest(id, sourceCode, _, optimizer) =>
-          val compiler = new Compiler(libraryManager, sourceCode)
-          try {
-            val opt = optimizer match {
-              case "fast" => compiler.fastOpt _
-              case "full" => compiler.fullOpt _
+    case msg: TextMessage =>
+      msg.textStream.runWith(Sink.reduce[String](_ + _)).map { text =>
+        read[CompilerMessage](text) match {
+          case UpdateLibraries(extLibs) =>
+            log.debug(s"Received ${extLibs.size} libraries")
+            // library loading can take some time, run in another thread
+            Future(new LibraryManager(extLibs)).map { mgr =>
+              libraryManager = mgr
+              sendOut(CompilerReady)
+            } recover {
+              case e =>
+                log.error(e, "Error while loading libraries")
+                if (libraryManager == null)
+                  context.self ! PoisonPill
             }
-            val res = doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
-            sendOut(res)
-          } catch {
-            case e: Throwable =>
-              log.error(s"Error in compilation", e)
-              sendOut(CompilationResponse(None, Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")), compiler.getLog.mkString("\n")))
-          }
 
-        case CompletionRequest(id, sourceCode, _, offset) =>
-          val compiler = new Compiler(libraryManager, sourceCode)
-          try {
-            sendOut(CompletionResponse(compiler.autocomplete(offset.toInt)))
-          } catch {
-            case e: Throwable =>
-              sendOut(CompletionResponse(List.empty))
-          }
+          case CompilationRequest(id, sourceCode, _, optimizer) =>
+            val compiler = new Compiler(libraryManager, sourceCode)
+            try {
+              val opt = optimizer match {
+                case "fast" => compiler.fastOpt _
+                case "full" => compiler.fullOpt _
+              }
+              val res = doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
+              sendOut(res)
+            } catch {
+              case e: Throwable =>
+                log.error(s"Error in compilation", e)
+                sendOut(
+                  CompilationResponse(None,
+                                      Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")),
+                                      compiler.getLog.mkString("\n")))
+            }
 
-        case Pong =>
-        // no action
+          case CompletionRequest(id, sourceCode, _, offset) =>
+            val compiler = new Compiler(libraryManager, sourceCode)
+            try {
+              sendOut(CompletionResponse(compiler.autocomplete(offset.toInt)))
+            } catch {
+              case e: Throwable =>
+                sendOut(CompletionResponse(List.empty))
+            }
 
-        case other =>
-          log.error(s"Unsupported compiler message $other")
+          case Pong =>
+          // no action
+
+          case other =>
+            log.error(s"Unsupported compiler message $other")
+        }
       }
   }
 
   val errorStart = """^\w+.scala:(\d+): *(\w+): *(.*)""".r
-  val errorEnd = """ *\^ *$""".r
+  val errorEnd   = """ *\^ *$""".r
 
   def parseErrors(log: String): Seq[EditorAnnotation] = {
     val lines = log.split('\n').toSeq.map(_.replaceAll("[\\n\\r]", ""))
-    val (annotations, _) = lines.foldLeft((Seq.empty[EditorAnnotation], Option.empty[EditorAnnotation])) { case ((acc, current), line) =>
-      line match {
-        case errorStart(lineNo, severity, msg) =>
-          val ann = EditorAnnotation(lineNo.toInt - 1, 0, Seq(msg), severity)
-          (acc, Some(ann))
-        case errorEnd() if current.isDefined =>
-          val ann = current.map(ann => ann.copy(col = line.length, text = ann.text :+ line)).get
-          (acc :+ ann, None)
-        case errLine =>
-          (acc, current.map(ann => ann.copy(text = ann.text :+ errLine)))
-      }
+    val (annotations, _) = lines.foldLeft((Seq.empty[EditorAnnotation], Option.empty[EditorAnnotation])) {
+      case ((acc, current), line) =>
+        line match {
+          case errorStart(lineNo, severity, msg) =>
+            val ann = EditorAnnotation(lineNo.toInt - 1, 0, Seq(msg), severity)
+            (acc, Some(ann))
+          case errorEnd() if current.isDefined =>
+            val ann = current.map(ann => ann.copy(col = line.length, text = ann.text :+ line)).get
+            (acc :+ ann, None)
+          case errLine =>
+            (acc, current.map(ann => ann.copy(text = ann.text :+ errLine)))
+        }
     }
     annotations
   }
 
-  def doCompile(compiler: Compiler, sourceCode: String, processor: Seq[VirtualScalaJSIRFile] => String): CompilationResponse = {
+  def doCompile(compiler: Compiler,
+                sourceCode: String,
+                processor: Seq[VirtualScalaJSIRFile] => String): CompilationResponse = {
     val output = mutable.Buffer.empty[String]
 
     val (logSpam, res) = compiler.compile(output.append(_))

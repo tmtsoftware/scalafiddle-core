@@ -4,6 +4,7 @@ import fiddle.compiler.cache.{AutoCompleteCache, CompilerCache, LinkerCache}
 import fiddle.shared.ExtLib
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
+import org.scalajs.core.tools.linker.backend.{ModuleKind, OutputMode}
 import org.scalajs.core.tools.logging._
 import org.scalajs.core.tools.sem.Semantics
 import org.slf4j.LoggerFactory
@@ -26,22 +27,24 @@ import scala.util.Try
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
-class Compiler(libManager: LibraryManager, code: String) {
-  self =>
-  val log = LoggerFactory.getLogger(getClass)
-  val sjsLogger = new Log4jLogger()
-  val blacklist = Set("<init>")
-  val dependencyRE = """ *// \$FiddleDependency (.+)""".r
+class Compiler(libManager: LibraryManager, code: String) { self =>
+  val log               = LoggerFactory.getLogger(getClass)
+  val sjsLogger         = new Log4jLogger()
+  val blacklist         = Set("<init>")
+  val dependencyRE      = """ *// \$FiddleDependency (.+)""".r
   private val codeLines = code.replaceAll("\r", "").split('\n')
   val extLibDefs = codeLines.collect {
     case dependencyRE(dep) => dep
   }.toSet
 
   lazy val extLibs = {
-    val userLibs = extLibDefs.map(lib => ExtLib(lib)).collect {
-      case lib if libManager.depLibs.contains(lib) => lib
-      case lib => throw new IllegalArgumentException(s"Library $lib is not allowed")
-    }.toList
+    val userLibs = extLibDefs
+      .map(lib => ExtLib(lib))
+      .collect {
+        case lib if libManager.depLibs.contains(lib) => lib
+        case lib                                     => throw new IllegalArgumentException(s"Library $lib is not allowed")
+      }
+      .toList
 
     log.debug(s"Full dependencies: $userLibs")
     userLibs.toSet
@@ -52,7 +55,7 @@ class Compiler(libManager: LibraryManager, code: String) {
     */
   def makeFile(src: Array[Byte]) = {
     val singleFile = new io.VirtualFile("ScalaFiddle.scala")
-    val output = singleFile.output
+    val output     = singleFile.output
     output.write(src)
     output.close()
     singleFile
@@ -61,19 +64,22 @@ class Compiler(libManager: LibraryManager, code: String) {
   def inMemClassloader = {
     new ClassLoader(this.getClass.getClassLoader) {
       val classCache = mutable.Map.empty[String, Option[Class[_]]]
-      val libs = libManager.compilerLibraries(extLibs)
+      val libs       = libManager.compilerLibraries(extLibs)
 
       override def findClass(name: String): Class[_] = {
 
         def findClassInLibs(): Option[AbstractFile] = {
           val parts = name.split('.')
-          libs.map(dir => {
-            Try {
-              parts.dropRight(1)
-                .foldLeft[AbstractFile](dir)((parent, next) => parent.lookupName(next, directory = true))
-                .lookupName(parts.last + ".class", directory = false)
-            } getOrElse null
-          }).find(_ != null)
+          libs
+            .map(dir => {
+              Try {
+                parts
+                  .dropRight(1)
+                  .foldLeft[AbstractFile](dir)((parent, next) => parent.lookupName(next, directory = true))
+                  .lookupName(parts.last + ".class", directory = false)
+              } getOrElse null
+            })
+            .find(_ != null)
         }
 
         val res = classCache.getOrElseUpdate(
@@ -99,8 +105,7 @@ class Compiler(libManager: LibraryManager, code: String) {
     * loading its classpath and running macros from pre-loaded
     * in-memory files
     */
-  trait InMemoryGlobal {
-    g: scala.tools.nsc.Global =>
+  trait InMemoryGlobal { g: scala.tools.nsc.Global =>
     def ctx: JavaContext
     def dirs: Vector[DirectoryClassPath]
     override lazy val plugins = List[Plugin](
@@ -108,7 +113,7 @@ class Compiler(libManager: LibraryManager, code: String) {
       new org.scalamacros.paradise.Plugin(this)
     )
     override lazy val platform: ThisPlatform = new JavaPlatform {
-      val global: g.type = g
+      val global: g.type     = g
       override def classPath = new JavaClassPath(dirs, ctx)
     }
   }
@@ -119,9 +124,9 @@ class Compiler(libManager: LibraryManager, code: String) {
     * normal and presentation compiler
     */
   def initGlobalBits(logger: String => Unit) = {
-    val vd = new io.VirtualDirectory("(memory)", None)
-    val jCtx = new JavaContext()
-    val jDirs = libManager.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
+    val vd            = new io.VirtualDirectory("(memory)", None)
+    val jCtx          = new JavaContext()
+    val jDirs         = libManager.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
     lazy val settings = new Settings
 
     settings.outputDirs.setSingleOutput(vd)
@@ -136,24 +141,26 @@ class Compiler(libManager: LibraryManager, code: String) {
     // global can be reused, just create new runs for new compiler invocations
     val (settings, reporter, _, jCtx, jDirs) = initGlobalBits(_ => ())
     settings.processArgumentString("-Ypresentation-any-thread")
-    val compiler = AutoCompleteCache.getOrUpdate(extLibs, new nsc.interactive.Global(settings, reporter) with InMemoryGlobal {
-      g =>
-      def ctx = jCtx
-      def dirs = jDirs
-      override lazy val analyzer = new {
-        val global: g.type = g
-      } with InteractiveAnalyzer {
-        val cl = inMemClassloader
-        override def findMacroClassLoader() = cl
+    val compiler = AutoCompleteCache.getOrUpdate(
+      extLibs,
+      new nsc.interactive.Global(settings, reporter) with InMemoryGlobal { g =>
+        def ctx  = jCtx
+        def dirs = jDirs
+        override lazy val analyzer = new {
+          val global: g.type = g
+        } with InteractiveAnalyzer {
+          val cl                              = inMemClassloader
+          override def findMacroClassLoader() = cl
+        }
       }
-    })
+    )
 
     compiler.reporter.reset()
     val startOffset = pos
-    val source = code.take(startOffset) + "_CURSOR_ " + code.drop(startOffset)
-    val run = new compiler.TyperRun
-    val unit = compiler.newCompilationUnit(source, "ScalaFiddle.scala")
-    val richUnit = new compiler.RichCompilationUnit(unit.source)
+    val source      = code.take(startOffset) + "_CURSOR_ " + code.drop(startOffset)
+    val run         = new compiler.TyperRun
+    val unit        = compiler.newCompilationUnit(source, "ScalaFiddle.scala")
+    val richUnit    = new compiler.RichCompilationUnit(unit.source)
     //log.debug(s"Source: ${source.take(startOffset)}${scala.Console.RED}|${scala.Console.RESET}${source.drop(startOffset)}")
     compiler.unitOfFile(richUnit.source.file) = richUnit
     val results = compiler.completionsAt(richUnit.position(startOffset)).matchingResults()
@@ -170,19 +177,21 @@ class Compiler(libManager: LibraryManager, code: String) {
     log.debug("Compiling source:\n" + code)
     val singleFile = makeFile(code.getBytes("UTF-8"))
 
-    val startTime = System.nanoTime()
+    val startTime                             = System.nanoTime()
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
-    val compiler = CompilerCache.getOrUpdate(extLibs, new nsc.Global(settings, reporter) with InMemoryGlobal {
-      g =>
-      def ctx = jCtx
-      def dirs = jDirs
-      override lazy val analyzer = new {
-        val global: g.type = g
-      } with Analyzer {
-        val cl = inMemClassloader
-        override def findMacroClassLoader() = cl
+    val compiler = CompilerCache.getOrUpdate(
+      extLibs,
+      new nsc.Global(settings, reporter) with InMemoryGlobal { g =>
+        def ctx  = jCtx
+        def dirs = jDirs
+        override lazy val analyzer = new {
+          val global: g.type = g
+        } with Analyzer {
+          val cl                              = inMemClassloader
+          override def findMacroClassLoader() = cl
+        }
       }
-    })
+    )
 
     compiler.reporter.reset()
     compiler.settings.outputDirs.setSingleOutput(vd)
@@ -193,14 +202,18 @@ class Compiler(libManager: LibraryManager, code: String) {
       val endTime = System.nanoTime()
       log.debug(s"Compilation: ${(endTime - startTime) / 1000} us")
       // print errors
-      val errors = compiler.reporter.asInstanceOf[StoreReporter].infos.map { info =>
-        val label = info.severity.toString match {
-          case "ERROR"   => "error: "
-          case "WARNING" => "warning: "
-          case "INFO"    => ""
+      val errors = compiler.reporter
+        .asInstanceOf[StoreReporter]
+        .infos
+        .map { info =>
+          val label = info.severity.toString match {
+            case "ERROR"   => "error: "
+            case "WARNING" => "warning: "
+            case "INFO"    => ""
+          }
+          Position.formatMessage(info.pos, label + info.msg, false)
         }
-        Position.formatMessage(info.pos, label + info.msg, false)
-      }.mkString("\n")
+        .mkString("\n")
       if (vd.iterator.isEmpty) {
         (errors, None)
       } else {
@@ -240,12 +253,13 @@ class Compiler(libManager: LibraryManager, code: String) {
 
     val output = WritableMemVirtualJSFile("output.js")
     try {
-      val linker = LinkerCache.getOrUpdate(libs, Linker(
-        semantics = semantics,
-        withSourceMap = false,
-        useClosureCompiler = fullOpt)
-      )
-      linker.link(libManager.linkerLibraries(extLibs) ++ userFiles, output, sjsLogger)
+      val linker =
+        LinkerCache.getOrUpdate(libs,
+                                Linker(semantics,
+                                       OutputMode.Default,
+                                       ModuleKind.NoModule,
+                                       Linker.Config().withSourceMap(false).withClosureCompiler(fullOpt)))
+      linker.link(libManager.linkerLibraries(extLibs) ++ userFiles, Nil, output, sjsLogger)
     } catch {
       case e: Throwable =>
         LinkerCache.remove(libs)
