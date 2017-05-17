@@ -176,8 +176,8 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
 
     log.debug("Compiling source:\n" + code)
     val singleFile = makeFile(code.getBytes("UTF-8"))
+    val startTime  = System.nanoTime()
 
-    val startTime                             = System.nanoTime()
     val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
     val compiler = CompilerCache.getOrUpdate(
       extLibs,
@@ -200,7 +200,7 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
       run.compileFiles(List(singleFile))
 
       val endTime = System.nanoTime()
-      log.debug(s"Compilation: ${(endTime - startTime) / 1000} us")
+      log.debug(s"Scalac compilation: ${(endTime - startTime) / 1000} us")
       // print errors
       val errors = compiler.reporter
         .asInstanceOf[StoreReporter]

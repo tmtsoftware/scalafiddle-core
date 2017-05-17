@@ -56,7 +56,10 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
                 case "fast" => compiler.fastOpt _
                 case "full" => compiler.fullOpt _
               }
+              val startTime  = System.nanoTime()
               val res = doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
+              val endTime  = System.nanoTime()
+              log.debug(f" ==== Full compilation time: ${(endTime - startTime) / 1.0e6}%.1f ms")
               sendOut(res)
             } catch {
               case e: Throwable =>
