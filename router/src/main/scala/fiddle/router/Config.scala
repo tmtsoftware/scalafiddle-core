@@ -18,6 +18,7 @@ object Config {
   val interface            = config.getString("interface")
   val port                 = config.getInt("port")
   val analyticsID          = config.getString("analyticsID")
+  val secret               = config.getString("secret")
   val scalaFiddleSourceUrl = config.getString("scalaFiddleSourceUrl")
   val scalaFiddleEditUrl   = config.getString("scalaFiddleEditUrl")
 

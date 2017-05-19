@@ -6,6 +6,7 @@ package fiddle.router
 import akka.actor._
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import org.slf4j.LoggerFactory
 
 /**
   * Provides a flow that is handled by an actor.
@@ -15,6 +16,7 @@ import akka.stream.{Materializer, OverflowStrategy}
   * See https://github.com/akka/akka/issues/16985.
   */
 object ActorFlow {
+  val log = LoggerFactory.getLogger(getClass)
 
   /**
     * Create a flow that is handled by an actor.
@@ -49,16 +51,18 @@ object ActorFlow {
           val flowActor = context.watch(context.actorOf(props(outActor), "flowActor"))
 
           def receive = {
-            case Status.Success(_) | Status.Failure(_) => flowActor ! PoisonPill
-            case Terminated =>
-              println("Child terminated, stopping")
+            case Status.Success(_) | Status.Failure(_) =>
+              flowActor ! PoisonPill
+            case Terminated(_) =>
+              log.debug("Child terminated, stopping")
               context.stop(self)
-            case other => flowActor ! other
+            case other =>
+              flowActor ! other
           }
 
           override def supervisorStrategy = OneForOneStrategy() {
-            case _ =>
-              println("Stopping actor due to exception")
+            case e =>
+              log.error("Stopping actor due to exception", e)
               SupervisorStrategy.Stop
           }
 

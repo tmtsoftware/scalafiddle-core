@@ -15,11 +15,11 @@ object Settings {
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {
     val fiddle        = "1.0.7"
-    val scalatest     = "3.0.0"
+    val scalatest     = "3.0.3"
     val macroParadise = "2.1.0"
     val akka          = "2.5.1"
     val akkaHttp      = "10.0.6"
-    val upickle       = "0.4.3"
+    val upickle       = "0.4.4"
     val ace           = "1.2.2"
     val dom           = "0.9.2"
     val scalatags     = "0.6.5"

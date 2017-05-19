@@ -17,6 +17,7 @@ object Config {
   val interface = config.getString("interface")
   val port      = config.getInt("port")
   val routerUrl = config.getString("routerUrl")
+  val secret    = config.getString("secret")
 
   val libCache          = config.getString("libCache")
   val compilerCacheSize = config.getInt("compilerCacheSize")

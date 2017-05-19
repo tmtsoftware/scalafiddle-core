@@ -17,5 +17,5 @@ object Server extends App {
 
   log.info(s"Scala Fiddle compiler ${Config.version}")
 
-  val manager = system.actorOf(Props[Manager])
+  val manager = system.actorOf(Props[Manager], "Manager")
 }

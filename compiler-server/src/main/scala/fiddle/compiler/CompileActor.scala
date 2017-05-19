@@ -12,16 +12,21 @@ import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
+case object WatchPong
+
 class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLogging {
   import context.dispatcher
   implicit val materializer = ActorMaterializer()(context)
 
   var timer: Cancellable             = _
+  var pongTimer: Cancellable         = _
   var libraryManager: LibraryManager = _
+  var lastPong                       = System.currentTimeMillis() / 1000
 
   override def preStart(): Unit = {
     log.debug("Compiler actor starting")
-    timer = context.system.scheduler.schedule(5.seconds, 15.seconds, context.self, Ping)
+    timer = context.system.scheduler.schedule(30.seconds, 20.seconds, context.self, Ping)
+    pongTimer = context.system.scheduler.schedule(1.minute, 1.minute, context.self, WatchPong)
     super.preStart()
   }
 
@@ -33,8 +38,15 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
     case Ping =>
       sendOut(Ping)
 
+    case WatchPong =>
+      val now = System.currentTimeMillis() / 1000
+      if (now - lastPong > 60) {
+        log.error(s"Have not received Pong from router in ${now - lastPong} seconds, terminating")
+        context.stop(self)
+      }
+
     case msg: TextMessage =>
-      msg.textStream.runWith(Sink.reduce[String](_ + _)).map { text =>
+      msg.textStream.runReduce(_ + _).map { text =>
         read[CompilerMessage](text) match {
           case UpdateLibraries(extLibs) =>
             log.debug(s"Received ${extLibs.size} libraries")
@@ -50,20 +62,22 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
             }
 
           case CompilationRequest(id, sourceCode, _, optimizer) =>
+            if (libraryManager == null)
+              context.self ! PoisonPill
             val compiler = new Compiler(libraryManager, sourceCode)
             try {
               val opt = optimizer match {
                 case "fast" => compiler.fastOpt _
                 case "full" => compiler.fullOpt _
               }
-              val startTime  = System.nanoTime()
-              val res = doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
-              val endTime  = System.nanoTime()
+              val startTime = System.nanoTime()
+              val res       = doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
+              val endTime   = System.nanoTime()
               log.debug(f" ==== Full compilation time: ${(endTime - startTime) / 1.0e6}%.1f ms")
               sendOut(res)
             } catch {
               case e: Throwable =>
-                log.error(s"Error in compilation", e)
+                log.debug(s"Error in compilation", e)
                 sendOut(
                   CompilationResponse(None,
                                       Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")),
@@ -71,6 +85,8 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
             }
 
           case CompletionRequest(id, sourceCode, _, offset) =>
+            if (libraryManager == null)
+              context.self ! PoisonPill
             val compiler = new Compiler(libraryManager, sourceCode)
             try {
               sendOut(CompletionResponse(compiler.autocomplete(offset.toInt)))
@@ -80,7 +96,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
             }
 
           case Pong =>
-          // no action
+            lastPong = System.currentTimeMillis() / 1000
 
           case other =>
             log.error(s"Unsupported compiler message $other")
@@ -123,6 +139,8 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
 
   override def postStop(): Unit = {
     manager ! CompilerTerminated
+    timer.cancel()
+    pongTimer.cancel()
     super.postStop()
   }
 }

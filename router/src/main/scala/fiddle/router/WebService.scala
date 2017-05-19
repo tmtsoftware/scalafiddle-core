@@ -264,8 +264,11 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     ActorFlow.actorRef[Message, Message](out => CompilerService.props(out, compilerManager), () => ())
 
   val compilerRoute: Route = {
-    path("compiler") {
-      handleWebSocketMessages(wsFlow)
+    (path("compiler") & parameter('secret)) { secret =>
+      if (secret == Config.secret)
+        handleWebSocketMessages(wsFlow)
+      else
+        complete(HttpResponse(StatusCodes.Forbidden))
     }
   }
   val route = extRoute ~ compilerRoute

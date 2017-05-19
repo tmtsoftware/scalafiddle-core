@@ -20,14 +20,17 @@ case class CancelCompletion(id: String)
 
 case object RefreshLibraries
 
+case object CheckCompilers
+
 class CompilerManager extends Actor with ActorLogging {
   import CompilerManager._
 
-  val compilers                = mutable.Map.empty[String, CompilerInfo]
-  var compilerQueue            = mutable.Queue.empty[(CompilerRequest, ActorRef)]
-  val compilationPending       = mutable.Map.empty[String, ActorRef]
-  var currentLibs: Seq[ExtLib] = _
-  val dependencyRE             = """ *// \$FiddleDependency (.+)""".r
+  val compilers          = mutable.Map.empty[String, CompilerInfo]
+  var compilerQueue      = mutable.Queue.empty[(CompilerRequest, ActorRef)]
+  val compilationPending = mutable.Map.empty[String, ActorRef]
+  var currentLibs        = Seq.empty[ExtLib]
+  var compilerTimer      = context.system.scheduler.schedule(5.minute, 1.minute, context.self, CheckCompilers)
+  val dependencyRE       = """ *// \$FiddleDependency (.+)""".r
 
   def now = System.currentTimeMillis()
 
@@ -39,6 +42,11 @@ class CompilerManager extends Actor with ActorLogging {
       // schedule a periodic library update
       context.system.scheduler.scheduleOnce(5.seconds, context.self, RefreshLibraries)
     }
+  }
+
+  override def postStop(): Unit = {
+    compilerTimer.cancel()
+    super.postStop()
   }
 
   def loadLibraries(uri: String, defaultLibs: Seq[String]): Seq[ExtLib] = {
@@ -81,7 +89,6 @@ class CompilerManager extends Actor with ActorLogging {
     // select the best available compiler server based on:
     // 1) time of last activity
     // 2) set of libraries
-    log.debug(compilers.values.toList.toString)
     compilers.values.toSeq
       .filter(_.state == CompilerState.Ready)
       .sortBy(_.lastActivity)
@@ -93,7 +100,13 @@ class CompilerManager extends Actor with ActorLogging {
 
   def updateCompilerState(id: String, newState: CompilerState) = {
     if (compilers.contains(id)) {
-      compilers.update(id, compilers(id).copy(state = newState, lastActivity = System.currentTimeMillis()))
+      compilers.update(id, compilers(id).copy(state = newState, lastActivity = now))
+    }
+  }
+
+  def compilerSeen(id: String) = {
+    if (compilers.contains(id)) {
+      compilers.update(id, compilers(id).copy(lastSeen = now))
     }
   }
 
@@ -126,7 +139,7 @@ class CompilerManager extends Actor with ActorLogging {
 
   def receive = {
     case RegisterCompiler(id, compilerService) =>
-      compilers += id -> CompilerInfo(id, compilerService, CompilerState.Initializing, now, "unknown", Set.empty)
+      compilers += id -> CompilerInfo(id, compilerService, CompilerState.Initializing, now, "unknown", Set.empty, now)
       // send current libraries
       compilerService ! UpdateLibraries(currentLibs)
       context.watch(compilerService)
@@ -143,6 +156,9 @@ class CompilerManager extends Actor with ActorLogging {
         case _ =>
       }
 
+    case CompilerPing(id) =>
+      compilerSeen(id)
+
     case UpdateState(id, newState) =>
       updateCompilerState(id, newState)
 
@@ -155,7 +171,7 @@ class CompilerManager extends Actor with ActorLogging {
       compilerQueue = compilerQueue.filterNot(_._1.id == id)
 
     case (id: String, CompilerReady) =>
-      log.debug(s"Compiler $id is now ready")
+      log.info(s"Compiler $id is now ready")
       updateCompilerState(id, CompilerState.Ready)
       processQueue()
 
@@ -190,6 +206,18 @@ class CompilerManager extends Actor with ActorLogging {
         case e: Throwable =>
           log.error(s"Error while refreshing libraries", e)
       }
+
+    case CheckCompilers =>
+      compilers.foreach {
+        case (id, compiler) =>
+          if (now - compiler.lastSeen > 120 * 1000) {
+            log.error(s"Compiler service $id not seen in ${(now - compiler.lastSeen) / 1000} seconds, terminating compiler")
+            context.stop(compiler.compilerService)
+          }
+      }
+
+    case other =>
+      log.error(s"Received unknown message $other")
   }
 }
 
@@ -201,6 +229,7 @@ object CompilerManager {
                           state: CompilerState,
                           lastActivity: Long,
                           lastClient: String,
-                          lastLibs: Set[ExtLib])
+                          lastLibs: Set[ExtLib],
+                          lastSeen: Long)
 
 }

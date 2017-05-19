@@ -276,7 +276,7 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
     def log(level: Level, message: => String): Unit = if (level >= minLevel) {
       if (level == Level.Warn || level == Level.Error) {
         logLines :+= message
-        self.log.error(message)
+        self.log.debug(message)
       } else {
         self.log.debug(message)
       }

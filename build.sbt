@@ -30,7 +30,7 @@ lazy val client = project
       "org.scala-js"           %%% "scalajs-dom" % versions.dom,
       "com.lihaoyi"            %%% "scalatags"   % versions.scalatags,
       "com.lihaoyi"            %%% "upickle"     % versions.upickle,
-      "com.github.marklister"  %%% "base64"      % "0.2.2",
+      "com.github.marklister"  %%% "base64"      % "0.2.3",
       "org.scala-lang.modules" %% "scala-async"  % versions.async % "provided",
       "org.scalatest"          %%% "scalatest"   % versions.scalatest % "test"
     ),
@@ -84,8 +84,8 @@ lazy val compilerServer = project
       "io.get-coursier"        %% "coursier"        % versions.coursier,
       "io.get-coursier"        %% "coursier-cache"  % versions.coursier,
       "org.apache.maven"       % "maven-artifact"   % "3.3.9",
-      "org.xerial.snappy"      % "snappy-java"      % "1.1.2.1",
-      "org.xerial.larray"      %% "larray"          % "0.3.4",
+      "org.xerial.snappy"      % "snappy-java"      % "1.1.2.6",
+      "org.xerial.larray"      %% "larray"          % "0.4.0",
       "org.scalatest"          %% "scalatest"       % versions.scalatest % "test"
     ),
     (resources in Compile) ++= {
@@ -144,18 +144,19 @@ lazy val router = (project in file("router"))
   .settings(
     name := "scalafiddle-router",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"     %% "akka-actor"     % versions.akka,
-      "com.typesafe.akka"     %% "akka-stream"    % versions.akka,
-      "com.typesafe.akka"     %% "akka-slf4j"     % versions.akka,
-      "com.typesafe.akka"     %% "akka-http"      % versions.akkaHttp,
-      "com.lihaoyi"           %% "scalatags"      % versions.scalatags,
-      "org.webjars"           % "ace"             % versions.ace,
-      "org.webjars"           % "normalize.css"   % "2.1.3",
-      "com.lihaoyi"           %% "upickle"        % versions.upickle,
-      "com.github.marklister" %% "base64"         % "0.2.2",
-      "ch.megard"             %% "akka-http-cors" % "0.2.1",
-      "org.scalatest"         %% "scalatest"      % versions.scalatest % "test",
-      "ch.qos.logback"        % "logback-classic" % "1.1.10"
+      "com.typesafe.akka"     %% "akka-actor"              % versions.akka,
+      "com.typesafe.akka"     %% "akka-stream"             % versions.akka,
+      "com.typesafe.akka"     %% "akka-slf4j"              % versions.akka,
+      "com.typesafe.akka"     %% "akka-http"               % versions.akkaHttp,
+      "com.lihaoyi"           %% "scalatags"               % versions.scalatags,
+      "org.webjars"           % "ace"                      % versions.ace,
+      "org.webjars"           % "normalize.css"            % "2.1.3",
+      "com.lihaoyi"           %% "upickle"                 % versions.upickle,
+      "com.github.marklister" %% "base64"                  % "0.2.3",
+      "ch.megard"             %% "akka-http-cors"          % "0.2.1",
+      "org.scalatest"         %% "scalatest"               % versions.scalatest % "test",
+      "net.logstash.logback"  % "logstash-logback-encoder" % "4.9",
+      "ch.qos.logback"        % "logback-classic"          % "1.1.10"
     ),
     javaOptions in Revolver.reStart ++= Seq("-Xmx1g"),
     scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
