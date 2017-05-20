@@ -78,12 +78,12 @@ within the source file itself.
 
 ```scala
 // $SubFiddle Main.scala
-import fiddle.Fiddle.println  
+import fiddle.Fiddle.println
 object ScalaFiddle extends scala.js.JSApp {
   println("Hello World!")
 }
 // $SubFiddle Test.scala
-import fiddle.Fiddle.println  
+import fiddle.Fiddle.println
 object ScalaFiddle extends scala.js.JSApp {
   val x = 42
   val y = 88

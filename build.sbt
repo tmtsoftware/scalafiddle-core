@@ -1,16 +1,14 @@
 import sbt._
 import Keys._
-import Settings.versions
+import Settings._
 
 val commonSettings = Seq(
-  scalacOptions := Seq(
-    "-Xlint",
-    "-unchecked",
-    "-deprecation",
-    "-feature"
-  ),
+  scalacOptions := scalacArgs,
   scalaVersion := "2.11.11",
-  version := versions.fiddle
+  version := versions.fiddle,
+  libraryDependencies ++= Seq(
+    "org.scalatest" %%% "scalatest" % versions.scalatest % "test"
+  )
 )
 
 lazy val root = project
@@ -30,9 +28,8 @@ lazy val client = project
       "org.scala-js"           %%% "scalajs-dom" % versions.dom,
       "com.lihaoyi"            %%% "scalatags"   % versions.scalatags,
       "com.lihaoyi"            %%% "upickle"     % versions.upickle,
-      "com.github.marklister"  %%% "base64"      % "0.2.3",
-      "org.scala-lang.modules" %% "scala-async"  % versions.async % "provided",
-      "org.scalatest"          %%% "scalatest"   % versions.scalatest % "test"
+      "com.github.marklister"  %%% "base64"      % versions.base64,
+      "org.scala-lang.modules" %% "scala-async"  % versions.async % "provided"
     ),
     // rename output always to -opt.js
     artifactPath in (Compile, fastOptJS) := ((crossTarget in (Compile, fastOptJS)).value /
@@ -70,11 +67,6 @@ lazy val compilerServer = project
     name := "scalafiddle-core",
     libraryDependencies ++= Seq(
       "org.scala-lang"         % "scala-compiler"   % scalaVersion.value,
-      "com.typesafe.akka"      %% "akka-actor"      % versions.akka,
-      "com.typesafe.akka"      %% "akka-stream"     % versions.akka,
-      "com.typesafe.akka"      %% "akka-slf4j"      % versions.akka,
-      "com.typesafe.akka"      %% "akka-http"       % versions.akkaHttp,
-      "ch.qos.logback"         % "logback-classic"  % "1.1.10",
       "org.scala-js"           % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js"           %% "scalajs-tools"   % scalaJSVersion,
       "org.scalamacros"        %% "paradise"        % versions.macroParadise cross CrossVersion.full,
@@ -85,9 +77,8 @@ lazy val compilerServer = project
       "io.get-coursier"        %% "coursier-cache"  % versions.coursier,
       "org.apache.maven"       % "maven-artifact"   % "3.3.9",
       "org.xerial.snappy"      % "snappy-java"      % "1.1.2.6",
-      "org.xerial.larray"      %% "larray"          % "0.4.0",
-      "org.scalatest"          %% "scalatest"       % versions.scalatest % "test"
-    ),
+      "org.xerial.larray"      %% "larray"          % "0.4.0"
+    ) ++ kamon ++ akka ++ logging,
     (resources in Compile) ++= {
       (managedClasspath in (runtime, Compile)).value.map(_.data) ++ Seq(
         (packageBin in (page, Compile)).value
@@ -144,20 +135,13 @@ lazy val router = (project in file("router"))
   .settings(
     name := "scalafiddle-router",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"     %% "akka-actor"              % versions.akka,
-      "com.typesafe.akka"     %% "akka-stream"             % versions.akka,
-      "com.typesafe.akka"     %% "akka-slf4j"              % versions.akka,
-      "com.typesafe.akka"     %% "akka-http"               % versions.akkaHttp,
-      "com.lihaoyi"           %% "scalatags"               % versions.scalatags,
-      "org.webjars"           % "ace"                      % versions.ace,
-      "org.webjars"           % "normalize.css"            % "2.1.3",
-      "com.lihaoyi"           %% "upickle"                 % versions.upickle,
-      "com.github.marklister" %% "base64"                  % "0.2.3",
-      "ch.megard"             %% "akka-http-cors"          % "0.2.1",
-      "org.scalatest"         %% "scalatest"               % versions.scalatest % "test",
-      "net.logstash.logback"  % "logstash-logback-encoder" % "4.9",
-      "ch.qos.logback"        % "logback-classic"          % "1.1.10"
-    ),
+      "com.lihaoyi"           %% "scalatags"      % versions.scalatags,
+      "org.webjars"           % "ace"             % versions.ace,
+      "org.webjars"           % "normalize.css"   % "2.1.3",
+      "com.lihaoyi"           %% "upickle"        % versions.upickle,
+      "com.github.marklister" %% "base64"         % versions.base64,
+      "ch.megard"             %% "akka-http-cors" % "0.2.1"
+    ) ++ kamon ++ akka ++ logging,
     javaOptions in Revolver.reStart ++= Seq("-Xmx1g"),
     scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
     resourceGenerators in Compile += Def.task {
