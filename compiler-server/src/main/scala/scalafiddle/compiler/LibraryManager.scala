@@ -115,9 +115,9 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
         if (r.errors.nonEmpty) {
           log.error(r.errors.toString)
         }
-        log.debug(s"Deps for ${root.moduleVersion}:")
+        log.debug(s"Deps for ${root.moduleVersion}: ${r.minDependencies.size}")
         r.minDependencies.foreach { dep =>
-          log.debug(s"   ${dep.moduleVersion}")
+          // log.debug(s"   ${dep.moduleVersion}")
         }
     }
     val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._2.url).map(_._2.head).toSeq

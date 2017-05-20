@@ -109,7 +109,6 @@ lazy val compilerServer = project
         from("java:8")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
-        expose(8080)
       }
     },
     imageNames in docker := Seq(
@@ -169,7 +168,7 @@ lazy val router = (project in file("router"))
         from("openjdk:8")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
-        expose(8080)
+        expose(8880)
       }
     },
     imageNames in docker := Seq(
