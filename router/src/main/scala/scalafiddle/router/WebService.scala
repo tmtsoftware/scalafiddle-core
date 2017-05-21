@@ -20,6 +20,8 @@ import akka.stream.scaladsl.Flow
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import kamon.Kamon
+import kamon.metric.instrument.Counter
 import org.slf4j.LoggerFactory
 import upickle.default._
 
@@ -37,7 +39,12 @@ case class NoCacheResult(data: Array[Byte]) extends CacheValue
 
 case class CacheError(error: String) extends CacheValue
 
+case class CacheCounter(hit: Counter, miss: Counter, error: Counter)
+
 class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
+  import HttpCharsets._
+  import MediaTypes._
+
   implicit val actorSystem  = system
   implicit val timeout      = Timeout(30.seconds)
   implicit val materializer = ActorMaterializer()
@@ -46,8 +53,6 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
 
   val settings =
     CorsSettings.defaultSettings.copy(allowedOrigins = HttpOriginRange(Config.corsOrigins.map(HttpOrigin(_)): _*))
-  import HttpCharsets._
-  import MediaTypes._
 
   type ParamValidator = Map[String, Validator]
   val embedValidator: ParamValidator = Map(
@@ -71,6 +76,18 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     "source" -> EmptyValidator,
     "offset" -> IntValidator()
   )
+
+  val cacheCounters = Seq(
+    "compile",
+    "embed",
+    "complete"
+  ).map { name =>
+    name -> CacheCounter(
+      Kamon.metrics.counter(s"$name-cache-hit"),
+      Kamon.metrics.counter(s"$name-cache-miss"),
+      Kamon.metrics.counter(s"$name-validation-error")
+    )
+  }.toMap
 
   def validateParams(params: Map[String, String], validator: ParamValidator): Option[String] = {
     params
@@ -98,6 +115,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
       value: => Future[CacheValue])(toResponse: Array[Byte] => HttpResponse): Future[HttpResponse] = {
     validateParams(params, validator) match {
       case Some(error) =>
+        cacheCounters.get(path).foreach { _.error.increment() }
         Future.successful(HttpResponse(StatusCodes.BadRequest, entity = error))
       case None =>
         // check cache
@@ -105,8 +123,10 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
         cache.get(hash, expiration).flatMap {
           case Some(data) =>
             log.debug(s"Cache hit on $path")
+            cacheCounters.get(path).foreach { _.hit.increment() }
             Future.successful(toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration))))
           case None =>
+            cacheCounters.get(path).foreach { _.miss.increment() }
             value map {
               case CacheResult(data) =>
                 cache.put(hash, data, expiration)

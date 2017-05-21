@@ -149,7 +149,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
 
     val (logSpam, res) = compiler.compile(output.append(_))
     if (logSpam.nonEmpty)
-      println(s"Compiler errors: $logSpam")
+      log.debug(s"Compiler errors: $logSpam")
 
     CompilationResponse(res.map(processor), parseErrors(logSpam), logSpam)
   }

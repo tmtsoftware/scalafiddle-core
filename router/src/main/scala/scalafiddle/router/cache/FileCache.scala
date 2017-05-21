@@ -13,7 +13,7 @@ class FileCache(cacheDir: Path) extends Cache {
     Future {
       if (file.exists()) {
         if ((System.currentTimeMillis() - file.lastModified()) / 1000 < expiration) {
-          Some(Files.readAllBytes(file.toPath))
+          Try(Files.readAllBytes(file.toPath)).toOption
         } else {
           // remove expired file
           Try(file.delete())
