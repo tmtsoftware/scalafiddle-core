@@ -178,7 +178,7 @@ object Static {
             ),
             div(cls := "right")(
               div(cls := "logo")(
-                a(href := "", id := "editLink", target := "_blank", img(src := logoSrc))
+                a(href := "javascript:null", id := "editLink", target := "_blank", img(src := logoSrc))
               )
             )
           ),
@@ -197,13 +197,12 @@ object Static {
               )
             )
           )
-        )
-      ),
-      script(
-        `type` := "text/javascript",
-        raw(
-          if (Config.analyticsID.nonEmpty)
-            s"""
+        ),
+        script(
+          `type` := "text/javascript",
+          raw(
+            if (Config.analyticsID.nonEmpty)
+              s"""
              |(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
              |(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
              |m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
@@ -211,11 +210,12 @@ object Static {
              |ga('create', '${Config.analyticsID}', 'auto');
              |ga('send', 'pageview');
              |""".stripMargin
-          else "")
-      ),
-      script(`type` := "text/javascript", raw(baseEnv)),
-      script(`type` := "text/javascript",
-             raw(s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
+            else "")
+        ),
+        script(`type` := "text/javascript", raw(baseEnv)),
+        script(`type` := "text/javascript",
+               raw(s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
+      )
     ).toString()
     pageHtml.getBytes(StandardCharsets.UTF_8)
   }

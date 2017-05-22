@@ -81,6 +81,7 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
               val startTime = System.nanoTime()
               val res       = doCompile(compiler, sourceCode, e => compiler.export(opt(e)))
               val endTime   = System.nanoTime()
+              log.debug(compiler.getInternalLog.mkString("\n"))
               log.debug(f" ==== Full compilation time: ${(endTime - startTime) / 1.0e6}%.1f ms")
               compilationCounter.increment()
               compilationTime.record((endTime - startTime) / 1000000L)

@@ -270,20 +270,22 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
 
   def getLog = sjsLogger.logLines
 
+  def getInternalLog = sjsLogger.internalLogLines
+
   class Log4jLogger(minLevel: Level = Level.Debug) extends Logger {
-    var logLines = Vector.empty[String]
+    var logLines         = Vector.empty[String]
+    var internalLogLines = Vector.empty[String]
 
     def log(level: Level, message: => String): Unit = if (level >= minLevel) {
       if (level == Level.Warn || level == Level.Error) {
         logLines :+= message
-        self.log.debug(message)
-      } else {
-        self.log.debug(message)
       }
+      internalLogLines :+= message
     }
+
     def success(message: => String): Unit = info(message)
     def trace(t: => Throwable): Unit = {
-      self.log.error("Compiling error", t)
+      self.log.error("Compilation error", t)
     }
   }
 

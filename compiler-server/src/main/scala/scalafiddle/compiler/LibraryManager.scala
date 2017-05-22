@@ -213,7 +213,7 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
 
   def deps(extLibs: Set[ExtLib]) = {
     val resolved = resolveDeps(extLibs.flatMap(lib => extLibraries(lib).map(_._1)).toList)
-    log.debug(s"Resolved libraries: ${resolved.map(_.moduleVersion)}")
+    // log.debug(s"Resolved libraries: ${resolved.map(_.moduleVersion)}")
     resolved
   }
 

@@ -50,6 +50,14 @@ class Client(editURL: String) {
   val fiddleSelector    = dom.document.getElementById("fiddleSelector").asInstanceOf[HTMLSelectElement]
   val editLink          = dom.document.getElementById("editLink").asInstanceOf[HTMLAnchorElement]
 
+  editLink.onclick = editClicked _
+
+  def editClicked(e: MouseEvent): Unit = {
+    val link = editURL + s"?zrc=${encodeSource(reconstructSource(editor.code, currentSourceFile))}"
+    dom.window.open(link, target = "_blank")
+    e.stopPropagation()
+  }
+
   def exec(s: String) = {
     Client.clear()
 
@@ -244,10 +252,12 @@ class Client(editURL: String) {
       currentSource = src.id
       currentSourceName = src.name
       editor.sess.setValue(src.code)
+/*
       editLink.href = src.fiddleId match {
         case Some(fiddleId) => editURL + "sf/" + fiddleId
-        case None           => editURL
+        case None           => editURL + s"?zrc=${encodeSource(reconstructSource(editor.code, currentSourceFile))}"
       }
+*/
     }
   }
 
