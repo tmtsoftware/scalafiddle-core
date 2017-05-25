@@ -412,7 +412,7 @@ object Client {
     """.stripMargin
 
   @JSExport
-  def main(useFull: Boolean, scalaFiddleSourceUrl: String, scalaFiddleEditUrl: String, baseEnv: String): Unit =
+  def main(useFull: Boolean, scalaFiddleSourceUrl: String, scalaFiddleEditUrl: String, baseEnv: String, passive: Boolean): Unit =
     task * async {
       clear()
       Editor.initEditor
@@ -425,20 +425,24 @@ object Client {
           }
         }))
         client.setSources(sources)
-        if (useFull)
-          client.fullOpt
-        else
-          client.fastOpt
+        if(!passive) {
+          if (useFull)
+            client.fullOpt
+          else
+            client.fastOpt
+        }
       } else if (queryParams.contains("source")) {
         val srcCode = queryParams("source")
         client.showStatus("Loading")
         // check for sub-fiddles
         val sources = await(Future(parseFiddles(srcCode)))
         client.setSources(sources)
-        if (useFull)
-          client.fullOpt
-        else
-          client.fastOpt
+        if(!passive) {
+          if (useFull)
+            client.fullOpt
+          else
+            client.fastOpt
+        }
       } else {
         client.setSources(Seq(SourceFile("ScalaFiddle.scala", baseEnv)))
       }

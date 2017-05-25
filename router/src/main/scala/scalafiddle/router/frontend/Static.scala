@@ -54,6 +54,7 @@ object Static {
       case _            => ("/styles-light.css", Config.logoLight)
     }
     val fullOpt = paramMap.contains("fullOpt")
+    val passive = paramMap.contains("passive")
     val allJS   = joinResources(extJSFiles ++ srcFiles, ".js", ";\n")
     val allCSS  = joinResources(cssFiles :+ themeCSS, ".css", "\n")
     val jsURLs  = s"cache/$allJS" +: Config.extJS
@@ -214,7 +215,7 @@ object Static {
         ),
         script(`type` := "text/javascript", raw(baseEnv)),
         script(`type` := "text/javascript",
-               raw(s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv)"""))
+               raw(s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv, $passive)"""))
       )
     ).toString()
     pageHtml.getBytes(StandardCharsets.UTF_8)

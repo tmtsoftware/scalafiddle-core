@@ -1,4 +1,5 @@
 package scalafiddle.router.cache
+import java.io.{File, FileFilter}
 import java.nio.file.{Files, Path, StandardOpenOption}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -31,4 +32,16 @@ class FileCache(cacheDir: Path) extends Cache {
       Files.write(file, data, StandardOpenOption.CREATE)
     }
   }
+
+  override def clean(expiration: Int): Unit = {
+    val expStr = expiration.toString
+    cacheDir.toFile
+      .listFiles(new FileFilter {
+        override def accept(pathname: File): Boolean = pathname.getName.endsWith(expStr)
+      })
+      .foreach { file =>
+        file.delete()
+      }
+  }
+
 }

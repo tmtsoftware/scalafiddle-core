@@ -61,7 +61,9 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     "style"           -> EmptyValidator,
     "fullOpt"         -> EmptyValidator,
     "layout"          -> EmptyValidator,
-    "hideButtons"     -> EmptyValidator
+    "hideButtons"     -> EmptyValidator,
+    "passive"         -> EmptyValidator,
+    "referrer"        -> EmptyValidator
   )
   val codeframeValidator: ParamValidator = Map(
     "theme" -> ListValidator("dark", "light")
@@ -302,4 +304,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     case ex =>
       log.error(s"Failed to bind to ${Config.interface}:${Config.port}", ex)
   }
+
+  // clean cache
+  cache.clean(3600)
 }
