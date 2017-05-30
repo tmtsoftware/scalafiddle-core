@@ -6,7 +6,7 @@ compiled to JavaScript on the server and then run in the browser.
 To develop, run:
 
 ```
-sbt "~; server/reStart"
+sbt "~; compilerServer/reStart"
 ```
 
 You can package as a Docker image with
