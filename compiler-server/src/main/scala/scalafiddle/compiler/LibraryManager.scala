@@ -67,7 +67,7 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
     }.seq
 
     val bootFiles = for {
-      prop <- Seq( /*"java.class.path", */ "sun.boot.class.path")
+      prop <- Seq("sun.boot.class.path")
       path <- System.getProperty(prop).split(System.getProperty("path.separator"))
       vfile = scala.reflect.io.File(path)
       if vfile.exists && !vfile.isDirectory
@@ -120,11 +120,11 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
           // log.debug(s"   ${dep.moduleVersion}")
         }
     }
-    val depArts = results.flatMap(_._2.dependencyArtifacts).groupBy(_._2.url).map(_._2.head).toSeq
+    val depArts = results.flatMap(_._2.dependencyArtifacts).distinct
 
     val jars =
-      Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, f.toPath)).run)).unsafePerformSync.map {
-        case \/-((dep, path)) =>
+      Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, f.toPath)).run)).unsafePerformSync.collect {
+        case \/-((dep, path)) if path.endsWith("jar") =>
           (dep, path.toString, new FileInputStream(path.toFile))
         case -\/(error) =>
           throw new Exception(s"Unable to load a library: ${error.describe}")

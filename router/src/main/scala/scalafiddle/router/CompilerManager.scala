@@ -98,13 +98,13 @@ class CompilerManager extends Actor with ActorLogging {
       .map(_._1.copy(lastLibs = libs))
   }
 
-  def updateCompilerState(id: String, newState: CompilerState) = {
+  def updateCompilerState(id: String, newState: CompilerState): Unit = {
     if (compilers.contains(id)) {
       compilers.update(id, compilers(id).copy(state = newState, lastActivity = now))
     }
   }
 
-  def compilerSeen(id: String) = {
+  def compilerSeen(id: String): Unit = {
     if (compilers.contains(id)) {
       compilers.update(id, compilers(id).copy(lastSeen = now))
     }

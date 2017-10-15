@@ -88,7 +88,8 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
               sendOut(res)
             } catch {
               case e: Throwable =>
-                log.debug(s"Error in compilation", e)
+                log.error(e, s"Error in compilation")
+                log.debug(compiler.getLog.mkString("\n"))
                 compilationFailCounter.increment()
                 sendOut(
                   CompilationResponse(None,

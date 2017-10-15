@@ -1,7 +1,5 @@
 package scalafiddle.compiler
 
-import scalafiddle.compiler.cache.{AutoCompleteCache, CompilerCache, LinkerCache}
-import scalafiddle.shared.ExtLib
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.linker.Linker
 import org.scalajs.core.tools.linker.backend.{ModuleKind, OutputMode}
@@ -9,19 +7,12 @@ import org.scalajs.core.tools.logging._
 import org.scalajs.core.tools.sem.Semantics
 import org.slf4j.LoggerFactory
 
-import scala.collection.mutable
 import scala.reflect.internal.util.Position
 import scala.reflect.io
-import scala.tools.nsc
 import scala.tools.nsc.Settings
-import scala.tools.nsc.backend.JavaPlatform
-import scala.tools.nsc.io.AbstractFile
-import scala.tools.nsc.plugins.Plugin
 import scala.tools.nsc.reporters.StoreReporter
-import scala.tools.nsc.typechecker.Analyzer
-import scala.tools.nsc.util.ClassPath.JavaContext
-import scala.tools.nsc.util._
-import scala.util.Try
+import scalafiddle.compiler.cache.{AutoCompleteCache, CompilerCache, LinkerCache}
+import scalafiddle.shared.ExtLib
 
 /**
   * Handles the interaction between scala-js-fiddle and
@@ -61,97 +52,15 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
     singleFile
   }
 
-  def inMemClassloader = {
-    new ClassLoader(this.getClass.getClassLoader) {
-      val classCache = mutable.Map.empty[String, Option[Class[_]]]
-      val libs       = libManager.compilerLibraries(extLibs)
-
-      override def findClass(name: String): Class[_] = {
-
-        def findClassInLibs(): Option[AbstractFile] = {
-          val parts = name.split('.')
-          libs
-            .map(dir => {
-              Try {
-                parts
-                  .dropRight(1)
-                  .foldLeft[AbstractFile](dir)((parent, next) => parent.lookupName(next, directory = true))
-                  .lookupName(parts.last + ".class", directory = false)
-              } getOrElse null
-            })
-            .find(_ != null)
-        }
-
-        val res = classCache.getOrElseUpdate(
-          name,
-          findClassInLibs().map { f =>
-            val data = f.toByteArray
-            this.defineClass(name, data, 0, data.length)
-          }
-        )
-        res match {
-          case None =>
-            log.error("Not Found Class " + name)
-            throw new ClassNotFoundException()
-          case Some(cls) =>
-            cls
-        }
-      }
-    }
-  }
-
-  /**
-    * Mixed in to make a Scala compiler run entirely in-memory,
-    * loading its classpath and running macros from pre-loaded
-    * in-memory files
-    */
-  trait InMemoryGlobal { g: scala.tools.nsc.Global =>
-    def ctx: JavaContext
-    def dirs: Vector[DirectoryClassPath]
-    override lazy val plugins = List[Plugin](
-      new org.scalajs.core.compiler.ScalaJSPlugin(this),
-      new org.scalamacros.paradise.Plugin(this)
-    )
-    override lazy val platform: ThisPlatform = new JavaPlatform {
-      val global: g.type     = g
-      override def classPath = new JavaClassPath(dirs, ctx)
-    }
-  }
-
-  /**
-    * Code to initialize random bits and pieces that are needed
-    * for the Scala compiler to function, common between the
-    * normal and presentation compiler
-    */
-  def initGlobalBits(logger: String => Unit) = {
-    val vd            = new io.VirtualDirectory("(memory)", None)
-    val jCtx          = new JavaContext()
-    val jDirs         = libManager.compilerLibraries(extLibs).map(new DirectoryClassPath(_, jCtx)).toVector
-    lazy val settings = new Settings
-
-    settings.outputDirs.setSingleOutput(vd)
-    val reporter = new StoreReporter
-    (settings, reporter, vd, jCtx, jDirs)
-  }
-
   def autocomplete(pos: Int): List[(String, String)] = {
-    import scala.tools.nsc.interactive._
-
     val startTime = System.nanoTime()
-    // global can be reused, just create new runs for new compiler invocations
-    val (settings, reporter, _, jCtx, jDirs) = initGlobalBits(_ => ())
-    settings.processArgumentString("-Ypresentation-any-thread")
     val compiler = AutoCompleteCache.getOrUpdate(
-      extLibs,
-      new nsc.interactive.Global(settings, reporter) with InMemoryGlobal { g =>
-        def ctx  = jCtx
-        def dirs = jDirs
-        override lazy val analyzer = new {
-          val global: g.type = g
-        } with InteractiveAnalyzer {
-          val cl                              = inMemClassloader
-          override def findMacroClassLoader() = cl
-        }
+      extLibs, {
+        val vd       = new io.VirtualDirectory("(memory)", None)
+        val settings = new Settings
+        settings.outputDirs.setSingleOutput(vd)
+        settings.processArgumentString("-Ypresentation-any-thread")
+        GlobalInitCompat.initInteractiveGlobal(settings, new StoreReporter, libManager.compilerLibraries(extLibs))
       }
     )
 
@@ -174,22 +83,17 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
 
   def compile(logger: String => Unit = _ => ()): (String, Option[Seq[VirtualScalaJSIRFile]]) = {
 
+    val startTime = System.nanoTime()
     log.debug("Compiling source:\n" + code)
     val singleFile = makeFile(code.getBytes("UTF-8"))
-    val startTime  = System.nanoTime()
 
-    val (settings, reporter, vd, jCtx, jDirs) = initGlobalBits(logger)
+    val vd = new io.VirtualDirectory("(memory)", None)
+
     val compiler = CompilerCache.getOrUpdate(
-      extLibs,
-      new nsc.Global(settings, reporter) with InMemoryGlobal { g =>
-        def ctx  = jCtx
-        def dirs = jDirs
-        override lazy val analyzer = new {
-          val global: g.type = g
-        } with Analyzer {
-          val cl                              = inMemClassloader
-          override def findMacroClassLoader() = cl
-        }
+      extLibs, {
+        val settings = new Settings
+        settings.processArgumentString("-Ydebug")
+        GlobalInitCompat.initGlobal(settings, new StoreReporter, libManager.compilerLibraries(extLibs))
       }
     )
 
