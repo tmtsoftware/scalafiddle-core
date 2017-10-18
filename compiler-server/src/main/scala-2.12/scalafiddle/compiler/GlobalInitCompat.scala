@@ -22,7 +22,6 @@ object GlobalInitCompat {
       private val classCache = mutable.Map.empty[String, Option[Class[_]]]
 
       override def findClass(name: String): Class[_] = {
-
         def findClassInLibs(): Option[AbstractFile] = {
           val parts = name.split('.')
           libs
@@ -56,7 +55,6 @@ object GlobalInitCompat {
   }
 
   private final def lookupPath(base: AbstractFile)(pathParts: Seq[String], directory: Boolean): AbstractFile = {
-    log.debug(s"Looking for: ${pathParts}")
     var file: AbstractFile = base
     for (dirPart <- pathParts.init) {
       file = file.lookupName(dirPart, directory = true)
@@ -67,14 +65,20 @@ object GlobalInitCompat {
     file.lookupName(pathParts.last, directory = directory)
   }
 
-  private def buildClassPath(file: AbstractFile) = new VirtualDirectoryClassPath(new VirtualDirectory(file.name, None)) {
+  private def buildClassPath(absFile: AbstractFile) = new VirtualDirectoryClassPath(new VirtualDirectory(absFile.name, None){
+    override def iterator = absFile.iterator
+
+    override def lookupName(name: String, directory: Boolean) = absFile.lookupName(name, directory)
+
+    override def subdirectoryNamed(name: String) = absFile.subdirectoryNamed(name)
+  }) {
     override def getSubDir(packageDirName: String): Option[AbstractFile] = {
-      Option(lookupPath(file)(packageDirName.split('/'), directory = true))
+      Option(lookupPath(absFile)(packageDirName.split('/'), directory = true))
     }
 
     override def findClassFile(className: String): Option[AbstractFile] = {
       val relativePath = FileUtils.dirPath(className) + ".class"
-      Option(lookupPath(file)(relativePath.split('/'), directory = false))
+      Option(lookupPath(absFile)(relativePath.split('/'), directory = false))
     }
   }
 
@@ -83,7 +87,6 @@ object GlobalInitCompat {
     val cl = inMemClassloader(libs)
 
     new nsc.Global(settings, reporter) { g =>
-      GlobalInitCompat.this.log.debug("Init global")
       override def classPath = cp
 
       override lazy val plugins = List[Plugin](
@@ -92,7 +95,6 @@ object GlobalInitCompat {
       )
 
       override lazy val platform: ThisPlatform = new GlobalPlatform {
-        GlobalInitCompat.this.log.debug("Init platform")
         override val global    = g
         override val settings  = g.settings
         override def classPath = cp
@@ -101,7 +103,6 @@ object GlobalInitCompat {
       override lazy val analyzer = new {
         val global: g.type = g
       } with Analyzer {
-        GlobalInitCompat.this.log.debug("Init analyzer")
         override def findMacroClassLoader() = cl
       }
     }

@@ -112,8 +112,8 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
     results.foreach {
       case (lib, r) =>
         val root = r.rootDependencies.head
-        if (r.errors.nonEmpty) {
-          log.error(r.errors.toString)
+        if (r.metadataErrors.nonEmpty) {
+          log.error(r.metadataErrors.toString)
         }
         log.debug(s"Deps for ${root.moduleVersion}: ${r.minDependencies.size}")
         r.minDependencies.foreach { dep =>
@@ -124,7 +124,7 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
 
     val jars =
       Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, f.toPath)).run)).unsafePerformSync.collect {
-        case \/-((dep, path)) if path.endsWith("jar") =>
+        case \/-((dep, path)) if path.toString.endsWith("jar") =>
           (dep, path.toString, new FileInputStream(path.toFile))
         case -\/(error) =>
           throw new Exception(s"Unable to load a library: ${error.describe}")
