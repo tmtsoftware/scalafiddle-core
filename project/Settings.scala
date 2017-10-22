@@ -19,6 +19,7 @@ object Settings {
     val fiddle        = "1.1.0"
     val scalatest     = "3.0.3"
     val macroParadise = "2.1.0"
+    val kindProjector = "0.9.4"
     val akka          = "2.5.1"
     val akkaHttp      = "10.0.10"
     val upickle       = "0.4.4"

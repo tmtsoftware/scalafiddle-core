@@ -29,7 +29,8 @@ object GlobalInitCompat {
 
     override lazy val plugins = List[Plugin](
       new org.scalajs.core.compiler.ScalaJSPlugin(this),
-      new org.scalamacros.paradise.Plugin(this)
+      new org.scalamacros.paradise.Plugin(this),
+      new d_m.KindProjector(this)
     )
 
     override lazy val platform: ThisPlatform = new JavaPlatform {

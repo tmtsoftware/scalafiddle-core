@@ -1,5 +1,7 @@
 package scalafiddle.compiler
 
+import java.net.{URL, URLClassLoader}
+
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
@@ -18,7 +20,7 @@ object GlobalInitCompat {
   val log = LoggerFactory.getLogger(getClass)
 
   private def inMemClassloader(libs: Seq[io.AbstractFile]): ClassLoader = {
-    new ClassLoader(this.getClass.getClassLoader) {
+    new URLClassLoader(new Array[URL](0), this.getClass.getClassLoader) {
       private val classCache = mutable.Map.empty[String, Option[Class[_]]]
 
       override def findClass(name: String): Class[_] = {
@@ -51,6 +53,8 @@ object GlobalInitCompat {
             cls
         }
       }
+
+      override def close() = {}
     }
   }
 
@@ -91,7 +95,8 @@ object GlobalInitCompat {
 
       override lazy val plugins = List[Plugin](
         new org.scalajs.core.compiler.ScalaJSPlugin(this),
-        new org.scalamacros.paradise.Plugin(this)
+        new org.scalamacros.paradise.Plugin(this),
+      new d_m.KindProjector(this)
       )
 
       override lazy val platform: ThisPlatform = new GlobalPlatform {
@@ -117,7 +122,8 @@ object GlobalInitCompat {
 
       override lazy val plugins = List[Plugin](
         new org.scalajs.core.compiler.ScalaJSPlugin(this),
-        new org.scalamacros.paradise.Plugin(this)
+        new org.scalamacros.paradise.Plugin(this),
+      new d_m.KindProjector(this)
       )
 
       override lazy val platform: ThisPlatform = new GlobalPlatform {

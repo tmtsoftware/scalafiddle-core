@@ -65,12 +65,13 @@ lazy val compilerServer = project
   .settings(Revolver.settings: _*)
   .settings(
     name := "scalafiddle-core",
-    crossScalaVersions := Seq("2.11.11"),
+    crossScalaVersions := Seq("2.11.11", "2.12.3"),
     libraryDependencies ++= Seq(
       "org.scala-lang"         % "scala-compiler"   % scalaVersion.value,
       "org.scala-js"           % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js"           %% "scalajs-tools"   % scalaJSVersion,
       "org.scalamacros"        %% "paradise"        % versions.macroParadise cross CrossVersion.full,
+      "org.spire-math"         %% "kind-projector"  % versions.kindProjector cross CrossVersion.binary,
       "org.scala-lang.modules" %% "scala-async"     % versions.async % "provided",
       "com.lihaoyi"            %% "scalatags"       % versions.scalatags,
       "com.lihaoyi"            %% "upickle"         % versions.upickle,

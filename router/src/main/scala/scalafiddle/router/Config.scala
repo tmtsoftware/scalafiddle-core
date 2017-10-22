@@ -8,6 +8,8 @@ import com.typesafe.config.ConfigFactory
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
 
+import upickle.default._
+
 object Config {
   protected val config = ConfigFactory.load().getConfig("fiddle")
 
@@ -22,8 +24,9 @@ object Config {
   val scalaFiddleSourceUrl = config.getString("scalaFiddleSourceUrl")
   val scalaFiddleEditUrl   = config.getString("scalaFiddleEditUrl")
 
-  val defaultLibs      = config.getStringList("defaultLibs").asScala
-  val extLibs          = config.getString("extLibs")
+  val scalaVersions    = read[Seq[String]](config.getString("scalaVersions"))
+  val defaultLibs      = read[Map[String, Seq[String]]](config.getString("defaultLibs"))
+  val extLibs          = read[Map[String, String]](config.getString("extLibs"))
   val refreshLibraries = FiniteDuration(config.getDuration("refreshLibraries").toMillis, TimeUnit.MILLISECONDS)
 
   val corsOrigins = config.getStringList("corsOrigins").asScala
@@ -34,12 +37,8 @@ object Config {
     val port = c.getInt("port")
   }
 
-  val version            = versionProps.getProperty("version")
-  val scalaVersion       = versionProps.getProperty("scalaVersion")
-  val scalaMainVersion   = scalaVersion.split('.').take(2).mkString(".")
-  val scalaJSVersion     = versionProps.getProperty("scalaJSVersion")
-  val scalaJSMainVersion = scalaJSVersion.split('.').take(2).mkString(".")
-  val aceVersion         = versionProps.getProperty("aceVersion")
+  val version    = versionProps.getProperty("version")
+  val aceVersion = versionProps.getProperty("aceVersion")
 
   val logoLight = config.getString("logoLight")
   val logoDark  = config.getString("logoDark")

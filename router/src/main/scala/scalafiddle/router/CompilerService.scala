@@ -14,18 +14,18 @@ case object WatchCompiler
 
 case class CompilerPing(id: String)
 
-class CompilerService(out: ActorRef, manager: ActorRef) extends Actor with ActorLogging {
+class CompilerService(out: ActorRef, manager: ActorRef, scalaVersion: String) extends Actor with ActorLogging {
   implicit val materializer = ActorMaterializer()(context)
   import context.dispatcher
 
-  val id       = UUID.randomUUID().toString
-  var lastSeen = System.currentTimeMillis()
-  val watchdog = context.system.scheduler.schedule(1.minutes, 1.minutes, self, WatchCompiler)
+  val id          = UUID.randomUUID().toString
+  var lastSeen    = System.currentTimeMillis()
+  val watchdog    = context.system.scheduler.schedule(1.minutes, 1.minutes, self, WatchCompiler)
 
   override def preStart(): Unit = {
     super.preStart()
-    log.info(s"CompilerService $id starting")
-    manager ! RegisterCompiler(id, context.self)
+    log.info(s"CompilerService $id starting (Scala $scalaVersion)")
+    manager ! RegisterCompiler(id, context.self, scalaVersion)
   }
 
   def sendOut(msg: CompilerMessage): Unit = {
@@ -77,5 +77,5 @@ class CompilerService(out: ActorRef, manager: ActorRef) extends Actor with Actor
 }
 
 object CompilerService {
-  def props(out: ActorRef, manager: ActorRef) = Props(new CompilerService(out, manager))
+  def props(out: ActorRef, manager: ActorRef, scalaVersion: String) = Props(new CompilerService(out, manager, scalaVersion))
 }
