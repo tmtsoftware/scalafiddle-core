@@ -57,6 +57,7 @@ class CompilerManager extends Actor with ActorLogging {
       version -> ((libUris.get(version), defaultLibs.get(version)) match {
         case (Some(uri), Some(versionLibs)) =>
           try {
+            log.debug(s"Loading libraries from $uri")
             val data = if (uri.startsWith("file:")) {
               // load from file system
               scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
@@ -74,7 +75,7 @@ class CompilerManager extends Actor with ActorLogging {
             (extLibs ++ versionLibs).map(ExtLib(_))
           } catch {
             case e: Throwable =>
-              log.error(s"Unable to load libraries")
+              log.error(e, s"Unable to load libraries")
               Nil
           }
         case _ =>

@@ -108,7 +108,8 @@ lazy val compilerServer = project
       val targetDir    = "/app"
 
       new Dockerfile {
-        from("java:8")
+        from("anapsix/alpine-java:8_jdk")
+        run("apk", "add", "--update", "bash", "libc6-compat")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
       }
@@ -116,12 +117,12 @@ lazy val compilerServer = project
     imageNames in docker := Seq(
       ImageName(
         namespace = Some("scalafiddle"),
-        repository = "scalafiddle-core",
+        repository = s"scalafiddle-core-${scalaBinaryVersion.value}",
         tag = Some("latest")
       ),
       ImageName(
         namespace = Some("scalafiddle"),
-        repository = "scalafiddle-core",
+        repository = s"scalafiddle-core-${scalaBinaryVersion.value}",
         tag = Some(version.value)
       )
     )
@@ -167,7 +168,8 @@ lazy val router = (project in file("router"))
       val targetDir    = "/app"
 
       new Dockerfile {
-        from("openjdk:8")
+        from("openjdk:8-jdk-alpine")
+        run("apk", "add", "--update", "bash", "libc6-compat")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
         expose(8880)
