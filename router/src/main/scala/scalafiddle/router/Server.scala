@@ -13,7 +13,7 @@ object Server extends App {
   Kamon.start()
 
   val cache           = new FileCache(Paths.get(Config.cacheDir))
-  val compilerManager = system.actorOf(CompilerManager.props)
+  val compilerManager = system.actorOf(CompilerManager.props, "CompilerManager")
 
   val webService = new WebService(system, cache, compilerManager)
 }

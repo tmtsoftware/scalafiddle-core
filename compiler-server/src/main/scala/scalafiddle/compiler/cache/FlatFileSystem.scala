@@ -1,6 +1,6 @@
 package scalafiddle.compiler.cache
 
-import java.io.{FileInputStream, FileOutputStream, InputStream}
+import java.io.{FileOutputStream, InputStream}
 import java.nio.file.Path
 import java.util.zip.{ZipEntry, ZipInputStream}
 

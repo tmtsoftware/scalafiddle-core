@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-case class RegisterCompiler(id: String, compilerService: ActorRef)
+case class RegisterCompiler(id: String, compilerService: ActorRef, scalaVersion: String)
 
 case class UnregisterCompiler(id: String)
 
@@ -28,9 +28,12 @@ class CompilerManager extends Actor with ActorLogging {
   val compilers          = mutable.Map.empty[String, CompilerInfo]
   var compilerQueue      = mutable.Queue.empty[(CompilerRequest, ActorRef)]
   val compilationPending = mutable.Map.empty[String, ActorRef]
-  var currentLibs        = Seq.empty[ExtLib]
+  var currentLibs        = Map.empty[String, Seq[ExtLib]]
   var compilerTimer      = context.system.scheduler.schedule(5.minute, 1.minute, context.self, CheckCompilers)
   val dependencyRE       = """ *// \$FiddleDependency (.+)""".r
+  val scalaVersionRE     = """ *// \$ScalaVersion (.+)""".r
+  val defaultLibs =
+    Config.defaultLibs.mapValues(_.map(lib => s"// $$FiddleDependency $lib").mkString("\n", "\n", "\n"))
 
   def now = System.currentTimeMillis()
 
@@ -49,48 +52,65 @@ class CompilerManager extends Actor with ActorLogging {
     super.postStop()
   }
 
-  def loadLibraries(uri: String, defaultLibs: Seq[String]): Seq[ExtLib] = {
-    try {
-      val data = if (uri.startsWith("file:")) {
-        // load from file system
-        scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
-      } else if (uri.startsWith("http")) {
-        // load from internet
-        System.setProperty(
-          "http.agent",
-          "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.29 Safari/537.36")
-        scala.io.Source.fromURL(uri, "UTF-8").mkString
-      } else {
-        // load from resources
-        scala.io.Source.fromInputStream(getClass.getResourceAsStream(uri), "UTF-8").mkString
-      }
-      val extLibs = read[Seq[String]](data)
-      (extLibs ++ defaultLibs).map(ExtLib(_))
-    } catch {
-      case e: Throwable =>
-        log.error(s"Unable to load libraries")
-        Nil
-    }
+  def loadLibraries(libUris: Map[String, String], defaultLibs: Map[String, Seq[String]]): Map[String, Seq[ExtLib]] = {
+    Config.scalaVersions.map { version =>
+      version -> ((libUris.get(version), defaultLibs.get(version)) match {
+        case (Some(uri), Some(versionLibs)) =>
+          try {
+            log.debug(s"Loading libraries from $uri")
+            val data = if (uri.startsWith("file:")) {
+              // load from file system
+              scala.io.Source.fromFile(uri.drop(5), "UTF-8").mkString
+            } else if (uri.startsWith("http")) {
+              // load from internet
+              System.setProperty(
+                "http.agent",
+                "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.29 Safari/537.36")
+              scala.io.Source.fromURL(uri, "UTF-8").mkString
+            } else {
+              // load from resources
+              scala.io.Source.fromInputStream(getClass.getResourceAsStream(uri), "UTF-8").mkString
+            }
+            val extLibs = read[Seq[String]](data)
+            (extLibs ++ versionLibs).map(ExtLib(_))
+          } catch {
+            case e: Throwable =>
+              log.error(e, s"Unable to load libraries")
+              Nil
+          }
+        case _ =>
+          Nil
+      })
+    }.toMap
   }
 
-  def extractLibs(source: String): Set[ExtLib] = {
+  def extractLibs(source: String): (Set[ExtLib], Option[String]) = {
     val codeLines = source.replaceAll("\r", "").split('\n')
-    codeLines.collect {
+    val libs = codeLines.collect {
       case dependencyRE(dep) => ExtLib(dep)
     }.toSet
+    val version = codeLines.collect {
+      case scalaVersionRE(v) => v
+    }.headOption
+    (libs, version)
   }
 
   def selectCompiler(req: CompilerRequest): Option[CompilerInfo] = {
     // extract libs from the source
-    val libs = extractLibs(req.source)
+    log.debug(s"Source\n${req.source}")
+    val (libs, scalaVersionOpt) = extractLibs(req.source)
+    val scalaVersion            = scalaVersionOpt.getOrElse("2.11")
+
+    log.debug(s"Selecting compiler for Scala $scalaVersion and libs $libs")
     // check that all libs are supported
-    libs.foreach(lib =>
-      if (!currentLibs.contains(lib)) throw new IllegalArgumentException(s"Library $lib is not supported"))
+    val versionLibs = currentLibs.getOrElse(scalaVersion, Vector.empty)
+    log.debug(s"Libraries:\n$versionLibs")
+    libs.foreach(lib => if (!versionLibs.contains(lib)) throw new IllegalArgumentException(s"Library $lib is not supported"))
     // select the best available compiler server based on:
     // 1) time of last activity
     // 2) set of libraries
     compilers.values.toSeq
-      .filter(_.state == CompilerState.Ready)
+      .filter(c => c.state == CompilerState.Ready && c.scalaVersion == scalaVersion)
       .sortBy(_.lastActivity)
       .zipWithIndex
       .sortBy(info => if (info._1.lastLibs == libs) -1 else info._2) // use index to ensure stable sort
@@ -98,13 +118,13 @@ class CompilerManager extends Actor with ActorLogging {
       .map(_._1.copy(lastLibs = libs))
   }
 
-  def updateCompilerState(id: String, newState: CompilerState) = {
+  def updateCompilerState(id: String, newState: CompilerState): Unit = {
     if (compilers.contains(id)) {
       compilers.update(id, compilers(id).copy(state = newState, lastActivity = now))
     }
   }
 
-  def compilerSeen(id: String) = {
+  def compilerSeen(id: String): Unit = {
     if (compilers.contains(id)) {
       compilers.update(id, compilers(id).copy(lastSeen = now))
     }
@@ -112,15 +132,14 @@ class CompilerManager extends Actor with ActorLogging {
 
   def processQueue(): Unit = {
     if (compilerQueue.nonEmpty) {
-      val (req, sourceActor) = compilerQueue.front
+      val (req, sourceActor) = compilerQueue.dequeue()
       try {
         selectCompiler(req) match {
           case Some(compilerInfo) =>
-            // remove from queue
-            compilerQueue.dequeue()
             compilers.update(compilerInfo.id, compilerInfo.copy(state = CompilerState.Compiling))
             compilationPending += compilerInfo.id -> sourceActor
-            compilerInfo.compilerService ! req
+            // add default libs
+            compilerInfo.compilerService ! req.updated(src => src + defaultLibs(compilerInfo.scalaVersion))
             // process next in queue
             processQueue()
           case None if compilers.isEmpty =>
@@ -128,20 +147,31 @@ class CompilerManager extends Actor with ActorLogging {
             log.error("No compiler instance currently registered")
             sourceActor ! Left("No compiler instance currently registered")
           case None =>
-          // no compiler available
+            // no compiler available
+            log.error("No suitable compiler available")
+            sourceActor ! Left("No suitable compiler available")
         }
       } catch {
         case e: Throwable =>
+          log.error(e, s"Compilation failed")
           sourceActor ! Left(e.getMessage)
       }
     }
   }
 
   def receive = {
-    case RegisterCompiler(id, compilerService) =>
-      compilers += id -> CompilerInfo(id, compilerService, CompilerState.Initializing, now, "unknown", Set.empty, now)
+    case RegisterCompiler(id, compilerService, scalaVersion) =>
+      compilers += id -> CompilerInfo(id,
+                                      compilerService,
+                                      scalaVersion,
+                                      CompilerState.Initializing,
+                                      now,
+                                      "unknown",
+                                      Set.empty,
+                                      now)
+      log.debug(s"Registered compiler $id for Scala $scalaVersion")
       // send current libraries
-      compilerService ! UpdateLibraries(currentLibs)
+      compilerService ! UpdateLibraries(currentLibs.getOrElse(scalaVersion, Nil))
       context.watch(compilerService)
 
     case UnregisterCompiler(id) =>
@@ -195,7 +225,9 @@ class CompilerManager extends Actor with ActorLogging {
         if (newLibs.nonEmpty && newLibs.toSet != currentLibs.toSet) {
           currentLibs = newLibs
           // inform all connected compilers
-          compilers.values.foreach { _.compilerService ! UpdateLibraries(currentLibs) }
+          compilers.values.foreach { comp =>
+            comp.compilerService ! UpdateLibraries(currentLibs(comp.scalaVersion))
+          }
           // refresh again
           context.system.scheduler.scheduleOnce(Config.refreshLibraries, context.self, RefreshLibraries)
         } else if (newLibs.isEmpty) {
@@ -226,6 +258,7 @@ object CompilerManager {
 
   case class CompilerInfo(id: String,
                           compilerService: ActorRef,
+                          scalaVersion: String,
                           state: CompilerState,
                           lastActivity: Long,
                           lastClient: String,

@@ -10,19 +10,24 @@ case object Pong extends CompilerMessage
 
 case class UpdateLibraries(libs: Seq[ExtLib]) extends CompilerMessage
 
-trait CompilerRequest {
+sealed abstract class CompilerRequest {
   def id: String
   def source: String
   def clientAddress: String
+  def updated(f: String => String): CompilerRequest
 }
 
 case class CompilationRequest(id: String, source: String, clientAddress: String, opt: String)
-    extends CompilerMessage
-    with CompilerRequest
+    extends CompilerRequest
+    with CompilerMessage {
+  def updated(f: String => String) = copy(source = f(source))
+}
 
 case class CompletionRequest(id: String, source: String, clientAddress: String, offset: Int)
-    extends CompilerMessage
-    with CompilerRequest
+  extends CompilerRequest
+    with CompilerMessage {
+  def updated(f: String => String) = copy(source = f(source))
+}
 
 trait CompilerResponse
 

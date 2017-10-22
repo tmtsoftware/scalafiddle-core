@@ -4,7 +4,7 @@ import Settings._
 
 val commonSettings = Seq(
   scalacOptions := scalacArgs,
-  scalaVersion := "2.11.11",
+  scalaVersion := "2.12.3",
   version := versions.fiddle,
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % versions.scalatest % "test"
@@ -65,11 +65,13 @@ lazy val compilerServer = project
   .settings(Revolver.settings: _*)
   .settings(
     name := "scalafiddle-core",
+    crossScalaVersions := Seq("2.11.11", "2.12.3"),
     libraryDependencies ++= Seq(
       "org.scala-lang"         % "scala-compiler"   % scalaVersion.value,
       "org.scala-js"           % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
       "org.scala-js"           %% "scalajs-tools"   % scalaJSVersion,
       "org.scalamacros"        %% "paradise"        % versions.macroParadise cross CrossVersion.full,
+      "org.spire-math"         %% "kind-projector"  % versions.kindProjector cross CrossVersion.binary,
       "org.scala-lang.modules" %% "scala-async"     % versions.async % "provided",
       "com.lihaoyi"            %% "scalatags"       % versions.scalatags,
       "com.lihaoyi"            %% "upickle"         % versions.upickle,
@@ -85,7 +87,7 @@ lazy val compilerServer = project
       )
     },
     resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
-    javaOptions in Revolver.reStart ++= Seq("-Xmx3g", "-Xss4m"),
+    javaOptions in reStart ++= Seq("-Xmx3g", "-Xss4m"),
     javaOptions in Universal ++= Seq("-J-Xss4m"),
     resourceGenerators in Compile += Def.task {
       // store build version in a property file
@@ -106,7 +108,8 @@ lazy val compilerServer = project
       val targetDir    = "/app"
 
       new Dockerfile {
-        from("java:8")
+        from("anapsix/alpine-java:8_jdk")
+        run("apk", "add", "--update", "bash", "libc6-compat")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
       }
@@ -114,12 +117,12 @@ lazy val compilerServer = project
     imageNames in docker := Seq(
       ImageName(
         namespace = Some("scalafiddle"),
-        repository = "scalafiddle-core",
+        repository = s"scalafiddle-core-${scalaBinaryVersion.value}",
         tag = Some("latest")
       ),
       ImageName(
         namespace = Some("scalafiddle"),
-        repository = "scalafiddle-core",
+        repository = s"scalafiddle-core-${scalaBinaryVersion.value}",
         tag = Some(version.value)
       )
     )
@@ -141,7 +144,7 @@ lazy val router = (project in file("router"))
       "com.github.marklister" %% "base64"         % versions.base64,
       "ch.megard"             %% "akka-http-cors" % "0.2.1"
     ) ++ kamon ++ akka ++ logging,
-    javaOptions in Revolver.reStart ++= Seq("-Xmx1g"),
+    javaOptions in reStart ++= Seq("-Xmx1g"),
     scriptClasspath := Seq("../config/") ++ scriptClasspath.value,
     resourceGenerators in Compile += Def.task {
       // store build version in a property file
@@ -165,7 +168,8 @@ lazy val router = (project in file("router"))
       val targetDir    = "/app"
 
       new Dockerfile {
-        from("openjdk:8")
+        from("openjdk:8-jdk-alpine")
+        run("apk", "add", "--update", "bash", "libc6-compat")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)
         expose(8880)

@@ -163,7 +163,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     bos.close()
     val source = new String(bos.toByteArray, StandardCharsets.UTF_8)
     // add default libraries
-    source + Config.defaultLibs.map(lib => s"// $$FiddleDependency $lib").mkString("\n", "\n", "\n")
+    source
   }
 
   val extRoute: Route = {
@@ -212,6 +212,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
                               CacheError("Internal error")
                           } recover {
                           case e: Exception =>
+                            log.error("Error while compiling", e)
                             compilerManager ! CancelCompilation(compileId)
                             throw e
                         }
@@ -283,13 +284,13 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     }
   }
 
-  def wsFlow: Flow[Message, Message, Any] =
-    ActorFlow.actorRef[Message, Message](out => CompilerService.props(out, compilerManager), () => ())
+  def wsFlow(scalaVersion: String): Flow[Message, Message, Any] =
+    ActorFlow.actorRef[Message, Message](out => CompilerService.props(out, compilerManager, scalaVersion), () => ())
 
   val compilerRoute: Route = {
-    (path("compiler") & parameter('secret)) { secret =>
-      if (secret == Config.secret)
-        handleWebSocketMessages(wsFlow)
+    (path("compiler") & parameters(('secret, 'scalaVersion))) { (secret, scalaVersion) =>
+      if (secret == Config.secret && Config.scalaVersions.contains(scalaVersion))
+        handleWebSocketMessages(wsFlow(scalaVersion))
       else
         complete(HttpResponse(StatusCodes.Forbidden))
     }
