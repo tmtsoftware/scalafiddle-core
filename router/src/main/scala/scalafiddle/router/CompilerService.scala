@@ -18,9 +18,9 @@ class CompilerService(out: ActorRef, manager: ActorRef, scalaVersion: String) ex
   implicit val materializer = ActorMaterializer()(context)
   import context.dispatcher
 
-  val id          = UUID.randomUUID().toString
-  var lastSeen    = System.currentTimeMillis()
-  val watchdog    = context.system.scheduler.schedule(1.minutes, 1.minutes, self, WatchCompiler)
+  val id       = UUID.randomUUID().toString
+  var lastSeen = System.currentTimeMillis()
+  val watchdog = context.system.scheduler.schedule(1.minutes, 1.minutes, self, WatchCompiler)
 
   override def preStart(): Unit = {
     super.preStart()

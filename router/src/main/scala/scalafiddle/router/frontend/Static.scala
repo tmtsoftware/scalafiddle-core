@@ -3,7 +3,6 @@ package scalafiddle.router.frontend
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
-import akka.util.ByteString
 import org.slf4j.LoggerFactory
 
 import scala.collection.concurrent.TrieMap
@@ -25,6 +24,8 @@ object Static {
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/mode-scala.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-eclipse.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night.js",
+    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night.js",
+    s"/META-INF/resources/webjars/js-sha1/0.4.0/build/sha1.min.js",
     s"/web/gzip.js"
   )
 
@@ -209,13 +210,15 @@ object Static {
              |m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
              |})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
              |ga('create', '${Config.analyticsID}', 'auto');
-             |ga('send', 'pageview');
+             |window.setTimeout(function() {ga('send', 'pageview')}, 1000);
              |""".stripMargin
             else "")
         ),
         script(`type` := "text/javascript", raw(baseEnv)),
-        script(`type` := "text/javascript",
-               raw(s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv, $passive)"""))
+        script(
+          `type` := "text/javascript",
+          raw(
+            s"""Client.main($fullOpt, "${Config.scalaFiddleSourceUrl}", "${Config.scalaFiddleEditUrl}", baseEnv, $passive)"""))
       )
     ).toString()
     pageHtml.getBytes(StandardCharsets.UTF_8)
@@ -284,7 +287,7 @@ object Static {
   }
 
   private def concatHash(resources: Seq[String], glueStr: String): (String, Array[Byte]) = {
-    val hash = MessageDigest.getInstance("MD5")
+    val hash = MessageDigest.getInstance("SHA1")
     // files need a bit of glue between them to work properly in concatenated form
     val glue = glueStr.getBytes
     // read all resources and calculate both hash and concatenated string

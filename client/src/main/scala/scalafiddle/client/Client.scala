@@ -25,6 +25,12 @@ class Gzip(data: js.Array[Byte]) extends js.Object {
   def compress(): Uint8Array = js.native
 }
 
+@JSGlobal("sha1")
+@js.native
+object SHA1 extends js.Object {
+  def apply(s: String): String = js.native
+}
+
 case class SourceFile(name: String,
                       code: String,
                       prefix: List[String] = Nil,
@@ -86,7 +92,7 @@ class Client(editURL: String) {
       ("Complete", "Space", () => editor.complete()),
       ("Parse", "Alt-Enter", parseFull _)
     ),
-    complete,
+    complete _,
     RedLogger
   )
 
@@ -138,23 +144,48 @@ class Client(editURL: String) {
   }
 
   def compileServer(code: String, opt: String): Future[CompilationResponse] = {
-    val tag       = s"${if (Client.initializing) "initial-" else ""}$opt"
+    val tag        = s"${if (Client.initializing) "initial-" else ""}$opt"
+    val fullSource = reconstructSource(code, currentSourceFile)
+
     val startTime = System.nanoTime()
-    Ajax
-      .get(
-        url = s"compile?opt=$opt&source=${encodeSource(reconstructSource(code, currentSourceFile))}"
-      )
-      .map { res =>
-        val compileTime = (System.nanoTime() - startTime) / 1000000
-        EventTracker.sendEvent("compile", tag, currentSourceName, compileTime)
-        read[CompilationResponse](res.responseText)
-      } recover {
-      case e: dom.ext.AjaxException =>
-        showError(s"Error: ${e.xhr.responseText}")
-        throw e
-      case e: Throwable =>
-        showError(e.toString)
-        throw e
+    val compResp: Future[Option[CompilationResponse]] = if (Client.initializing) {
+      // first try loading the compilation result using SHA1 hash code only
+      val sha1 = SHA1(fullSource).toUpperCase
+      Ajax
+        .get(
+          url = s"compileResult?opt=$opt&sourceSHA1=$sha1"
+        )
+        .map { res =>
+          val compileTime = (System.nanoTime() - startTime) / 1000000
+          EventTracker.sendEvent("cachedCompile", tag, currentSourceName, compileTime)
+          Some(read[CompilationResponse](res.responseText))
+        } recover {
+        case _: dom.ext.AjaxException =>
+          None
+      }
+    } else Future.successful(None)
+    compResp.flatMap {
+      case Some(r) =>
+        Future.successful(r)
+      case None =>
+        // post actual source code and get compilation result
+        Ajax
+          .post(
+            url = s"compile?opt=$opt",
+            data = fullSource
+          )
+          .map { res =>
+            val compileTime = (System.nanoTime() - startTime) / 1000000
+            EventTracker.sendEvent("compile", tag, currentSourceName, compileTime)
+            read[CompilationResponse](res.responseText)
+          } recover {
+          case e: dom.ext.AjaxException =>
+            showError(s"Error: ${e.xhr.responseText}")
+            throw e
+          case e: Throwable =>
+            showError(e.toString)
+            throw e
+        }
     }
   }
 
@@ -252,12 +283,12 @@ class Client(editURL: String) {
       currentSource = src.id
       currentSourceName = src.name
       editor.sess.setValue(src.code)
-/*
+    /*
       editLink.href = src.fiddleId match {
         case Some(fiddleId) => editURL + "sf/" + fiddleId
         case None           => editURL + s"?zrc=${encodeSource(reconstructSource(editor.code, currentSourceFile))}"
       }
-*/
+     */
     }
   }
 
@@ -306,8 +337,9 @@ class Client(editURL: String) {
     val startTime = System.nanoTime()
 
     val f = Ajax
-      .get(
-        url = s"complete?offset=$intOffset&source=${encodeSource(code)}"
+      .post(
+        url = s"complete?offset=$intOffset",
+        data = code
       )
       .map { res =>
         val completeTime = (System.nanoTime() - startTime) / 1000000
@@ -412,12 +444,17 @@ object Client {
     """.stripMargin
 
   @JSExport
-  def main(useFull: Boolean, scalaFiddleSourceUrl: String, scalaFiddleEditUrl: String, baseEnv: String, passive: Boolean): Unit =
+  def main(useFull: Boolean,
+           scalaFiddleSourceUrl: String,
+           scalaFiddleEditUrl: String,
+           baseEnv: String,
+           passive: Boolean): Unit =
     task * async {
+      initializing = true
       clear()
       Editor.initEditor
       val client = new Client(scalaFiddleEditUrl)
-      if (queryParams.contains("sfid")) {
+      val f: Future[Any] = if (queryParams.contains("sfid")) {
         val ids = queryParams("sfid").split(",").toList
         val sources = await(Future.sequence(ids.map { id =>
           loadSource(scalaFiddleSourceUrl, id) recover {
@@ -425,28 +462,23 @@ object Client {
           }
         }))
         client.setSources(sources)
-        if(!passive) {
-          if (useFull)
-            client.fullOpt
-          else
-            client.fastOpt
-        }
+        if (!passive) {
+          client.fullOpt
+        } else Future.successful(())
       } else if (queryParams.contains("source")) {
         val srcCode = queryParams("source")
         client.showStatus("Loading")
         // check for sub-fiddles
         val sources = await(Future(parseFiddles(srcCode)))
         client.setSources(sources)
-        if(!passive) {
-          if (useFull)
-            client.fullOpt
-          else
-            client.fastOpt
-        }
+        if (!passive) {
+          client.fullOpt
+        } else Future.successful(())
       } else {
         client.setSources(Seq(SourceFile("ScalaFiddle.scala", baseEnv)))
+        Future.successful(())
       }
-      initializing = false
+      f.foreach(_ => initializing = false)
     }
 
   val fiddleName = """\s*// \$FiddleName\s+(.+)$""".r

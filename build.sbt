@@ -2,9 +2,12 @@ import sbt._
 import Keys._
 import Settings._
 
+scalafmtOnCompile in ThisBuild := true
+scalafmtVersion in ThisBuild := "1.3.0"
+
 val commonSettings = Seq(
   scalacOptions := scalacArgs,
-  scalaVersion := "2.12.3",
+  scalaVersion := "2.12.4",
   version := versions.fiddle,
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % versions.scalatest % "test"
@@ -65,7 +68,7 @@ lazy val compilerServer = project
   .settings(Revolver.settings: _*)
   .settings(
     name := "scalafiddle-core",
-    crossScalaVersions := Seq("2.11.11", "2.12.3"),
+    crossScalaVersions := Seq("2.11.12", "2.12.4"),
     libraryDependencies ++= Seq(
       "org.scala-lang"         % "scala-compiler"   % scalaVersion.value,
       "org.scala-js"           % "scalajs-compiler" % scalaJSVersion cross CrossVersion.full,
@@ -140,6 +143,7 @@ lazy val router = (project in file("router"))
       "com.lihaoyi"           %% "scalatags"      % versions.scalatags,
       "org.webjars"           % "ace"             % versions.ace,
       "org.webjars"           % "normalize.css"   % "2.1.3",
+      "org.webjars.npm"       % "js-sha1"         % "0.4.0",
       "com.lihaoyi"           %% "upickle"        % versions.upickle,
       "com.github.marklister" %% "base64"         % versions.base64,
       "ch.megard"             %% "akka-http-cors" % "0.2.1"
@@ -168,7 +172,7 @@ lazy val router = (project in file("router"))
       val targetDir    = "/app"
 
       new Dockerfile {
-        from("openjdk:8-jdk-alpine")
+        from("anapsix/alpine-java:8_jdk")
         run("apk", "add", "--update", "bash", "libc6-compat")
         entryPoint(s"$targetDir/bin/${executableScriptName.value}")
         copy(appDir, targetDir)

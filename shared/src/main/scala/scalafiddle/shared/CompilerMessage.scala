@@ -24,7 +24,7 @@ case class CompilationRequest(id: String, source: String, clientAddress: String,
 }
 
 case class CompletionRequest(id: String, source: String, clientAddress: String, offset: Int)
-  extends CompilerRequest
+    extends CompilerRequest
     with CompilerMessage {
   def updated(f: String => String) = copy(source = f(source))
 }

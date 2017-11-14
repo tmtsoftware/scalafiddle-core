@@ -4,13 +4,13 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.UUID
-import java.util.zip.GZIPInputStream
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
 import akka.actor._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `no-cache`}
-import akka.http.scaladsl.model.headers.{HttpOrigin, HttpOriginRange, `Cache-Control`}
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -39,6 +39,8 @@ case class NoCacheResult(data: Array[Byte]) extends CacheValue
 
 case class CacheError(error: String) extends CacheValue
 
+case object NotFound extends CacheValue
+
 case class CacheCounter(hit: Counter, miss: Counter, error: Counter)
 
 class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
@@ -51,7 +53,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
   implicit val ec           = system.dispatcher
   val log                   = LoggerFactory.getLogger(getClass)
 
-  val settings =
+  val corsSettings =
     CorsSettings.defaultSettings.copy(allowedOrigins = HttpOriginRange(Config.corsOrigins.map(HttpOrigin(_)): _*))
 
   type ParamValidator = Map[String, Validator]
@@ -70,13 +72,9 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
   )
 
   val compileValidator: ParamValidator = Map(
-    "source" -> EmptyValidator,
-    "opt"    -> ListValidator("fast", "full")
-  )
-
-  val completeValidator: ParamValidator = Map(
-    "source" -> EmptyValidator,
-    "offset" -> IntValidator()
+    "sourceSHA1" -> EmptyValidator,
+    "sfversion"  -> EmptyValidator,
+    "opt"        -> ListValidator("fast", "full")
   )
 
   val cacheCounters = Seq(
@@ -109,8 +107,17 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
       case (key, value) =>
         sb.append(key).append(value)
     }
-    val hash = MessageDigest.getInstance("MD5").digest(sb.toString().getBytes(StandardCharsets.UTF_8))
+    val hash = MessageDigest.getInstance("SHA1").digest(sb.toString().getBytes(StandardCharsets.UTF_8))
     hash.map("%02X".format(_)).mkString
+  }
+
+  def gzipCompress(data: Array[Byte]): Array[Byte] = {
+    val bos = new ByteArrayOutputStream()
+    val zis = new GZIPOutputStream(bos)
+    zis.write(data)
+    zis.close()
+    bos.close()
+    bos.toByteArray
   }
 
   def cacheOr(path: String, params: Map[String, String], validator: ParamValidator, expiration: Int)(
@@ -126,15 +133,24 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
           case Some(data) =>
             log.debug(s"Cache hit on $path")
             cacheCounters.get(path).foreach { _.hit.increment() }
-            Future.successful(toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration))))
+            Future.successful(
+              toResponse(data)
+                .withHeaders(`Cache-Control`(`max-age`(expiration)), `Content-Encoding`(HttpEncodings.gzip))
+            )
           case None =>
             cacheCounters.get(path).foreach { _.miss.increment() }
             value map {
               case CacheResult(data) =>
-                cache.put(hash, data, expiration)
-                toResponse(data).withHeaders(`Cache-Control`(`max-age`(expiration)))
+                val gzipData = gzipCompress(data)
+                cache.put(hash, gzipData, expiration)
+                toResponse(gzipData)
+                  .withHeaders(`Cache-Control`(`max-age`(expiration)), `Content-Encoding`(HttpEncodings.gzip))
               case NoCacheResult(data) =>
-                toResponse(data).withHeaders(`Cache-Control`(`no-cache`))
+                val gzipData = gzipCompress(data)
+                toResponse(gzipData)
+                  .withHeaders(`Cache-Control`(`no-cache`), `Content-Encoding`(HttpEncodings.gzip))
+              case NotFound =>
+                HttpResponse(StatusCodes.NotFound)
               case CacheError(error) =>
                 HttpResponse(StatusCodes.BadRequest, entity = error)
             } recover {
@@ -166,8 +182,85 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     source
   }
 
+  def cachedCompile(source: String, paramMap: Map[String, String], clientIP: RemoteAddress): Future[HttpResponse] = {
+    val sourceHash =
+      MessageDigest.getInstance("SHA1").digest(source.getBytes(StandardCharsets.UTF_8)).map("%02X".format(_)).mkString
+    val allParams = paramMap.updated("sourceSHA1", sourceHash).updated("sfversion", Config.version)
+    log.debug(s"Source hash: $sourceHash")
+    cacheOr("compile", allParams, compileValidator, 3600 * 24 * 90) {
+      val remoteIP = clientIP.toIP.map(_.ip.getHostAddress).getOrElse("localhost")
+      log.debug(s"Compile request from $remoteIP")
+      val compileId = UUID.randomUUID().toString
+      ask(compilerManager, CompilationRequest(compileId, source, clientIP.toString, paramMap("opt")))
+        .mapTo[Either[String, CompilerResponse]]
+        .map {
+          case Right(response: CompilationResponse) if response.jsCode.isDefined =>
+            CacheResult(write(response).getBytes("UTF-8"))
+          case Right(response: CompilationResponse) =>
+            NoCacheResult(write(response).getBytes("UTF-8"))
+          case Left(error) =>
+            CacheError(error)
+          case _ =>
+            CacheError("Internal error")
+        } recover {
+        case e: Exception =>
+          log.error("Error while compiling", e)
+          compilerManager ! CancelCompilation(compileId)
+          throw e
+      }
+    }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
+  }
+
   val extRoute: Route = {
-    encodeResponse {
+    post {
+      path("compile") {
+        handleRejections(CorsDirectives.corsRejectionHandler) {
+          CorsDirectives.cors(corsSettings) {
+            parameterMap { paramMap =>
+              extractClientIP { clientIP =>
+                extractRequest { request =>
+                  complete {
+                    request.entity.toStrict(5.seconds).flatMap { entity =>
+                      val source = entity.data.decodeString(StandardCharsets.UTF_8)
+                      cachedCompile(source, paramMap, clientIP)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } ~ path("complete") {
+        handleRejections(CorsDirectives.corsRejectionHandler) {
+          CorsDirectives.cors(corsSettings) {
+            parameterMap { paramMap =>
+              extractClientIP { clientIP =>
+                extractRequest { request =>
+                  complete {
+                    request.entity.toStrict(5.seconds).flatMap { entity =>
+                      val source    = entity.data.decodeString(StandardCharsets.UTF_8)
+                      val compileId = UUID.randomUUID().toString
+                      ask(compilerManager, CompletionRequest(compileId, source, clientIP.toString, paramMap("offset").toInt))
+                        .mapTo[Either[String, CompletionResponse]]
+                        .map {
+                          case Right(response: CompletionResponse) =>
+                            HttpResponse(entity = HttpEntity(`application/json`, write(response).getBytes("UTF-8")))
+                          case Left(error) =>
+                            HttpResponse(StatusCodes.BadRequest, entity = error)
+                        } recover {
+                        case e: Exception =>
+                          compilerManager ! CancelCompilation(compileId)
+                          HttpResponse(StatusCodes.InternalServerError, entity = "Internal error")
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } ~
       get {
         path("embed") {
           parameterMap { paramMap =>
@@ -189,70 +282,25 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
           }
         } ~ path("compile") {
           handleRejections(CorsDirectives.corsRejectionHandler) {
-            CorsDirectives.cors(settings) {
+            CorsDirectives.cors(corsSettings) {
               parameterMap { paramMap =>
                 extractClientIP { clientIP =>
-                  extractRequest { request =>
-                    complete {
-                      cacheOr("compile", paramMap, compileValidator, 3600 * 24 * 90) {
-                        val remoteIP = clientIP.toIP.map(_.ip.getHostAddress).getOrElse("localhost")
-                        log.debug(s"Compile request from $remoteIP")
-                        val compileId = UUID.randomUUID().toString
-                        val source    = decodeSource(paramMap("source"))
-                        ask(compilerManager, CompilationRequest(compileId, source, clientIP.toString, paramMap("opt")))
-                          .mapTo[Either[String, CompilerResponse]]
-                          .map {
-                            case Right(response: CompilationResponse) if response.jsCode.isDefined =>
-                              CacheResult(write(response).getBytes("UTF-8"))
-                            case Right(response: CompilationResponse) =>
-                              NoCacheResult(write(response).getBytes("UTF-8"))
-                            case Left(error) =>
-                              CacheError(error)
-                            case _ =>
-                              CacheError("Internal error")
-                          } recover {
-                          case e: Exception =>
-                            log.error("Error while compiling", e)
-                            compilerManager ! CancelCompilation(compileId)
-                            throw e
-                        }
-                      }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
-                    }
+                  complete {
+                    val source = decodeSource(paramMap("source"))
+                    cachedCompile(source, paramMap, clientIP)
                   }
                 }
               }
             }
           }
-        } ~ path("complete") {
+        } ~ path("compileResult") {
           handleRejections(CorsDirectives.corsRejectionHandler) {
-            CorsDirectives.cors(settings) {
+            CorsDirectives.cors(corsSettings) {
               parameterMap { paramMap =>
-                extractClientIP { clientIP =>
-                  extractRequest { request =>
-                    complete {
-                      cacheOr("complete", paramMap, completeValidator, 3600 * 24 * 90) {
-                        val compileId = UUID.randomUUID().toString
-                        val source    = decodeSource(paramMap("source"))
-                        ask(compilerManager,
-                            CompletionRequest(compileId, source, clientIP.toString, paramMap("offset").toInt))
-                          .mapTo[Either[String, CompilerResponse]]
-                          .map {
-                            case Right(response: CompletionResponse) if response.completions.nonEmpty =>
-                              CacheResult(write(response).getBytes("UTF-8"))
-                            case Right(response: CompletionResponse) if response.completions.isEmpty =>
-                              NoCacheResult(write(response).getBytes("UTF-8"))
-                            case Left(error) =>
-                              CacheError(error)
-                            case _ =>
-                              CacheError("Internal error")
-                          } recover {
-                          case e: Exception =>
-                            compilerManager ! CancelCompilation(compileId)
-                            throw e
-                        }
-                      }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
-                    }
-                  }
+                complete {
+                  cacheOr("compile", paramMap.updated("sfversion", Config.version), compileValidator, 3600 * 24 * 90) {
+                    Future.successful(NotFound)
+                  }(data => HttpResponse(entity = HttpEntity(`application/json`, data)))
                 }
               }
             }
@@ -281,7 +329,6 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
           getFromResourceDirectory("/web")
         }
       }
-    }
   }
 
   def wsFlow(scalaVersion: String): Flow[Message, Message, Any] =
