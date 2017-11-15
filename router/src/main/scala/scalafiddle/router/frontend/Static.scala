@@ -18,12 +18,12 @@ object Static {
   val log = LoggerFactory.getLogger(getClass)
 
   val extJSFiles = Seq(
+    s"/META-INF/resources/webjars/jquery/2.2.2/jquery.min.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ace.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-language_tools.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/ext-static_highlight.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/mode-scala.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-eclipse.js",
-    s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night.js",
     s"/META-INF/resources/webjars/ace/${Config.aceVersion}/src-min/theme-tomorrow_night.js",
     s"/META-INF/resources/webjars/js-sha1/0.4.0/build/sha1.min.js",
     s"/web/gzip.js"
@@ -205,11 +205,11 @@ object Static {
           raw(
             if (Config.analyticsID.nonEmpty)
               s"""
-             |(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+             |window.setTimeout(function(){(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
              |(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
              |m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
              |})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-             |ga('create', '${Config.analyticsID}', 'auto');
+             |ga('create', '${Config.analyticsID}', 'auto')}, 0);
              |window.setTimeout(function() {ga('send', 'pageview')}, 1000);
              |""".stripMargin
             else "")

@@ -143,6 +143,7 @@ lazy val router = (project in file("router"))
       "com.lihaoyi"           %% "scalatags"      % versions.scalatags,
       "org.webjars"           % "ace"             % versions.ace,
       "org.webjars"           % "normalize.css"   % "2.1.3",
+      "org.webjars"           % "jquery"          % "2.2.2",
       "org.webjars.npm"       % "js-sha1"         % "0.4.0",
       "com.lihaoyi"           %% "upickle"        % versions.upickle,
       "com.github.marklister" %% "base64"         % versions.base64,
