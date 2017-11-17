@@ -29,7 +29,7 @@ object Settings {
     val async         = "0.9.7"
     val coursier      = "1.0.0-RC11"
     val kamon         = "0.6.7"
-    val base64        = "0.2.3"
+    val base64        = "0.2.4"
   }
 
   val kamon = Seq(

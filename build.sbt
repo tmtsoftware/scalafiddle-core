@@ -10,8 +10,7 @@ val commonSettings = Seq(
   scalaVersion := "2.12.4",
   version := versions.fiddle,
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % versions.scalatest % "test"
-  )
+    )
 )
 
 lazy val root = project
@@ -29,11 +28,10 @@ lazy val client = project
   .settings(
     libraryDependencies ++= Seq(
       "org.scala-js"           %%% "scalajs-dom" % versions.dom,
-      "com.lihaoyi"            %%% "scalatags"   % versions.scalatags,
-      "com.lihaoyi"            %%% "upickle"     % versions.upickle,
       "com.github.marklister"  %%% "base64"      % versions.base64,
       "org.scala-lang.modules" %% "scala-async"  % versions.async % "provided"
     ),
+    //scalaJSLinkerConfig in (Compile, fullOptJS) ~= { _.withClosureCompilerIfAvailable(false) },
     // rename output always to -opt.js
     artifactPath in (Compile, fastOptJS) := ((crossTarget in (Compile, fastOptJS)).value /
       ((moduleName in fastOptJS).value + "-opt.js")),

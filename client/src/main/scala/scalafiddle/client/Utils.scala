@@ -1,21 +1,10 @@
 package scalafiddle.client
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
 import scala.scalajs.js.annotation.JSGlobalScope
-
-case class Channel[T]() {
-  private[this] var value: Promise[T] = null
-  def apply(): Future[T] = {
-    value = Promise[T]()
-    value.future
-  }
-  def update(t: T) = {
-    if (value != null && !value.isCompleted) value.success(t)
-  }
-}
 
 class JsVal(val value: js.Dynamic) {
   def get(name: String): Option[JsVal] = {

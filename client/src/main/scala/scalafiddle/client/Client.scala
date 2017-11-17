@@ -1,12 +1,10 @@
 package scalafiddle.client
 
-import java.net.URLDecoder
 import java.util.UUID
 
 import org.scalajs.dom
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.dom.raw._
-import upickle.default._
 
 import scala.async.Async.{async, await}
 import scala.concurrent.{Future, Promise}
@@ -17,7 +15,7 @@ import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
 import scala.scalajs.js.typedarray.Uint8Array
 import scala.scalajs.niocharset.StandardCharsets
 import scala.util.Success
-import scalafiddle.shared.{CompilationResponse, CompletionResponse}
+import scalafiddle.shared.{CompilationResponse, CompletionResponse, EditorAnnotation}
 
 @JSGlobal("Zlib.Gzip")
 @js.native
@@ -39,6 +37,26 @@ case class SourceFile(name: String,
                       fiddleId: Option[String] = None,
                       id: String = UUID.randomUUID().toString)
 
+@js.native
+trait EditorAnnotationJS extends js.Object {
+  val row: Int
+  val col: Int
+  val text: js.Array[String]
+  val tpe: String
+}
+
+@js.native
+trait CompilationResponseJS extends js.Object {
+  val jsCode: js.Array[String]
+  val annotations: js.Array[EditorAnnotationJS]
+  val log: String
+}
+
+@js.native
+trait CompletionResponseJS extends js.Object {
+  val completions: js.Array[js.Array[String]]
+}
+
 class Client(editURL: String) {
   implicit val RedLogger = scalafiddle.client.Client.RedLogger
   var sourceFiles        = Seq(SourceFile("ScalaFiddle.scala", ""))
@@ -46,8 +64,6 @@ class Client(editURL: String) {
   var currentSourceName  = sourceFiles.head.name
 
   def currentSourceFile = sourceFiles.find(_.id == currentSource).get
-
-  val command = Channel[Future[CompilationResponse]]()
 
   val runIcon           = dom.document.getElementById("run-icon").asInstanceOf[HTMLElement]
   val resetIcon         = dom.document.getElementById("reset-icon").asInstanceOf[HTMLElement]
@@ -64,7 +80,7 @@ class Client(editURL: String) {
     e.stopPropagation()
   }
 
-  def exec(s: String) = {
+  def exec(s: String): Unit = {
     Client.clear()
 
     showStatus("RUNNING")
@@ -73,22 +89,10 @@ class Client(editURL: String) {
     }
   }
 
-  val compilationLoop = task * async {
-    val future = await(command())
-    await(compile(future)).foreach(exec)
-
-    while (true) {
-      val future = await(command())
-
-      val compiled = await(compile(future))
-      compiled.foreach(exec)
-    }
-  }
-
   val editor: Editor = new Editor(
     Seq(
-      ("Compile", "Enter", () => fastOpt),
-      ("FullOptimize", "Shift-Enter", () => fullOpt),
+      ("Compile", "Enter", () => fastOpt()),
+      ("FullOptimize", "Shift-Enter", () => fullOpt()),
       ("Complete", "Space", () => editor.complete()),
       ("Parse", "Alt-Enter", parseFull _)
     ),
@@ -115,10 +119,9 @@ class Client(editURL: String) {
   }
 
   def showError(errStr: String): Unit = {
-    import scalatags.JsDom.all._
     showStatus("Errors")
     Client.clear()
-    Client.printOutput(pre(cls := "error", errStr))
+    Client.printOutput(Client.tag("pre")(errStr, Map("class" -> "error")))
   }
 
   def reconstructSource(source: String, srcFile: SourceFile): String = {
@@ -129,8 +132,8 @@ class Client(editURL: String) {
 
   def encodeSource(source: String): String = {
     import com.github.marklister.base64.Base64._
-
     import js.JSConverters._
+
     implicit def scheme: B64Scheme = base64Url
     val fullSource                 = source.getBytes(StandardCharsets.UTF_8)
     val compressedBuffer           = new Gzip(fullSource.toJSArray).compress()
@@ -141,6 +144,24 @@ class Client(editURL: String) {
       i += 1
     }
     Encoder(compressedSource).toBase64
+  }
+
+  def readCompilationResponse(jsonStr: String): CompilationResponse = {
+    val r = js.JSON.parse(jsonStr).asInstanceOf[CompilationResponseJS]
+    CompilationResponse(
+      if (r.jsCode.isEmpty) None else Some(r.jsCode(0)),
+      r.annotations.map { a =>
+        EditorAnnotation(a.row, a.col, a.text, a.tpe)
+      },
+      r.log
+    )
+  }
+
+  def readCompletionResponse(jsonStr: String): CompletionResponse = {
+    val r = js.JSON.parse(jsonStr).asInstanceOf[CompletionResponseJS]
+    CompletionResponse(
+      r.completions.map(c => (c(0), c(1))).toList
+    )
   }
 
   def compileServer(code: String, opt: String): Future[CompilationResponse] = {
@@ -157,8 +178,8 @@ class Client(editURL: String) {
         )
         .map { res =>
           val compileTime = (System.nanoTime() - startTime) / 1000000
-          EventTracker.sendEvent("cachedCompile", tag, currentSourceName, compileTime)
-          Some(read[CompilationResponse](res.responseText))
+          js.timers.setTimeout(500)(EventTracker.sendEvent("cachedCompile", tag, currentSourceName, compileTime))
+          Some(readCompilationResponse(res.responseText))
         } recover {
         case _: dom.ext.AjaxException =>
           None
@@ -176,8 +197,8 @@ class Client(editURL: String) {
           )
           .map { res =>
             val compileTime = (System.nanoTime() - startTime) / 1000000
-            EventTracker.sendEvent("compile", tag, currentSourceName, compileTime)
-            read[CompilationResponse](res.responseText)
+            js.timers.setTimeout(500)(EventTracker.sendEvent("compile", tag, currentSourceName, compileTime))
+            readCompilationResponse(res.responseText)
           } recover {
           case e: dom.ext.AjaxException =>
             showError(s"Error: ${e.xhr.responseText}")
@@ -189,27 +210,35 @@ class Client(editURL: String) {
     }
   }
 
-  def fullOpt = {
-    beginCompilation().map(_ => command.update(compileServer(editor.code, "full")))
+  def performCompile(opt: String): Future[Unit] = {
+    val cleared              = beginCompilation()
+    val pendingCompileResult = compileServer(editor.code, opt)
+    for {
+      _         <- cleared
+      jsCodeOpt <- processCompilationResponse(pendingCompileResult)
+    } yield {
+      jsCodeOpt.foreach(exec)
+    }
   }
 
-  def fastOpt = {
-    beginCompilation().map(_ => command.update(compileServer(editor.code, "fast")))
-  }
+  def fullOpt(): Future[Unit] = performCompile("full")
+
+  def fastOpt(): Future[Unit] = performCompile("fast")
 
   def parseFull() = {
-    import scalatags.JsDom.all._
     Client.clear()
-    Client.printOutput(h2("Full source code"), pre(reconstructSource(editor.code, currentSourceFile)))
+    Client.printOutput(Client.tag("h2")("Full source code"))
+    Client.printOutput(
+      Client.tag("pre")(reconstructSource(editor.code, currentSourceFile).replace("&", "&amp;") replace ("<", "&lt;")))
   }
 
   // attach handlers to icons
   if (runIcon != null) {
     runIcon.onclick = (e: MouseEvent) => {
       if (e.shiftKey)
-        fullOpt
+        fullOpt()
       else
-        fastOpt
+        fastOpt()
     }
   }
 
@@ -263,13 +292,12 @@ class Client(editURL: String) {
   }
 
   def setSources(sources: Seq[SourceFile]): Unit = {
-    import scalatags.JsDom.all._
-
     sourceFiles = sources.map(extractCode)
-    fiddleSelector.innerHTML = ""
-    sourceFiles.foreach { source =>
-      fiddleSelector.add(option(value := source.id)(source.name).render)
-    }
+    fiddleSelector.innerHTML = sourceFiles
+      .map { source =>
+        Client.tag("option")(source.name, Map("value" -> source.id))
+      }
+      .mkString("")
     if (sourceFiles.size > 1) {
       fiddleSelectorDiv.style.display = "inherit"
     } else {
@@ -299,7 +327,7 @@ class Client(editURL: String) {
     }
   }
 
-  def compile(res: Future[CompilationResponse]): Future[Option[String]] = {
+  def processCompilationResponse(res: Future[CompilationResponse]): Future[Option[String]] = {
     res
       .map { response =>
         endCompilation()
@@ -343,8 +371,8 @@ class Client(editURL: String) {
       )
       .map { res =>
         val completeTime = (System.nanoTime() - startTime) / 1000000
-        EventTracker.sendEvent("complete", "complete", currentSourceName, completeTime)
-        read[CompletionResponse](res.responseText)
+        js.timers.setTimeout(500)(EventTracker.sendEvent("complete", "complete", currentSourceName, completeTime))
+        readCompletionResponse(res.responseText)
       } recover {
       case e: dom.ext.AjaxException =>
         showError(s"Error: ${e.xhr.responseText}")
@@ -383,8 +411,8 @@ object Client {
       .filter(_.nonEmpty)
       .map { part =>
         val pair  = part.split("=")
-        val key   = URLDecoder.decode(pair(0), "UTF-8")
-        val value = if (pair.length > 1) URLDecoder.decode(pair(1), "UTF-8") else ""
+        val key   = js.URIUtils.decodeURIComponent(pair(0))
+        val value = if (pair.length > 1) js.URIUtils.decodeURIComponent(pair(1)) else ""
         key -> value
       }
       .toMap
@@ -397,6 +425,10 @@ object Client {
   lazy val codeFrame = dom.document.getElementById("codeframe").asInstanceOf[HTMLIFrameElement]
 
   dom.console.log(s"queryParams: $queryParams")
+
+  private[Client] def tag(name: String)(content: String, attrs: Map[String, String] = Map.empty): String = {
+    s"""<$name${attrs.map { case (a, v) => s"""$a="$v"""" }.mkString(" ", " ", "")}>$content</$name>"""
+  }
 
   def logError(s: String): Unit = {
     dom.console.error(s)
@@ -463,7 +495,7 @@ object Client {
         }))
         client.setSources(sources)
         if (!passive) {
-          client.fullOpt
+          client.fullOpt()
         } else Future.successful(())
       } else if (queryParams.contains("source")) {
         val srcCode = queryParams("source")
@@ -472,7 +504,7 @@ object Client {
         val sources = await(Future(parseFiddles(srcCode)))
         client.setSources(sources)
         if (!passive) {
-          client.fullOpt
+          client.fullOpt()
         } else Future.successful(())
       } else {
         client.setSources(Seq(SourceFile("ScalaFiddle.scala", baseEnv)))
@@ -498,14 +530,7 @@ object Client {
   }
 
   def printOutput(ss: String) = {
-    import scalatags.JsDom.all._
-    val html = div(ss).toString
-    Client.sendFrameCmd("print", html)
-  }
-
-  def printOutput(ss: scalatags.JsDom.all.Modifier*) = {
-    import scalatags.JsDom.all._
-    val html = div(ss).toString
+    val html = tag("div")(ss)
     Client.sendFrameCmd("print", html)
   }
 }
