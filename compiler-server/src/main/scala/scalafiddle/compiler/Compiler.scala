@@ -1,8 +1,7 @@
 package scalafiddle.compiler
 
 import org.scalajs.core.tools.io._
-import org.scalajs.core.tools.linker.Linker
-import org.scalajs.core.tools.linker.backend.{ModuleKind, OutputMode}
+import org.scalajs.core.tools.linker.StandardLinker
 import org.scalajs.core.tools.logging._
 import org.scalajs.core.tools.sem.Semantics
 import org.slf4j.LoggerFactory
@@ -159,10 +158,12 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
     try {
       val linker =
         LinkerCache.getOrUpdate(libs,
-                                Linker(semantics,
-                                       OutputMode.Default,
-                                       ModuleKind.NoModule,
-                                       Linker.Config().withSourceMap(false).withClosureCompiler(fullOpt)))
+                                StandardLinker(
+                                  StandardLinker
+                                    .Config()
+                                    .withSemantics(semantics)
+                                    .withSourceMap(false)
+                                    .withClosureCompilerIfAvailable(fullOpt)))
       linker.link(libManager.linkerLibraries(extLibs) ++ userFiles, Nil, output, sjsLogger)
     } catch {
       case e: Throwable =>

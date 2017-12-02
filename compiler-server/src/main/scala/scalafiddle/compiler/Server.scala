@@ -6,7 +6,6 @@ import akka.util.Timeout
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 object Server extends App {
   implicit val system       = ActorSystem()

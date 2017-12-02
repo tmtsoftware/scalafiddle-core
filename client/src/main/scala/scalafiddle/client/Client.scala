@@ -394,7 +394,7 @@ object Client {
   var intervalHandles = List.empty[SetIntervalHandle]
   var timeoutHandles  = List.empty[SetTimeoutHandle]
 
-  dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int) =>
+  dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int, x: Any) =>
     dom.console.log("dom.onerror")
     Client.logError(event.toString)
   }
@@ -471,9 +471,9 @@ object Client {
   }
 
   def defaultCode(id: String) =
-    s"""println("There was an error loading fiddle with identifier '$id'")
-        |println("Loading an empty application so you can get started")
-    """.stripMargin
+    s"""// There was an error loading fiddle with identifier '$id'
+        |// Loading an empty application so you can get started
+        |""".stripMargin
 
   @JSExport
   def main(useFull: Boolean,

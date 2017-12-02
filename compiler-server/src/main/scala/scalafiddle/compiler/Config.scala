@@ -3,9 +3,6 @@ package scalafiddle.compiler
 import java.util.Properties
 
 import com.typesafe.config.ConfigFactory
-import upickle.default._
-
-import scala.collection.JavaConverters._
 
 case class Template(pre: String, post: String) {
   def fullSource(src: String) = pre + src + post
