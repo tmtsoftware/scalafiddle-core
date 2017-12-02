@@ -7,6 +7,10 @@
     color: #888;
 }
 
+.top {
+    border: 1px solid #333;
+}
+
 .normal {
     color: #aaa;
 }

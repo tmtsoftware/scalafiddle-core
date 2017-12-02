@@ -5,6 +5,8 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #ddd;
 }
 
 body > svg {
@@ -19,7 +21,7 @@ header {
     flex-wrap: nowrap;
     flex: 0 0 35px;
     align-items: center;
-    padding: 5px;
+    padding: 3px;
     box-shadow: 0 0 8px rgba(66, 66, 86, .5);
     z-index: 999;
     justify-content: space-between;
@@ -114,7 +116,7 @@ header {
     color: #aaa;
     z-index: 999;
     text-align: right;
-    font-size: 0.8em;
+    font-size: 0.7em;
     font-family: Lato, "Helvetica Neue", Arial, Verdana, Tahoma, "Lucida Sans", FreeSans, "Lucida Sans Unicode", "Luxi Sans", sans-serif;
 }
 
