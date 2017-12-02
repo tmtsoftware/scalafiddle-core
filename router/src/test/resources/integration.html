@@ -1,0 +1,63 @@
+<html>
+<head>
+    <title>Testing</title>
+    <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/style.css">
+    <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/gitbook-plugin-prism/prism.css">
+    <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/gitbook-plugin-search/search.css">
+    <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/gitbook-plugin-fontsettings/website.css">
+</head>
+<body>
+<div style="width: 900px;" class="normal markdown-section">
+    <h1>ScalaFiddle integration test</h1>
+    <p>What does it look like?</p>
+    <div data-scalafiddle-template="basic">
+    <pre><code class="lang-scala"><span class="token keyword">case</span> <span class="token keyword">class</span> Root<span
+            class="token punctuation">(</span>a<span class="token operator">:</span> A<span
+            class="token punctuation">,</span> b<span class="token operator">:</span> B<span
+            class="token punctuation">,</span> c<span class="token operator">:</span> <span
+            class="token builtin">String</span><span class="token punctuation">)</span>
+<span class="token keyword">case</span> <span class="token keyword">class</span> A<span
+                class="token punctuation">(</span>d<span class="token operator">:</span> <span
+                class="token builtin">Int</span><span class="token punctuation">,</span> e<span
+                class="token operator">:</span> <span class="token builtin">String</span><span
+                class="token punctuation">)</span>
+<span class="token keyword">case</span> <span class="token keyword">class</span> B<span
+                class="token punctuation">(</span>f<span class="token operator">:</span> <span
+                class="token builtin">Boolean</span><span class="token punctuation">,</span> g<span
+                class="token operator">:</span> Option<span class="token punctuation">[</span>D<span
+                class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token keyword">case</span> <span class="token keyword">class</span> D<span
+                class="token punctuation">(</span>h<span class="token operator">:</span> Seq<span
+                class="token punctuation">[</span><span class="token builtin">Int</span><span
+                class="token punctuation">]</span><span class="token punctuation">,</span> i<span
+                class="token operator">:</span> <span class="token builtin">Int</span><span
+                class="token punctuation">)</span>
+
+<span class="token keyword">object</span> AppCircuit <span class="token keyword">extends</span> Circuit<span
+                class="token punctuation">[</span>Root<span class="token punctuation">]</span> <span
+                class="token punctuation">{</span>
+  <span class="token comment" spellcheck="true">// provides initial model to the Circuit</span>
+  <span class="token keyword">override</span> <span class="token keyword">def</span> initialModel <span
+                class="token operator">=</span> Root<span class="token punctuation">(</span> <span class="token punctuation">.</span><span
+                class="token punctuation">.</span><span class="token punctuation">.</span> <span
+                class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+</code></pre>
+    </div>
+
+</div>
+<script>
+    window.scalaFiddleTemplates = {
+      "basic": {
+        "pre": "import fiddle.Fiddle, Fiddle.println\n" +
+        "import scalajs.js\n" +
+        "\n" +
+        "@js.annotation.JSExportTopLevel(\"ScalaFiddle\")\n" +
+        "object ScalaFiddle {",
+        "post": "}"
+      }
+    };
+</script>
+<script src="integration.js"></script>
+</body>
+</html>
