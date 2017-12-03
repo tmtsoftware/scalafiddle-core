@@ -10,7 +10,7 @@
     "@js.annotation.JSExportTopLevel(\"ScalaFiddle\")\n" +
     "object ScalaFiddle {",
     post: "}\n" +
-    "// $ScalaVersion 2.12"
+      "// $ScalaVersion 2.12"
   };
   var templates = global.scalaFiddleTemplates || {};
   templates["default"] = templates["default"] || defaultTemplate;

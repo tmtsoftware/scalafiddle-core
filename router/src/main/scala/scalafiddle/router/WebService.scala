@@ -331,7 +331,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
             }(data => HttpResponse(entity = HttpEntity(contentType, data)))
           }
         } ~ respondWithHeader(`Cache-Control`(`max-age`(3600 * 24))) {
-          getFromResourceDirectory("/web")
+          getFromResourceDirectory("web")
         }
       }
   }
