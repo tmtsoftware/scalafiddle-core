@@ -106,7 +106,7 @@ HTML
 
     class ScalaFiddleTag < Liquid::Block
 
-      def initialize(_, args, _)
+      def initialize(tag, args, _)
         @args = OptionsParser.parse(args)
         super
       end

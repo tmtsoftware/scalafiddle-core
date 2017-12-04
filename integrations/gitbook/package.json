@@ -1,0 +1,32 @@
+{
+  "name": "gitbook-plugin-scalafiddle",
+  "description": "ScalaFiddle integration into GitBook",
+  "main": "index.js",
+  "version": "1.0.0",
+  "engines": {
+    "gitbook": ">=3.0.0"
+  },
+  "homepage": "https://github.com/scalafiddle/scalafiddle-core/integrations/gitbook",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scalafiddle/scalafiddle-core.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/scalafiddle/scalafiddle-core/issues"
+  },
+  "keywords": [
+    "code",
+    "scala"
+  ],
+  "jest": {
+    "verbose": true
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "gitbook-tester": "^1.4.3",
+    "jest": "^21.2.1"
+  }
+}
