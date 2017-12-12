@@ -5,15 +5,12 @@
   // set up templates
   var defaultTemplate = {
     pre: "import fiddle.Fiddle, Fiddle.println\n" +
-    "import scalajs.js\n" +
     "\n" +
-    "@js.annotation.JSExportTopLevel(\"ScalaFiddle\")\n" +
-    "object ScalaFiddle {",
-    post: "}\n" +
-      "// $ScalaVersion 2.12"
+    "@scalajs.js.annotation.JSExportTopLevel(\"ScalaFiddle\")\n" +
+    "object ScalaFiddle {\n",
+    post: "\n}\n"
   };
   var templates = global.scalaFiddleTemplates || {};
-  templates["default"] = templates["default"] || defaultTemplate;
 
   function findFiddles() {
     return Array.from(dom.querySelectorAll("div[data-scalafiddle]"))
@@ -57,26 +54,65 @@
   }
 
   function buildSource(fiddleData) {
-    return fiddleData.template.pre +
+    return fiddleData.prefix +
+      fiddleData.template.pre +
       "\n// $FiddleStart\n" +
       fiddleData.content +
       "\n// $FiddleEnd\n" +
-      fiddleData.template.post
+      fiddleData.template.post + "\n" +
+      fiddleData.dependencies.map(function (dep) { return "// $FiddleDependency " + dep + "\n"}).join("") +
+      "// $ScalaVersion " + fiddleData.scalaVersion + "\n"
   }
 
+  var dependencyRE = / *([^ %]+) +%%%? +([^ %]+) +% +([^ %]+) */;
+  var rawTemplateRE = /.+_raw/;
+  var validVersions = {"2.11": true, "2.12": true};
+
   function constructFiddle(el) {
-    var templateId = el.getAttribute("data-template") || "default";
-    var template = templates[templateId];
-    if (template === undefined) {
-      console.error("ScalaFiddle template " + templateId + " is not defined");
-      return
+    var templateId = el.getAttribute("data-template");
+
+    var template;
+    if (templateId === null) {
+      template = defaultTemplate
+    } else {
+      template = templates[templateId];
+      if (template === undefined) {
+        throw "ScalaFiddle template '" + templateId + "' is not defined";
+      }
+      if (!rawTemplateRE.test(templateId)) {
+        // add default template
+        template = {
+          pre: defaultTemplate.pre + template.pre,
+          post: template.post + defaultTemplate.post
+        }
+      }
     }
+    var dependencies = el.hasAttribute("data-dependency") ? el.getAttribute("data-dependency").split(",") : [];
+    // check that dependencies are valid
+    dependencies.forEach(function (dep) {
+      if (!dependencyRE.test(dep)) throw "ScalaFiddle dependency '" + dep + "' is not correctly formed";
+    });
+    var prefix = el.hasAttribute("data-prefix") ? el.getAttribute("data-prefix") + "\n" : "";
+    var scalaVersion = el.hasAttribute("data-scalaversion") ? el.getAttribute("data-scalaversion") : "2.12";
+    if (validVersions[scalaVersion] === undefined)
+      throw "Invalid Scala version '" + scalaVersion + "'";
+    var selector = el.getAttribute("data-selector") || "pre";
+    var minHeight = parseInt(el.getAttribute("data-minheight") || "300", 10);
+    if (isNaN(minHeight))
+      throw "Invalid minheight value '" + el.getAttribute("data-minheight") + "'";
+    var contentElement = el.querySelector(selector);
+    if (contentElement === null)
+      throw "No content element '" + selector + "' found";
+
     el["scalaFiddleData"] = {
       element: el,
-      content: el.querySelector("pre").textContent,
+      content: contentElement.textContent,
       template: template,
+      scalaVersion: scalaVersion,
+      dependencies: dependencies,
+      prefix: prefix,
       injected: false,
-      minHeight: el.getAttribute("data-minheight") || 300
+      minHeight: minHeight
     };
     var button = dom.createElement("button");
     button.setAttribute("class", "scalafiddle-button");
@@ -100,6 +136,7 @@
     var layout = el.getAttribute("data-layout") || "h65";
     var theme = el.getAttribute("data-theme") || "light";
     iframe.setAttribute("src", "https://embed.scalafiddle.io/embed?theme=" + theme + "&layout=" + layout + "&source=" + src);
+    fiddleData.injected = true;
     // clear out existing code block and the button
     el.innerHTML = "";
     el.appendChild(iframe);
@@ -109,8 +146,11 @@
   injectCSS();
 
   // inject fiddles
-  var fiddles = findFiddles();
-  fiddles.forEach(function (el) {
-    constructFiddle(el)
+  findFiddles().forEach(function (el) {
+    try {
+      constructFiddle(el)
+    } catch (e) {
+      console.error(e);
+    }
   })
 })(window);

@@ -5,8 +5,8 @@ case class ExtLib(group: String, artifact: String, version: String, compileTimeO
 }
 
 object ExtLib {
-  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
-  val repoRE    = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
+  val repoSJSRE = """ *([^ %]+) *%%% *([^ %]+) *% *([^ %]+) *""".r
+  val repoRE    = """ *([^ %]+) *%% *([^ %]+) *% *([^ %]+) *""".r
 
   def apply(libDef: String): ExtLib = libDef match {
     case repoSJSRE(group, artifact, version) =>

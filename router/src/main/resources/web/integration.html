@@ -10,9 +10,8 @@
 <div style="width: 900px;" class="normal markdown-section">
     <h1>ScalaFiddle integration test</h1>
     <p>What does it look like?</p>
-    <div data-scalafiddle data-template="boopickle" data-layout="v70">
-<pre><code class="lang-scala"><span class="token keyword">import</span> boopickle<span class="token punctuation">.</span>Default<span class="token punctuation">.</span>_
-<span class="token keyword">trait</span> Fruit <span class="token punctuation">{</span>
+    <div data-scalafiddle data-prefix="import boopickle.Default._" data-scalaversion="2.11" data-dependency="io.suzaku %%% boopickle % 1.2.6" data-layout="v70">
+<pre><code class="lang-scala"><span class="token keyword">trait</span> Fruit <span class="token punctuation">{</span>
   <span class="token keyword">val</span> weight<span class="token operator">:</span> <span class="token builtin">Double</span>
   <span class="token keyword">def</span> color<span class="token operator">:</span> <span class="token builtin">String</span>
 <span class="token punctuation">}</span>
@@ -44,13 +43,17 @@ println<span class="token punctuation">(</span>u <span class="token operator">==
 <script>
     window.scalaFiddleTemplates = {
       boopickle: {
+        pre: "import boopickle.Default._\n",
+        post: ""
+      },
+      boopickle_raw: {
         pre: "import fiddle.Fiddle, Fiddle.println\n" +
         "import scalajs.js\n" +
+        "import boopickle.Default._" +
         "\n" +
         "@js.annotation.JSExportTopLevel(\"ScalaFiddle\")\n" +
-        "object ScalaFiddle {",
+        "object ScalaFiddle {\n",
         post: "}\n" +
-          "// $FiddleDependency io.suzaku %%% boopickle % 1.2.6\n" +
           "// $ScalaVersion 2.12"
       }
     };
