@@ -7,13 +7,13 @@ var x = 0
 `
 
 const params = `
-{% scalafiddle template="custom", layout="v70", theme="dark" %}
+{% scalafiddle template="custom", layout="v70", scalaversion="2.11", dependency="io.suzaku %%% boopickle % 1.2.6" %}
 \`\`\`scala
 var x = 0
 \`\`\`
 {% endscalafiddle %}
 
-{% scalafiddle template="another", minheight="700", theme="dark" %}
+{% scalafiddle template="another", minheight="700" %}
 \`\`\`scala
 var x = 0
 \`\`\`

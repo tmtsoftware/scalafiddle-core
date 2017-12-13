@@ -29,8 +29,9 @@ RSpec.configure do |config|
     "gems"        => ["jekyll-scalafiddle"],
     "collections" => ["my_collection"],
     "scalafiddle" => {
-      "templates" => "_scalafiddle",
-      "url"       => "http://localhost:8880"
+      "template_dir" => "_scalafiddle",
+      "url"          => "http://localhost:8880",
+      "scalaversion" => "2.11"
     }
   }.freeze
 

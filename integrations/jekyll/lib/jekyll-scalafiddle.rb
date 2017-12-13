@@ -1,12 +1,16 @@
 module Jekyll
   module ScalaFiddle
     class OptionsParser
-      OPTIONS_SYNTAX     = %r!([^\s]+)\s*=\s*['"]+([^'"]+)['"]+!
-      ALLOWED_FLAGS      = %w(
+      OPTIONS_SYNTAX = %r!([^\s]+)\s*=\s*['"]+([^'"]+)['"]+!
+      ALLOWED_FLAGS = %w(
         autorun
       ).freeze
       ALLOWED_ATTRIBUTES = %w(
         template
+        prefix
+        dependency
+        scalaversion
+        selector
         min_height
         layout
         theme
@@ -16,8 +20,8 @@ module Jekyll
         def parse(raw_options)
           options = {
               :attributes => {},
-              :filters    => {},
-              :flags      => {}
+              :filters => {},
+              :flags => {}
           }
           raw_options.scan(OPTIONS_SYNTAX).each do |key, value|
             value = value.split(",") if value.include?(",")
@@ -35,75 +39,6 @@ module Jekyll
       end
     end
 
-    class ScalaFiddleIntegration
-      BODY_END_TAG = %r!</body>!
-
-      class << self
-        def append_scalafiddle_code(doc)
-          @config = doc.site.config
-          if doc.output =~ BODY_END_TAG
-            # Insert code before body's end if this document has one.
-            doc.output.gsub!(BODY_END_TAG, %(#{api_code(doc)}#{Regexp.last_match}))
-          else
-            doc.output.prepend(api_code(doc))
-          end
-        end
-
-        private
-        def load_template(template, dir)
-          file = dir + "/" + template + ".scala"
-          content = File.readlines(file)
-          result = {
-              :name => template,
-              :pre => content.take_while {|l| !l.start_with?("////")},
-              :post => content.drop_while {|l| !l.start_with?("////")}.drop(1)
-          }
-          if result[:post].empty?
-            raise RuntimeException, "Template is missing a //// marker"
-          end
-          result
-        end
-
-        private
-        def escape_string(strs)
-          strs.join.gsub(/\\/, "\\\\\\\\").gsub(/\n/, "\\n").gsub(/\r/, "").gsub(/\t/, "\\t").gsub("'", "\\\\'")
-        end
-
-        private
-        def api_code(page)
-          result = ""
-          if page.output =~ /<div data-scalafiddle=""/
-            templates = page.output.scan(/<div data-scalafiddle="" data-template="([^"]+)"/).flatten
-            unless templates.empty?
-              result += <<HTML
-<script>
-  window.scalaFiddleTemplates = {
-HTML
-              dir = page.site.source + "/" + @config.fetch("scalafiddle", {}).fetch("templates", "_scalafiddle")
-              js_code = templates.map {|template| load_template(template, dir)}
-              result += js_code.map {|template|
-                <<HTML
-#{template[:name]}: {
-      pre: '#{escape_string(template[:pre])}',
-      post: '#{escape_string(template[:post])}'
-    }
-HTML
-              }.join(",\n")
-              result += <<HTML
-  }
-</script>
-HTML
-            end
-            result += <<HTML
-<script src='#{@config.fetch("scalafiddle", {}).fetch("url", "https://embed.scalafiddle.io")}/integration.js'></script>
-HTML
-          end
-          result
-        end
-
-      end
-    end
-
     class ScalaFiddleTag < Liquid::Block
 
       def initialize(tag, args, _)
@@ -115,34 +50,137 @@ HTML
         site = context.registers[:site]
         converter = site.find_converter_instance(::Jekyll::Converters::Markdown)
         content = converter.convert(super(context))
-        current_page = context.environments.first['page'] || {}
+        config = site.config.fetch("scalafiddle", {})
         result = <<HTML
-<div #{render_attributes(current_page)}>#{content}</div>
+<div #{render_attributes(config)}>#{content}</div>
 HTML
         result
       end
 
       private
-      def render_attributes(page)
-        attributes = ["data-scalafiddle"]
+      def render_attributes(config)
+        attributes = {"data-scalafiddle" => ""}
+
         if @args[:attributes][:template]
-          attributes << "data-template='#{@args[:attributes][:template]}'"
+          attributes["data-template"] = "'#{@args[:attributes][:template]}'"
+        end
+        # apply default attributes from config
+        if config.key?("dependency")
+          attributes["data-dependency"] = "'#{config["dependency]"]}'"
+        end
+        if config.key?("scalaversion")
+          attributes["data-scalaversion"] = "'#{config["scalaversion"]}'"
+        end
+        if config.key?("selector")
+          attributes["data-selector"] = "'#{config["selector"]}'"
+        end
+        if config.key?("theme")
+          attributes["data-theme"] = "'#{config["theme"]}'"
+        end
+        # apply tag attributes
+        if @args[:attributes][:dependency]
+          attributes["data-dependency"] = "'#{@args[:attributes][:dependency]}'"
+        end
+        if @args[:attributes][:scalaversion]
+          attributes["data-scalaversion"] = "'#{@args[:attributes][:scalaversion]}'"
+        end
+        if @args[:attributes][:selector]
+          attributes["data-selector"] = "'#{@args[:attributes][:selector]}'"
+        end
+        if @args[:attributes][:prefix]
+          attributes["data-prefix"] = "'#{@args[:attributes][:prefix]}'"
         end
         if @args[:attributes][:min_height]
-          attributes << "data-minheight='#{@args[:attributes][:min_height]}'"
+          attributes["data-minheight"] = "'#{@args[:attributes][:min_height]}'"
         end
         if @args[:attributes][:layout]
-          attributes << "data-layout='#{@args[:attributes][:layout]}'"
+          attributes["data-layout"] = "'#{@args[:attributes][:layout]}'"
         end
         if @args[:attributes][:theme]
-          attributes << "data-theme='#{@args[:attributes][:theme]}'"
+          attributes["data-theme"] = "'#{@args[:attributes][:theme]}'"
         end
         if @args[:flags][:autorun]
-          attributes << "data-autorun"
+          attributes["data-autorun"] = ""
         end
-        attributes.join(" ")
+        attrs = ""
+        attributes.each {|key, value|
+          if value.empty?
+            attrs << "#{key} "
+          else
+            attrs << "#{key}=#{value} "
+          end
+        }
+        attrs.rstrip
       end
+    end
 
+    class ScalaFiddleIntegration
+      BODY_END_TAG = %r!</body>!
+
+      class << self
+        def append_scalafiddle_code(doc)
+          @config = doc.site.config
+          if doc.output =~ BODY_END_TAG
+            # Insert code before body's end if this document has one.
+            location = doc.output.index(BODY_END_TAG)
+            doc.output = doc.output.slice(0, location) + api_code(doc) + doc.output.slice(location, doc.output.length - location)
+          else
+            doc.output.prepend(api_code(doc))
+          end
+          puts doc.output
+        end
+
+        private
+        def load_template(template, dir)
+          file = dir + "/" + template + ".scala"
+          content = File.readlines(file)
+          if content.index {|l| l.start_with?("////")} == nil
+            raise RuntimeException, "Template is missing a //// marker"
+          end
+          {
+              :name => template,
+              :pre => content.take_while {|l| !l.start_with?("////")},
+              :post => content.drop_while {|l| !l.start_with?("////")}.drop(1)
+          }
+        end
+
+        private
+        def escape_string(strs)
+          strs.join.gsub(/\\/, "\\\\\\\\").gsub(/\n/, "\\n").gsub(/\r/, "").gsub(/\t/, "\\t").gsub(/'/) {|m| "\\'"}
+        end
+
+        private
+        def api_code(page)
+          result = ""
+          if page.output =~ /<div data-scalafiddle=""/
+            templates = page.output.scan(/<div data-scalafiddle="" data-template="([^"]+)"/).flatten
+            unless templates.empty?
+              result += %Q(
+<script>
+  window.scalaFiddleTemplates = {
+)
+              dir = page.site.source + "/" + @config.fetch("scalafiddle", {}).fetch("template_dir", "_scalafiddle")
+              js_code = templates.map {|template| load_template(template, dir)}
+              result += js_code.map {|template|
+                %Q(
+    '#{template[:name]}': {
+      pre: '#{escape_string(template[:pre])}',
+      post: '#{escape_string(template[:post])}'
+    }
+)
+              }.join(",\n")
+              result += %Q(
+  }
+</script>
+)
+            end
+            result += %Q(
+<script src='#{@config.fetch("scalafiddle", {}).fetch("url", "https://embed.scalafiddle.io")}/integration.js'></script>
+)
+          end
+          result
+        end
+      end
     end
   end
 end

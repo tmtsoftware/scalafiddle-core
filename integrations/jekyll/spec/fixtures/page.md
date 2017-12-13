@@ -5,36 +5,41 @@ layout: default
 
 ** Jekyll ScalaFiddle Plugin **
 
-{% scalafiddle template="cats" layout="v70"%}
+{% scalafiddle template="cats" layout="v70" prefix="import cats.data._" %}
 ```scala
-package cats.data
+import io.circe._, io.circe.generic.auto._, io.circe.parser._, io.circe.syntax._
 
-object OptionT {
+sealed trait Foo
 
-  private[data] final class PurePartiallyApplied[F[_]](val dummy: Boolean = true ) extends AnyVal {
-    def apply[A](value: A)(implicit F: Applicative[F]): OptionT[F, A] =
-      OptionT(F.pure(Some(value)))
-  }
+case class Bar(xs: List[String]) extends Foo
 
-  def pure[F[_]]: PurePartiallyApplied[F] = new PurePartiallyApplied[F]
-}
+case class Qux(i: Int, d: Option[Double]) extends Foo
+
+val foo: Foo = Qux(13, Some(14.0))
+
+foo.asJson.noSpaces
+
+decode[Foo](foo.asJson.spaces4)
 ```
+
 {% endscalafiddle %}
 
 ## Some other stuff
 
 {% scalafiddle template="dogs" %}
 ```scala
-package cats.data
+import io.circe._, io.circe.generic.auto._, io.circe.parser._, io.circe.syntax._
 
-object OptionT {
+sealed trait Foo
 
-  private[data] final class PurePartiallyApplied[F[_]](val dummy: Boolean = true ) extends AnyVal {
-    def apply[A](value: A)(implicit F: Applicative[F]): OptionT[F, A] =
-      OptionT(F.pure(Some(value)))
-  }
+case class Bar(xs: List[String]) extends Foo
 
-  def pure[F[_]]: PurePartiallyApplied[F] = new PurePartiallyApplied[F]
-}
+case class Qux(i: Int, d: Option[Double]) extends Foo
+
+val foo: Foo = Qux(13, Some(14.0))
+
+foo.asJson.noSpaces
+
+decode[Foo](foo.asJson.spaces4)
 ```
 {% endscalafiddle %}

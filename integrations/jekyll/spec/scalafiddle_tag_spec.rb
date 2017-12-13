@@ -10,11 +10,15 @@ describe Jekyll::ScalaFiddle::ScalaFiddleTag do
     it "creates tags" do
       expect(content).to match(%r!(data-scalafiddle)!)
       expect(content).to match(%r!(data-template)!)
+      expect(content).to match(%r!(data-prefix="import cats.data._")!)
+      expect(content).to match(%r!(data-scalaversion="2.11")!)
     end
 
     it "includes external js only once" do
       expect(content).to match(%r!(integration\.js)!)
+      expect(content).to match(%r!(window\.scalaFiddleTemplates)!)
       expect(content.scan(%r!integration\.js!).length).to eq(1)
+      puts content
     end
   end
 
@@ -33,7 +37,7 @@ describe Jekyll::ScalaFiddle::ScalaFiddleTag do
       end
 
       it "renders attributes" do
-        expected = %r!div data-scalafiddle data-template='testing' data-minheight='600' data-layout='v50' data-theme='dark'!
+        expected = %r!div data-scalafiddle data-template='testing' data-scalaversion='2.11' data-minheight='600' data-layout='v50' data-theme='dark'!
         expect(output).to match(expected)
       end
     end

@@ -1,50 +1,42 @@
 const fs = require("fs");
 
-const cfg = {
-  "templateDir": {
-    "type": "string",
-    "default": "templates",
-    "description": "Location of ScalaFiddle template files"
-  },
-  "scalaFiddleUrl": {
-    "type": "string",
-    "default": "https://embed.scalafiddle.io/",
-    "description": "ScalaFiddle service URL"
-  }
-};
-
 const defaultOptions = Object.freeze({
-  templateDir: cfg.templateDir.default,
-  scalaFiddleUrl: cfg.scalaFiddleUrl.default
+  templateDir: "templates",
+  scalaFiddleUrl: "https://embed.scalafiddle.io/",
+  prefix: undefined,
+  dependency: undefined,
+  scalaversion: undefined,
+  selector: undefined,
+  theme: undefined
 });
 
-const validParams = ["template", "minheight", "layout", "theme"];
+const validParams = ["template", "prefix", "dependency", "scalaversion", "minheight", "layout", "theme", "selector"];
 
-const processArgs = args => {
+const processArgs = (args, config) => {
   const params = {};
-  validParams.forEach(p => {if (args[p]) params[p] = args[p]});
+  validParams.forEach(p => {
+    if (args[p])
+      params[p] = args[p];
+    else if (config[p])
+      params[p] = config[p];
+  });
   return params
 };
 
-const convertValue = (valstr, valtype) => {
-  if (valtype === "boolean" || valtype === "number") {
-    return JSON.parse(valstr);
-  }
-  return valstr;
-};
-
-const initOptions = (options) => {
-  const kv = Object.assign({}, defaultOptions);
-  // Overwrite default value with user book options.
+const initOptions = (config) => {
+  const kv = {};
+  // Overwrite default values with user book options.
   Object.keys(defaultOptions).forEach(key => {
-    if (options.config.get(key) !== undefined) {
-      kv[key] = convertValue(options.config.get(key), typeof defaultOptions[key]);
+    if (config[key] !== undefined) {
+      kv[key] = config[key];
+    } else if (defaultOptions[key] !== undefined) {
+      kv[key] = defaultOptions[key];
     }
   });
   return Object.freeze(kv);
 };
 
-const escapeStr = str => str.replace(/\r/g,"").replace(/\t/g,"\\t").replace(/'/g,"\\\'")
+const escapeStr = str => str.replace(/\r/g, "").replace(/\t/g, "\\t").replace(/'/g, "\\\'")
 
 const readTemplate = file => {
   const lines = fs.readFileSync(file, "utf-8").split("\n");
@@ -70,8 +62,10 @@ module.exports = {
   blocks: {
     scalafiddle: {
       process: function (block) {
+        const config = (this.options.pluginsConfig && this.options.pluginsConfig.scalafiddle) || {};
+        const options = initOptions(config);
         const content = block.body;
-        const params = processArgs(block.kwargs);
+        const params = processArgs(block.kwargs, options);
         const attributes = Object.keys(params).map(key => `data-${key}="${params[key]}"`).join(" ");
         const output = this
           .renderBlock('markdown', content)
@@ -84,7 +78,8 @@ module.exports = {
     page: function (page) {
       const content = page.content;
       const book = this;
-      const options = initOptions(this);
+      const config = (this.options.pluginsConfig && this.options.pluginsConfig.scalafiddle) || {};
+      const options = initOptions(config);
       const scalaFiddleRE = /<div data-scalafiddle/g;
 
       if (content.match(scalaFiddleRE)) {
@@ -97,7 +92,7 @@ module.exports = {
           m = templateRE.exec(content);
         }
         if (Object.keys(templates).length > 0) {
-          const templateDefs = Object.keys(templates).map(function(key) {
+          const templateDefs = Object.keys(templates).map(function (key) {
             const fileName = book.resolve(`${options.templateDir}/${key}.scala`);
             const tf = readTemplate(fileName);
             return `    '${key}': {\n      pre: '${tf.pre.map(escapeStr).join("\\n")}',\n      post: '${tf.post.map(escapeStr).join("\\n")}'\n    }`
@@ -108,7 +103,7 @@ module.exports = {
         console.log(script)
         // insert script just before body-end tag, if it exists
         const bodyIdx = page.content.lastIndexOf("</body>")
-        if(bodyIdx > 0) {
+        if (bodyIdx > 0) {
           page.content = page.content.slice(0, bodyIdx).concat(script, page.content.slice(bodyIdx));
         } else {
           page.content = page.content.concat(script);

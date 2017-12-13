@@ -54,8 +54,8 @@
   }
 
   function buildSource(fiddleData) {
-    return fiddleData.prefix +
-      fiddleData.template.pre +
+    return fiddleData.template.pre +
+      fiddleData.prefix +
       "\n// $FiddleStart\n" +
       fiddleData.content +
       "\n// $FiddleEnd\n" +
@@ -88,19 +88,19 @@
       }
     }
     var dependencies = el.hasAttribute("data-dependency") ? el.getAttribute("data-dependency").split(",") : [];
-    // check that dependencies are valid
+    var prefix = el.hasAttribute("data-prefix") ? "\n" + el.getAttribute("data-prefix") + "\n" : "";
+    var scalaVersion = el.hasAttribute("data-scalaversion") ? el.getAttribute("data-scalaversion") : "2.12";
+    var selector = el.getAttribute("data-selector") || "pre";
+    var minHeight = parseInt(el.getAttribute("data-minheight") || "300", 10);
+    var contentElement = el.querySelector(selector);
+    // validate parameters
     dependencies.forEach(function (dep) {
       if (!dependencyRE.test(dep)) throw "ScalaFiddle dependency '" + dep + "' is not correctly formed";
     });
-    var prefix = el.hasAttribute("data-prefix") ? el.getAttribute("data-prefix") + "\n" : "";
-    var scalaVersion = el.hasAttribute("data-scalaversion") ? el.getAttribute("data-scalaversion") : "2.12";
     if (validVersions[scalaVersion] === undefined)
       throw "Invalid Scala version '" + scalaVersion + "'";
-    var selector = el.getAttribute("data-selector") || "pre";
-    var minHeight = parseInt(el.getAttribute("data-minheight") || "300", 10);
     if (isNaN(minHeight))
       throw "Invalid minheight value '" + el.getAttribute("data-minheight") + "'";
-    var contentElement = el.querySelector(selector);
     if (contentElement === null)
       throw "No content element '" + selector + "' found";
 

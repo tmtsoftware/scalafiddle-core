@@ -7,10 +7,18 @@ const setupBook = content => {
     .builder()
     .withFile("templates/custom.scala", "import custom\nobject test {\n////\n}\n")
     .withFile("templates/another.scala", "import another")
-    .withContent(content)
+    .withBookJson({
+      pluginsConfig: {
+        scalafiddle: {
+          scalaFiddleUrl: "http://localhost:8080/",
+          theme: "dark"
+        }
+      }
+    })
     .withLocalPlugin(pluginDir)
+    .withContent(content)
     .create()
-}
+};
 
 describe('Injecting ScalaFiddle integration', () => {
   jest.setTimeout(20000)
