@@ -100,7 +100,6 @@ module.exports = {
           script += `<script>\n  window.scalaFiddleTemplates = {\n${templateDefs}\n}</script>\n`
         }
         script += `<script src="${options.scalaFiddleUrl}integration.js"></script>\n`
-        console.log(script)
         // insert script just before body-end tag, if it exists
         const bodyIdx = page.content.lastIndexOf("</body>")
         if (bodyIdx > 0) {
