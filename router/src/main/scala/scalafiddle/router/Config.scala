@@ -31,12 +31,6 @@ object Config {
 
   val corsOrigins = config.getStringList("corsOrigins").asScala
 
-  object compiler {
-    val c    = config.getConfig("compiler")
-    val host = c.getString("host")
-    val port = c.getInt("port")
-  }
-
   val version    = versionProps.getProperty("version")
   val aceVersion = versionProps.getProperty("aceVersion")
 
