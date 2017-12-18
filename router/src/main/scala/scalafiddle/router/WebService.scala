@@ -89,6 +89,22 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
     )
   }.toMap
 
+  private val paramRE = """(.*) // PARAMETERS$""".r
+  private val integrationJS = {
+    // process integration.js and inject correct parameters
+    val origJS = io.Source.fromInputStream(getClass.getResourceAsStream("/web/integration.js")).mkString
+    // replace parameters
+    origJS
+      .split("\n")
+      .map {
+        case paramRE(_) =>
+          val versions = Config.scalaVersions.map(v => s""""$v":true""").mkString(",")
+          s"""window,"${Config.scalaFiddleEmbedUrl}","${Config.scalaFiddleEmbedUrl}web/runicon.png",{$versions}, "${Config.defaultScalaVersion}" """
+        case other => other
+      }
+      .mkString("\n")
+  }
+
   def validateParams(params: Map[String, String], validator: ParamValidator): Option[String] = {
     params
       .foldLeft(List.empty[Option[String]]) {
@@ -330,6 +346,8 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
               }
             }(data => HttpResponse(entity = HttpEntity(contentType, data)))
           }
+        } ~ path("integration.js") {
+          complete(integrationJS)
         } ~ respondWithHeader(`Cache-Control`(`max-age`(3600 * 24))) {
           getFromResourceDirectory("web")
         }

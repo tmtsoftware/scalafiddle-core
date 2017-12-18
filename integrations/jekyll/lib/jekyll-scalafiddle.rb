@@ -24,7 +24,6 @@ module Jekyll
               :flags => {}
           }
           raw_options.scan(OPTIONS_SYNTAX).each do |key, value|
-            value = value.split(",") if value.include?(",")
             if ALLOWED_ATTRIBUTES.include?(key)
               options[:attributes][key.to_sym] = value
             else
@@ -66,7 +65,7 @@ HTML
         end
         # apply default attributes from config
         if config.key?("dependency")
-          attributes["data-dependency"] = "'#{config["dependency]"]}'"
+          attributes["data-dependency"] = "'#{config["dependency"]}'"
         end
         if config.key?("scalaversion")
           attributes["data-scalaversion"] = "'#{config["scalaversion"]}'"
@@ -127,7 +126,6 @@ HTML
           else
             doc.output.prepend(api_code(doc))
           end
-          puts doc.output
         end
 
         private
@@ -175,7 +173,7 @@ HTML
 )
             end
             result += %Q(
-<script src='#{@config.fetch("scalafiddle", {}).fetch("url", "https://embed.scalafiddle.io")}/integration.js'></script>
+<script defer src='#{@config.fetch("scalafiddle", {}).fetch("url", "https://embed.scalafiddle.io")}/integration.js'></script>
 )
           end
           result

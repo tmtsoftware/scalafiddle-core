@@ -36,7 +36,7 @@ const initOptions = (config) => {
   return Object.freeze(kv);
 };
 
-const escapeStr = str => str.replace(/\r/g, "").replace(/\t/g, "\\t").replace(/'/g, "\\\'")
+const escapeStr = str => str.replace(/\\/, "\\\\").replace(/\r/g, "").replace(/\t/g, "\\t").replace(/'/g, "\\\'")
 
 const readTemplate = file => {
   const lines = fs.readFileSync(file, "utf-8").split("\n");
@@ -99,7 +99,7 @@ module.exports = {
           }).join(",\n");
           script += `<script>\n  window.scalaFiddleTemplates = {\n${templateDefs}\n}</script>\n`
         }
-        script += `<script src="${options.scalaFiddleUrl}integration.js"></script>\n`
+        script += `<script defer src="${options.scalaFiddleUrl}integration.js"></script>\n`
         // insert script just before body-end tag, if it exists
         const bodyIdx = page.content.lastIndexOf("</body>")
         if (bodyIdx > 0) {

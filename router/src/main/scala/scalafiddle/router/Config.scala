@@ -23,11 +23,13 @@ object Config {
   val secret               = config.getString("secret")
   val scalaFiddleSourceUrl = config.getString("scalaFiddleSourceUrl")
   val scalaFiddleEditUrl   = config.getString("scalaFiddleEditUrl")
+  val scalaFiddleEmbedUrl  = config.getString("scalaFiddleEmbedUrl")
 
-  val scalaVersions    = read[Seq[String]](config.getString("scalaVersions"))
-  val defaultLibs      = read[Map[String, Seq[String]]](config.getString("defaultLibs"))
-  val extLibs          = read[Map[String, String]](config.getString("extLibs"))
-  val refreshLibraries = FiniteDuration(config.getDuration("refreshLibraries").toMillis, TimeUnit.MILLISECONDS)
+  val scalaVersions       = read[Seq[String]](config.getString("scalaVersions"))
+  val defaultScalaVersion = config.getString("defaultScalaVersion")
+  val defaultLibs         = read[Map[String, Seq[String]]](config.getString("defaultLibs"))
+  val extLibs             = read[Map[String, String]](config.getString("extLibs"))
+  val refreshLibraries    = FiniteDuration(config.getDuration("refreshLibraries").toMillis, TimeUnit.MILLISECONDS)
 
   val corsOrigins = config.getStringList("corsOrigins").asScala
 
