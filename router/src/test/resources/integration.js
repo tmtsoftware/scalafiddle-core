@@ -1,4 +1,4 @@
-(function (global) {
+(function (global, scalaFiddleUrl, iconUrl, validVersions, defaultScalaVersion) {
   "use strict";
   var dom = global.document;
 
@@ -26,7 +26,8 @@
       "    border-radius: 5px;\n" +
       "    border: 1px solid #ddd;\n" +
       "    font-family: Lato,'Helvetica Neue',Arial,Helvetica,sans-serif;\n" +
-      "    padding: 6px 10px;\n" +
+      "    font-size: 14px;\n" +
+      "    padding: 3px 8px;\n" +
       "}\n" +
       ".scalafiddle-button:hover {\n" +
       "    background: rgba(255,255,255,0.8)!important;\n" +
@@ -44,7 +45,7 @@
       "    color: rgba(220, 220, 220, 0.8)!important;\n" +
       "    box-shadow: 0 0 0 1px rgba(200,200,200,.35), 0 0 0 0 rgba(200,200,200,.15);\n" +
       "}\n" +
-      ".scalafiddle-button img {margin-bottom: 4px; vertical-align: middle;}\n" +
+      ".scalafiddle-button img {margin-bottom: 4px; vertical-align: middle; width: 16px; height: 16px; }\n" +
       "div[data-scalafiddle] { position: relative; }";
 
     var s = document.createElement('style');
@@ -66,7 +67,6 @@
 
   var dependencyRE = / *([^ %]+) +%%%? +([^ %]+) +% +([^ %]+) */;
   var rawTemplateRE = /.+_raw/;
-  var validVersions = {"2.11": true, "2.12": true};
 
   function constructFiddle(el) {
     var templateId = el.getAttribute("data-template");
@@ -89,9 +89,9 @@
     }
     var dependencies = el.hasAttribute("data-dependency") ? el.getAttribute("data-dependency").split(",") : [];
     var prefix = el.hasAttribute("data-prefix") ? "\n" + el.getAttribute("data-prefix") + "\n" : "";
-    var scalaVersion = el.hasAttribute("data-scalaversion") ? el.getAttribute("data-scalaversion") : "2.12";
+    var scalaVersion = el.hasAttribute("data-scalaversion") ? el.getAttribute("data-scalaversion") : defaultScalaVersion;
     var selector = el.getAttribute("data-selector") || "pre";
-    var minHeight = parseInt(el.getAttribute("data-minheight") || "300", 10);
+    var minHeight = parseInt(el.getAttribute("data-minheight") || "350", 10);
     var contentElement = el.querySelector(selector);
     // validate parameters
     dependencies.forEach(function (dep) {
@@ -117,7 +117,7 @@
     var button = dom.createElement("button");
     button.setAttribute("class", "scalafiddle-button");
     var icon = dom.createElement("img");
-    icon.src = "https://scalafiddle.io/assets/images/667910cf64d167e46065336c7b5a93d0-favicon-16.png";
+    icon.src = iconUrl;
     button.appendChild(icon);
     button.appendChild(dom.createTextNode("Run"));
     button.onclick = function () { injectFiddle(el) };
@@ -132,10 +132,16 @@
     iframe.setAttribute("height", height + "px");
     iframe.setAttribute("frameborder", "0");
     iframe.setAttribute("style", "width: 100%");
-    var src = encodeURIComponent(buildSource(fiddleData));
-    var layout = el.getAttribute("data-layout") || "h65";
+    var layout = el.getAttribute("data-layout") || "v65";
     var theme = el.getAttribute("data-theme") || "light";
-    iframe.setAttribute("src", "http://localhost:8880/embed?theme=" + theme + "&layout=" + layout + "&source=" + src);
+    iframe.setAttribute("src", scalaFiddleUrl + "embed?theme=" + theme + "&layout=" + layout);
+    iframe.onload = function(e) {
+      var msg = {"cmd": "setSource", "data": buildSource(fiddleData)};
+      iframe.contentWindow.postMessage(msg, "*");
+    };
+    iframe.onerror = function(error) {
+      console.error("Failed loading ScalaFiddle iframe: " + error.message);
+    };
     fiddleData.injected = true;
     // clear out existing code block and the button
     el.innerHTML = "";
@@ -153,4 +159,6 @@
       console.error(e);
     }
   })
-})(window);
+})(
+window,"http://localhost:8880/","http://localhost:8880/runicon.png",{"2.11": true, "2.12": true},"2.12" // PARAMETERS
+);

@@ -6,12 +6,10 @@ import org.scalajs.dom
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.dom.raw._
 
-import scala.async.Async.{async, await}
 import scala.concurrent.{Future, Promise}
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel, JSGlobal}
-import scala.scalajs.js.timers.{SetIntervalHandle, SetTimeoutHandle}
 import scala.scalajs.js.typedarray.Uint8Array
 import scala.scalajs.niocharset.StandardCharsets
 import scala.util.Success
@@ -114,7 +112,7 @@ class Client(editURL: String) {
 
   def endCompilation(): Unit = {
     runIcon.classList.remove("active")
-    showStatus("RESULT")
+    showStatus("RUNNING")
     editor.focus()
   }
 
@@ -179,6 +177,7 @@ class Client(editURL: String) {
         .map { res =>
           val compileTime = (System.nanoTime() - startTime) / 1000000
           js.timers.setTimeout(500)(EventTracker.sendEvent("cachedCompile", tag, currentSourceName, compileTime))
+          dom.console.log(s"Cached compile took ${compileTime}ms")
           Some(readCompilationResponse(res.responseText))
         } recover {
         case _: dom.ext.AjaxException =>
@@ -198,6 +197,7 @@ class Client(editURL: String) {
           .map { res =>
             val compileTime = (System.nanoTime() - startTime) / 1000000
             js.timers.setTimeout(500)(EventTracker.sendEvent("compile", tag, currentSourceName, compileTime))
+            dom.console.log(s"Compilation took ${compileTime}ms")
             readCompilationResponse(res.responseText)
           } recover {
           case e: dom.ext.AjaxException =>
@@ -352,7 +352,7 @@ class Client(editURL: String) {
       }
   }
 
-  def complete(): Future[CompletionResponse] = async {
+  def complete(): Future[CompletionResponse] = {
     val code = reconstructSource(editor.code, currentSourceFile)
     val row  = editor.row + currentSourceFile.prefix.size
     val col  = editor.column + currentSourceFile.indent
@@ -364,7 +364,7 @@ class Client(editURL: String) {
 
     val startTime = System.nanoTime()
 
-    val f = Ajax
+    Ajax
       .post(
         url = s"complete?offset=$intOffset",
         data = code
@@ -381,9 +381,6 @@ class Client(editURL: String) {
         showError(e.toString)
         throw e
     }
-
-    val res = await(f)
-    res
   }
 }
 
@@ -391,18 +388,10 @@ class Client(editURL: String) {
 object Client {
   implicit val RedLogger = new Logger(logError)
 
-  var intervalHandles = List.empty[SetIntervalHandle]
-  var timeoutHandles  = List.empty[SetTimeoutHandle]
-
   dom.window.onerror = { (event: dom.Event, source: String, fileno: Int, columnNumber: Int, x: Any) =>
     dom.console.log("dom.onerror")
     Client.logError(event.toString)
   }
-
-  // listen to messages from the iframe
-  dom.window.addEventListener("message", (e: MessageEvent) => {
-    sendFrameCmd("label", "RESULT")
-  })
 
   def parseUriParameters(search: String): Map[String, String] = {
     search
@@ -424,8 +413,6 @@ object Client {
   val envId          = queryParams.getOrElse("env", "default")
   lazy val codeFrame = dom.document.getElementById("codeframe").asInstanceOf[HTMLIFrameElement]
 
-  dom.console.log(s"queryParams: $queryParams")
-
   private[Client] def tag(name: String)(content: String, attrs: Map[String, String] = Map.empty): String = {
     s"""<$name${attrs.map { case (a, v) => s"""$a="$v"""" }.mkString(" ", " ", "")}>$content</$name>"""
   }
@@ -445,12 +432,6 @@ object Client {
   }
 
   def clear() = {
-    dom.console.log(s"Clearing ${timeoutHandles.size} timeouts and ${intervalHandles.size} intervals")
-    // clear all timers
-    timeoutHandles.foreach(js.timers.clearTimeout)
-    timeoutHandles = Nil
-    intervalHandles.foreach(js.timers.clearInterval)
-    intervalHandles = Nil
     sendFrameCmd("clear")
   }
 
@@ -480,38 +461,65 @@ object Client {
            scalaFiddleSourceUrl: String,
            scalaFiddleEditUrl: String,
            baseEnv: String,
-           passive: Boolean): Unit =
-    task * async {
-      initializing = true
-      clear()
-      Editor.initEditor
-      val client = new Client(scalaFiddleEditUrl)
-      val f: Future[Any] = if (queryParams.contains("sfid")) {
-        val ids = queryParams("sfid").split(",").toList
-        val sources = await(Future.sequence(ids.map { id =>
+           passive: Boolean): Unit = {
+    initializing = true
+    clear()
+    Editor.initEditor
+    val client = new Client(scalaFiddleEditUrl)
+    val f: Future[Any] = if (queryParams.contains("sfid")) {
+      val ids = queryParams("sfid").split(",").toList
+      client.showStatus("LOADING")
+      Future
+        .sequence(ids.map { id =>
           loadSource(scalaFiddleSourceUrl, id) recover {
             case e => SourceFile("ScalaFiddle.scala", baseEnv).copy(code = defaultCode(id))
           }
-        }))
-        client.setSources(sources)
-        if (!passive) {
-          client.fullOpt()
-        } else Future.successful(())
-      } else if (queryParams.contains("source")) {
-        val srcCode = queryParams("source")
-        client.showStatus("Loading")
-        // check for sub-fiddles
-        val sources = await(Future(parseFiddles(srcCode)))
-        client.setSources(sources)
-        if (!passive) {
-          client.fullOpt()
-        } else Future.successful(())
-      } else {
-        client.setSources(Seq(SourceFile("ScalaFiddle.scala", baseEnv)))
-        Future.successful(())
-      }
-      f.foreach(_ => initializing = false)
+        })
+        .flatMap { sources =>
+          client.setSources(sources)
+          if (!passive) {
+            client.fullOpt()
+          } else Future.successful(())
+        }
+    } else if (queryParams.contains("source")) {
+      val srcCode = queryParams("source")
+      client.showStatus("LOADING")
+      // check for sub-fiddles
+      val sources = parseFiddles(srcCode)
+      client.setSources(sources)
+      if (!passive) {
+        client.fullOpt()
+      } else Future.successful(())
+    } else {
+      client.setSources(Seq(SourceFile("ScalaFiddle.scala", baseEnv)))
+      Future.successful(())
     }
+    f.foreach { _ =>
+      initializing = false
+      // start listening to messages
+      dom.window.addEventListener(
+        "message",
+        (e: MessageEvent) => {
+          e.data match {
+            case "evalCompleted" =>
+              client.showStatus("RESULT")
+            case obj: js.Object if obj.hasOwnProperty("cmd") =>
+              val message = obj.asInstanceOf[js.Dictionary[String]]
+              message("cmd") match {
+                case "setSource" =>
+                  val srcCode = message("data")
+                  val sources = parseFiddles(srcCode)
+                  client.setSources(sources)
+                  if (!passive) {
+                    initializing = true
+                    client.fullOpt().foreach(_ => initializing = false)
+                  }
+              }
+          }
+        }
+      )
+    }
+  }
 
   val fiddleName = """\s*// \$FiddleName\s+(.+)$""".r
 

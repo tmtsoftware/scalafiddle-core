@@ -97,7 +97,7 @@ class CompilerManager extends Actor with ActorLogging {
 
   def selectCompiler(req: CompilerRequest): Option[CompilerInfo] = {
     // extract libs from the source
-    log.debug(s"Source\n${req.source}")
+    // log.debug(s"Source\n${req.source}")
     val (libs, scalaVersionOpt) = extractLibs(req.source)
     val scalaVersion            = scalaVersionOpt.getOrElse("2.11")
 

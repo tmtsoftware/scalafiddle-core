@@ -132,10 +132,13 @@
     iframe.setAttribute("height", height + "px");
     iframe.setAttribute("frameborder", "0");
     iframe.setAttribute("style", "width: 100%");
-    var src = encodeURIComponent(buildSource(fiddleData));
     var layout = el.getAttribute("data-layout") || "v65";
     var theme = el.getAttribute("data-theme") || "light";
-    iframe.setAttribute("src", scalaFiddleUrl + "embed?theme=" + theme + "&layout=" + layout + "&source=" + src);
+    iframe.setAttribute("src", scalaFiddleUrl + "embed?theme=" + theme + "&layout=" + layout);
+    iframe.onload = function(e) {
+      var msg = {"cmd": "setSource", "data": buildSource(fiddleData)};
+      iframe.contentWindow.postMessage(msg, "*");
+    };
     fiddleData.injected = true;
     // clear out existing code block and the button
     el.innerHTML = "";
@@ -154,5 +157,5 @@
     }
   })
 })(
-window,"http://localhost:8880/","https://scalafiddle.io/assets/images/667910cf64d167e46065336c7b5a93d0-favicon-16.png",{"2.11": true, "2.12": true},"2.12" // PARAMETERS
+window,"http://localhost:8880/","http://localhost:8880/runicon.png",{"2.11": true, "2.12": true},"2.12" // PARAMETERS
 );
