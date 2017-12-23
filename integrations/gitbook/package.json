@@ -1,6 +1,6 @@
 {
   "name": "gitbook-plugin-scalafiddle",
-  "description": "ScalaFiddle integration into GitBook",
+  "description": "ScalaFiddle integration for GitBook",
   "main": "index.js",
   "version": "1.0.0",
   "engines": {
@@ -17,7 +17,8 @@
   },
   "keywords": [
     "code",
-    "scala"
+    "scala",
+    "gitbook"
   ],
   "jest": {
     "verbose": true

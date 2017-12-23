@@ -99,7 +99,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
       .map {
         case paramRE(_) =>
           val versions = Config.scalaVersions.map(v => s""""$v":true""").mkString(",")
-          s"""window,"${Config.scalaFiddleEmbedUrl}","${Config.scalaFiddleEmbedUrl}web/runicon.png",{$versions}, "${Config.defaultScalaVersion}" """
+          s"""window,"${Config.scalaFiddleEmbedUrl}","${Config.scalaFiddleEmbedUrl}runicon.png",{$versions}, "${Config.defaultScalaVersion}" """
         case other => other
       }
       .mkString("\n")
@@ -347,7 +347,7 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
             }(data => HttpResponse(entity = HttpEntity(contentType, data)))
           }
         } ~ path("integration.js") {
-          respondWithHeader(`Cache-Control`(`max-age`(3600 * 24))) {
+          respondWithHeader(`Cache-Control`(`max-age`(3600))) {
             encodeResponse {
               complete(integrationJS)
             }

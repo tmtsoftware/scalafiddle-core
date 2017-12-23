@@ -89,9 +89,9 @@ class CompilerManager extends Actor with ActorLogging {
     val libs = codeLines.collect {
       case dependencyRE(dep) => ExtLib(dep)
     }.toSet
-    val version = codeLines.collect {
+    val version = codeLines.collectFirst {
       case scalaVersionRE(v) => v
-    }.headOption
+    }
     (libs, version)
   }
 

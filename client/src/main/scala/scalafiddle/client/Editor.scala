@@ -1,6 +1,5 @@
 package scalafiddle.client
 
-import scala.async.Async.{async, await}
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
@@ -78,17 +77,20 @@ class Editor(bindings: Seq[(String, String, () => Any)],
       JsVal
         .obj(
           "getCompletions" -> { (editor: Dyn, session: Dyn, pos: Dyn, prefix: Dyn, callback: Dyn) =>
-            task * async {
-              val things = await(completions()).completions.map {
-                case (name, value) =>
-                  JsVal
-                    .obj(
-                      "value"   -> value,
-                      "caption" -> (value + name)
-                    )
-                    .value
+            {
+              completions().map { response =>
+                val things = response.completions.map {
+                  case (name, value) =>
+                    JsVal
+                      .obj(
+                        "value"   -> value,
+                        "caption" -> (value + name)
+                      )
+                      .value
+                }
+
+                callback(null, js.Array(things: _*))
               }
-              callback(null, js.Array(things: _*))
             }
           }
         )

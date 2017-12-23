@@ -173,7 +173,7 @@ HTML
 )
             end
             result += %Q(
-<script defer src='#{@config.fetch("scalafiddle", {}).fetch("url", "https://embed.scalafiddle.io")}/integration.js'></script>
+<script defer src='#{@config.fetch("scalafiddle", {}).fetch("scalaFiddleUrl", "https://embed.scalafiddle.io/")}integration.js'></script>
 )
           end
           result

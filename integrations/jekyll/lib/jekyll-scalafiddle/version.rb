@@ -1,5 +1,5 @@
 module Jekyll
   module ScalaFiddle
-    VERSION = "2.0.4".freeze
+    VERSION = "1.0.0".freeze
   end
 end

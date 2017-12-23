@@ -13,7 +13,7 @@ RSpec.configure do |config|
   config.order = "random"
 
   SOURCE_DIR = File.expand_path("../fixtures", __FILE__)
-  DEST_DIR   = File.expand_path("../dest", __FILE__)
+  DEST_DIR = File.expand_path("../dest", __FILE__)
 
   def source_dir(*files)
     File.join(SOURCE_DIR, *files)
@@ -24,19 +24,19 @@ RSpec.configure do |config|
   end
 
   CONFIG_DEFAULTS = {
-    "source"      => source_dir,
-    "destination" => dest_dir,
-    "gems"        => ["jekyll-scalafiddle"],
-    "collections" => ["my_collection"],
-    "scalafiddle" => {
-      "template_dir" => "_scalafiddle",
-      "url"          => "http://localhost:8880",
-      "scalaversion" => "2.11"
-    }
+      "source" => source_dir,
+      "destination" => dest_dir,
+      "gems" => ["jekyll-scalafiddle"],
+      "collections" => ["my_collection"],
+      "scalafiddle" => {
+          "template_dir" => "_scalafiddle",
+          "scalaFiddleUrl" => "http://localhost:8880/",
+          "scalaversion" => "2.11"
+      }
   }.freeze
 
   def make_page(options = {})
-    page      = Jekyll::Page.new(site, CONFIG_DEFAULTS["source"], "", "page.md")
+    page = Jekyll::Page.new(site, CONFIG_DEFAULTS["source"], "", "page.md")
     page.data = options
     page
   end
@@ -48,9 +48,9 @@ RSpec.configure do |config|
 
   def make_context(registers = {}, environments = {})
     Liquid::Context.new(
-      environments,
-      {},
-      { :site => site, :page => page }.merge(registers)
+        environments,
+        {},
+        {:site => site, :page => page}.merge(registers)
     )
   end
 end
