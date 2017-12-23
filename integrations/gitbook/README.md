@@ -45,7 +45,7 @@ viewer clicks the `Run` button.
 ### Parameters
 
 Each fiddle can be further customized with parameters. These parameters are described in more detail in the 
-[main integration documentation](../README.md). For example:
+[main integration documentation](https://github.com/scalafiddle/scalafiddle-core/blob/master/integrations/README.md). For example:
 
 ````
 {% scalafiddle prefix="import scala.util.Random", theme="dark" %}
@@ -99,15 +99,21 @@ println(result)
 The ScalaFiddle plugin can be configured the same as any other Gitbook plugin via `book.json`. For example:
 
 ```json
+{
+  "gitbook": "3.2.x",
+  "plugins": ["scalafiddle"],
   "pluginsConfig": {
     "scalafiddle": {
       "dependency": "io.suzaku %%% boopickle % 1.2.6",
       "scalaFiddleUrl": "http://localhost:8880/"
     }
   }
+}
 ```
 
-In the configuration you can provide default values for fiddle parameters such as `dependency`, `minheight`, `theme` etc.
+In the configuration you can provide default values for fiddle parameters such as `dependency`, `minheight`, `theme` etc. 
+Typically you would use the `dependency` configuration in a library documentation where each code example has the same dependency
+to your library.
 
 You can also configure the location of templates with `templateDir` and the URL for the ScalaFiddle service (if you want to
-run your own ScalaFiddle server, for example) using `scalaFiddleUrl`.
+run your own ScalaFiddle server, for example locally) using `scalaFiddleUrl`.

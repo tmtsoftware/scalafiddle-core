@@ -157,7 +157,7 @@ HTML
 <script>
   window.scalaFiddleTemplates = {
 )
-              dir = page.site.source + "/" + @config.fetch("scalafiddle", {}).fetch("template_dir", "_scalafiddle")
+              dir = page.site.source + "/" + @config.fetch("scalafiddle", {}).fetch("templateDir", "_scalafiddle")
               js_code = templates.map {|template| load_template(template, dir)}
               result += js_code.map {|template|
                 %Q(

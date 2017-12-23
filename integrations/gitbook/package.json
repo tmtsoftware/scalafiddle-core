@@ -16,8 +16,9 @@
     "url": "https://github.com/scalafiddle/scalafiddle-core/issues"
   },
   "keywords": [
-    "code",
     "scala",
+    "scala.js",
+    "plugin",
     "gitbook"
   ],
   "jest": {
