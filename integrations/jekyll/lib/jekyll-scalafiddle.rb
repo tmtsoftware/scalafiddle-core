@@ -11,7 +11,7 @@ module Jekyll
         dependency
         scalaversion
         selector
-        min_height
+        minheight
         layout
         theme
       ).freeze
@@ -89,8 +89,8 @@ HTML
         if @args[:attributes][:prefix]
           attributes["data-prefix"] = "'#{@args[:attributes][:prefix]}'"
         end
-        if @args[:attributes][:min_height]
-          attributes["data-minheight"] = "'#{@args[:attributes][:min_height]}'"
+        if @args[:attributes][:minheight]
+          attributes["data-minheight"] = "'#{@args[:attributes][:minheight]}'"
         end
         if @args[:attributes][:layout]
           attributes["data-layout"] = "'#{@args[:attributes][:layout]}'"
