@@ -7,6 +7,7 @@ const defaultOptions = Object.freeze({
   dependency: undefined,
   scalaversion: undefined,
   selector: undefined,
+  minheight: undefined,
   theme: undefined
 });
 
@@ -44,7 +45,7 @@ const readTemplate = file => {
   const post = [];
   let inPre = true;
   lines.forEach(line => {
-    if (line.startsWith("////")) {
+    if (line.trim().startsWith("////")) {
       inPre = false
     } else if (inPre) {
       pre.push(line)
@@ -66,7 +67,7 @@ module.exports = {
         const options = initOptions(config);
         const content = block.body;
         const params = processArgs(block.kwargs, options);
-        const attributes = Object.keys(params).map(key => `data-${key}="${params[key]}"`).join(" ");
+        const attributes = Object.keys(params).map(key => `data-${key}='${params[key]}'`).join(" ");
         const output = this
           .renderBlock('markdown', content)
           .then(md => `<div data-scalafiddle ${attributes}>${md}</div>`);
