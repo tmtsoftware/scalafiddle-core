@@ -17,6 +17,19 @@ plugins:
   - jekyll-scalafiddle
 ```
 
+### Installation for sbt-microsites
+
+[sbt-microsites](https://47deg.github.io/sbt-microsites/) is a plugin for sbt that helps Scala developers build and publish 
+documentation for their project. It's based on Jekyll, so you can use this same plugin. Unlike regular Jekyll, you cannot use 
+`gem` to install the plugin, but you must manually copy the `jekyll-scalafiddle.rb` file under a `plugins` directory in your 
+microsite project.
+
+```bash
+$ mkdir plugins
+$ cd plugins
+$ curl -o jekyll-scalafiddle.rb https://raw.githubusercontent.com/scalafiddle/scalafiddle-core/master/integrations/jekyll/lib/jekyll-scalafiddle.rb
+```
+
 ## Usage
 
 The ScalaFiddle plugin provides a tag `scalafiddle` which you can use to convert a code block in your documentation into an
@@ -116,20 +129,15 @@ to your library.
 You can also configure the location of templates with `templateDir` and the URL for the ScalaFiddle service (if you want to
 run your own ScalaFiddle server, for example locally) using `scalaFiddleUrl`.
 
-## Usage with sbt-microsites
+### Configuration with sbt-microsites
 
-[sbt-microsites](https://47deg.github.io/sbt-microsites/) is a plugin for sbt that helps Scala developers build and publish 
-documentation for their project. It's based on Jekyll, so you can use this same plugin. Unlike regular Jekyll, you cannot use 
-`gem` to install the plugin, but you must manually copy the `jekyll-scalafiddle.rb` file under a `plugins` directory in your 
-microsite project.
-
-To configure ScalaFiddle plugin, use the `micrositeConfigYaml` option in your project definition. For example: 
+To configure the ScalaFiddle plugin, use the `micrositeConfigYaml` option in your project definition. For example: 
 
 ```scala
 micrositeConfigYaml := ConfigYml(yamlInline =
 """
   |scalafiddle:
-  |  url: http://localhost:8880/
   |  dependency: io.circe %%% circe-core % 0.8.0,io.circe %%% circe-generic % 0.8.0,io.circe %%% circe-parser % 0.8.0
-""".stripMargin)
+  |  scalaFiddleUrl: http://localhost:8880/
+  """.stripMargin)
 ```
