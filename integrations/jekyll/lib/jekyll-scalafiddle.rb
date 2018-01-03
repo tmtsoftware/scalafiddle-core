@@ -47,8 +47,9 @@ module Jekyll
 
       def render(context)
         site = context.registers[:site]
-        converter = site.find_converter_instance(::Jekyll::Converters::Markdown)
-        content = converter.convert(super(context))
+        # run all markdown converters for this content
+        converters = site.converters.select { |c| c.matches(".md") }.sort
+        content = converters.reduce(super(context)) { |content, converter| converter.convert(content) }
         config = site.config.fetch("scalafiddle", {})
         result = <<HTML
 <div #{render_attributes(config)}>#{content}</div>

@@ -12,14 +12,19 @@
   };
   var templates = global.scalaFiddleTemplates || {};
 
+  // use a random prefix in CSS to ensure it's unique
+  var cssPrefix = Math.random().toString(36).substring(2, 15);
+
   function findFiddles() {
     return Array.from(dom.querySelectorAll("div[data-scalafiddle]"))
   }
 
   function injectCSS() {
+    var sfColor = "244, 0, 161";
     // create CSS styles
-    var css =
+    var css = (
       ".scalafiddle-button {\n" +
+      "    all: initial;\n" +
       "    position: absolute; right: 10px; top: 10px;\n" +
       "    background: rgba(255,255,255,0.6)!important;\n" +
       "    color: rgba(0, 0, 0, 0.6)!important;\n" +
@@ -28,11 +33,12 @@
       "    font-family: Lato,'Helvetica Neue',Arial,Helvetica,sans-serif;\n" +
       "    font-size: 14px;\n" +
       "    padding: 3px 8px;\n" +
+      "    transition: all 350ms ease;\n" +
       "}\n" +
       ".scalafiddle-button:hover {\n" +
       "    background: rgba(255,255,255,0.8)!important;\n" +
       "    color: rgba(0, 0, 0, 0.8)!important;\n" +
-      "    box-shadow: 0 0 0 1px rgba(35,35,35,.35) inset, 0 0 0 0 rgba(35,35,35,.15) inset;\n" +
+      "    box-shadow: 0 0 0 1px rgba(" + sfColor + ",.25), 0 0 2px 2px rgba(" + sfColor + ",.10);\n" +
       "}\n" +
       "div[data-theme='dark'] > button.scalafiddle-button {\n" +
       "    background: rgba(60,60,60,0.6)!important;\n" +
@@ -43,10 +49,17 @@
       "div[data-theme='dark'] > button.scalafiddle-button:hover {\n" +
       "    background: rgba(60,60,60,0.8)!important;\n" +
       "    color: rgba(220, 220, 220, 0.8)!important;\n" +
-      "    box-shadow: 0 0 0 1px rgba(200,200,200,.35), 0 0 0 0 rgba(200,200,200,.15);\n" +
+      "    box-shadow: 0 0 0 1px rgba(" + sfColor + ",.50), 0 0 2px 2px rgba(" + sfColor + ",.20);\n" +
       "}\n" +
-      ".scalafiddle-button img {margin-bottom: 4px; vertical-align: middle; width: 16px; height: 16px; }\n" +
-      "div[data-scalafiddle] { position: relative; }";
+      ".scalafiddle-button img { all: initial; padding: 0; margin: 0 0 4px 0; vertical-align: middle; width: 16px; height: 16px; display: inline; }\n" +
+      "div[data-scalafiddle] {\n" +
+      "    position: relative;\n " +
+      "    transition: box-shadow 350ms ease;\n" +
+      "}\n" +
+      "div[data-scalafiddle].scalafiddle-button-hovering {\n" +
+      "    box-shadow: 0 0 1px 1px rgba(" + sfColor + ",.25), 0 0 4px 2px rgba(" + sfColor + ",.10);\n" +
+      "}\n").replace(/\.scalafiddle/g, "." + cssPrefix)
+    ;
 
     var s = document.createElement('style');
     s.setAttribute('type', 'text/css');
@@ -92,7 +105,7 @@
     var scalaVersion = el.hasAttribute("data-scalaversion") ? el.getAttribute("data-scalaversion") : defaultScalaVersion;
     var selector = el.getAttribute("data-selector") || "pre";
     var minHeight = parseInt(el.getAttribute("data-minheight") || "350", 10);
-    var contentElement = el.querySelector(selector);
+    var contentElements = Array.prototype.slice.call(el.querySelectorAll(selector));
     // validate parameters
     dependencies.forEach(function (dep) {
       if (!dependencyRE.test(dep)) throw "ScalaFiddle dependency '" + dep + "' is not correctly formed";
@@ -101,12 +114,12 @@
       throw "Invalid Scala version '" + scalaVersion + "'";
     if (isNaN(minHeight))
       throw "Invalid minheight value '" + el.getAttribute("data-minheight") + "'";
-    if (contentElement === null)
-      throw "No content element '" + selector + "' found";
+    if (contentElements.length === 0)
+      throw "No content elements for '" + selector + "' found";
 
     el["scalaFiddleData"] = {
       element: el,
-      content: contentElement.textContent,
+      content: contentElements.reduce(function(c, e, idx, ar) { if(idx < ar.length - 1) return c + e.textContent + "\n"; else return c + e.textContent;}, ""),
       template: template,
       scalaVersion: scalaVersion,
       dependencies: dependencies,
@@ -115,12 +128,20 @@
       minHeight: minHeight
     };
     var button = dom.createElement("button");
-    button.setAttribute("class", "scalafiddle-button");
+    button.setAttribute("class", cssPrefix + "-button");
     var icon = dom.createElement("img");
     icon.src = iconUrl;
     button.appendChild(icon);
     button.appendChild(dom.createTextNode("Run"));
-    button.onclick = function () { injectFiddle(el) };
+    button.onclick = function () {
+      el.classList.remove(cssPrefix + "-button-hovering");
+      injectFiddle(el);
+    };
+    if(contentElements.length > 1) {
+      // add special hover effect if multiple code blocks per fiddle
+      button.onmouseover = function() { el.classList.add(cssPrefix + "-button-hovering") };
+      button.onmouseout = function() { el.classList.remove(cssPrefix + "-button-hovering") };
+    }
     el.appendChild(button);
   }
 

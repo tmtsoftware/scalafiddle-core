@@ -16,7 +16,7 @@ object Settings {
 
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {
-    val fiddle        = "1.2.2"
+    val fiddle        = "1.2.3"
     val scalatest     = "3.0.3"
     val macroParadise = "2.1.0"
     val kindProjector = "0.9.5"

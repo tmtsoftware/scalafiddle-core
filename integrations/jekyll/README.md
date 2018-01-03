@@ -60,6 +60,21 @@ viewer clicks the `Run` button.
 
 ![Code block with a Run button](../gitbook/images/fiddle_run.png)
 
+You can also wrap multiple code blocks with explanatory text in between them. The blocks will be joined
+into a single fiddle and all extra text is simply dropped.
+
+````
+{% scalafiddle %}
+```scala
+def sum(a: Int, b: Int) = a + b
+```
+Then we call the method:
+```scala
+println(sum(2, 2))
+```
+{% endscalafiddle %}
+````
+
 ### Parameters
 
 Each fiddle can be further customized with parameters. These parameters are described in more detail in the 

@@ -30,7 +30,7 @@ describe Jekyll::ScalaFiddle::ScalaFiddleTag do
 
     context "render all attributes" do
       let(:options) do
-        "template='testing' min_height='600' theme='dark' layout='v50'"
+        "template='testing' minheight='600' theme='dark' layout='v50'"
       end
       let(:output) do
         Liquid::Template.parse("{% #{tag} #{options} %}Testing{% end#{tag} %}").render!(context, {})

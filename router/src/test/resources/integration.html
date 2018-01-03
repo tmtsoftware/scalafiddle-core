@@ -5,9 +5,14 @@
     <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/gitbook-plugin-prism/prism.css">
     <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/gitbook-plugin-search/search.css">
     <link rel="stylesheet" href="https://diode.suzaku.io/gitbook/gitbook-plugin-fontsettings/website.css">
+    <style>
+        body {
+            margin: 10px;
+        }
+    </style>
 </head>
 <body>
-<div style="width: 900px;" class="normal markdown-section">
+<div style="width: 900px; padding: 5px;" class="normal markdown-section">
     <h1>ScalaFiddle integration test</h1>
     <p>What does it look like?</p>
     <div data-scalafiddle data-prefix="import boopickle.Default._" data-scalaversion="2.12" data-dependency="io.suzaku %%% boopickle % 1.2.6" data-layout="v70">
@@ -27,7 +32,9 @@
 <span class="token keyword">case</span> <span class="token keyword">class</span> Carambola<span class="token punctuation">(</span>weight<span class="token operator">:</span> <span class="token builtin">Double</span><span class="token punctuation">)</span> <span class="token keyword">extends</span> Fruit <span class="token punctuation">{</span>
   <span class="token keyword">def</span> color <span class="token operator">=</span> <span class="token string">"yellow"</span>
 <span class="token punctuation">}</span>
-<span class="token keyword">implicit</span> <span class="token keyword">val</span> fruitPickler <span class="token operator">=</span> compositePickler<span class="token punctuation">[</span>Fruit<span class="token punctuation">]</span><span class="token punctuation">.</span>
+</code></pre>
+<p>Then define the pickler.</p>
+<pre><code class="lang-scala"><span class="token keyword">implicit</span> <span class="token keyword">val</span> fruitPickler <span class="token operator">=</span> compositePickler<span class="token punctuation">[</span>Fruit<span class="token punctuation">]</span><span class="token punctuation">.</span>
   addConcreteType<span class="token punctuation">[</span>Banana<span class="token punctuation">]</span><span class="token punctuation">.</span>
   addConcreteType<span class="token punctuation">[</span>Kiwi<span class="token punctuation">]</span><span class="token punctuation">.</span>
   addConcreteType<span class="token punctuation">[</span>Carambola<span class="token punctuation">]</span>
@@ -38,6 +45,26 @@ println<span class="token punctuation">(</span>u <span class="token operator">==
 // test
 </code></pre>
     </div>
+
+    <div data-scalafiddle data-prefix="import boopickle.Default._" data-scalaversion="2.12" data-dependency="io.suzaku %%% boopickle % 1.2.6" data-layout="v70" data-theme="dark">
+<pre style="background: #222;"><code class="lang-scala"><span class="token keyword">trait</span> Fruit <span class="token punctuation">{</span>
+  <span class="token keyword">val</span> weight<span class="token operator">:</span> <span class="token builtin">Double</span>
+  <span class="token keyword">def</span> color<span class="token operator">:</span> <span class="token builtin">String</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">case</span> <span class="token keyword">class</span> Banana<span class="token punctuation">(</span>weight<span class="token operator">:</span> <span class="token builtin">Double</span><span class="token punctuation">)</span> <span class="token keyword">extends</span> Fruit <span class="token punctuation">{</span>
+  <span class="token keyword">def</span> color <span class="token operator">=</span> <span class="token string">"yellow"</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">case</span> <span class="token keyword">class</span> Kiwi<span class="token punctuation">(</span>weight<span class="token operator">:</span> <span class="token builtin">Double</span><span class="token punctuation">)</span> <span class="token keyword">extends</span> Fruit <span class="token punctuation">{</span>
+  <span class="token keyword">def</span> color <span class="token operator">=</span> <span class="token string">"brown"</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">case</span> <span class="token keyword">class</span> Carambola<span class="token punctuation">(</span>weight<span class="token operator">:</span> <span class="token builtin">Double</span><span class="token punctuation">)</span> <span class="token keyword">extends</span> Fruit <span class="token punctuation">{</span>
+  <span class="token keyword">def</span> color <span class="token operator">=</span> <span class="token string">"yellow"</span>
+<span class="token punctuation">}</span>
+</code></pre>
+</div>
 
 </div>
 <script>

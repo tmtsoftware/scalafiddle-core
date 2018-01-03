@@ -50,6 +50,15 @@ When the user clicks the button, the code example is replaced with an editable f
 
 ![Fiddle editor](gitbook/images/fiddle_editor.png)
 
+### Multiple code blocks
+
+In your documentation you may want to build a more complex example bit by bit, giving some explanatory text in between. This
+is fully supported by ScalaFiddle integration and you can surround multiple `<pre>` blocks with a single integration `<div>`.
+There will be a single `Run` button, but when the user hovers their mouse over the button, the whole ScalaFiddle div will 
+get a surrounding highlight to indicate that these code blocks belong to the same fiddle.
+
+When `Run` is clicked, all code blocks are converted into a single fiddle and any text between them is dropped.
+
 ### Integration parameters
 
 To further customize the integrated fiddle you can supply additional parameters using `data-` attributes.
