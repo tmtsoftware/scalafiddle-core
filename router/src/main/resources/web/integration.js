@@ -13,7 +13,7 @@
   var templates = global.scalaFiddleTemplates || {};
 
   // use a random prefix in CSS to ensure it's unique
-  var cssPrefix = Math.random().toString(36).substring(2, 15);
+  var cssPrefix = "p" + Math.random().toString(36).substring(2, 15);
 
   function findFiddles() {
     return Array.from(dom.querySelectorAll("div[data-scalafiddle]"))

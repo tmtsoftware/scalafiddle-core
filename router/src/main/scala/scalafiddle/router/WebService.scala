@@ -347,12 +347,12 @@ class WebService(system: ActorSystem, cache: Cache, compilerManager: ActorRef) {
             }(data => HttpResponse(entity = HttpEntity(contentType, data)))
           }
         } ~ path("integration.js") {
-          respondWithHeader(`Cache-Control`(`max-age`(3600))) {
+          respondWithHeader(`Cache-Control`(`max-age`(600))) {
             encodeResponse {
               complete(integrationJS)
             }
           }
-        } ~ respondWithHeader(`Cache-Control`(`max-age`(3600 * 24))) {
+        } ~ respondWithHeader(`Cache-Control`(`max-age`(3600))) {
           getFromResourceDirectory("web")
         }
       }
