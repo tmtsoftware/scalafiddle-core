@@ -58,7 +58,7 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
         val vd       = new io.VirtualDirectory("(memory)", None)
         val settings = new Settings
         settings.outputDirs.setSingleOutput(vd)
-        settings.processArgumentString("-Ypresentation-any-thread")
+        settings.processArgumentString("-Ypresentation-any-thread -Ypartial-unification")
         GlobalInitCompat.initInteractiveGlobal(settings, new StoreReporter, libManager.compilerLibraries(extLibs))
       }
     )
@@ -91,7 +91,7 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
     val compiler = CompilerCache.getOrUpdate(
       extLibs, {
         val settings = new Settings
-        settings.processArgumentString("-Ydebug")
+        settings.processArgumentString("-Ydebug -Ypartial-unification")
         GlobalInitCompat.initGlobal(settings, new StoreReporter, libManager.compilerLibraries(extLibs))
       }
     )

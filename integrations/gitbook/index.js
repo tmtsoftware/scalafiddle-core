@@ -37,7 +37,7 @@ const initOptions = (config) => {
   return Object.freeze(kv);
 };
 
-const escapeStr = str => str.replace(/\\/, "\\\\").replace(/\r/g, "").replace(/\t/g, "\\t").replace(/'/g, "\\\'")
+const escapeStr = str => str.replace(/\\/g, "\\\\").replace(/\r/g, "").replace(/\t/g, "\\t").replace(/'/g, "\\\'")
 
 const readTemplate = file => {
   const lines = fs.readFileSync(file, "utf-8").split("\n");
