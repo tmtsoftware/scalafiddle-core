@@ -72,10 +72,12 @@ class Client(editURL: String) {
 
   editLink.onclick = editClicked _
 
-  def editClicked(e: MouseEvent): Unit = {
+  def editClicked(e: MouseEvent): Boolean = {
     val link = editURL + s"?zrc=${encodeSource(reconstructSource(editor.code, currentSourceFile))}"
     dom.window.open(link, target = "_blank")
+    e.preventDefault()
     e.stopPropagation()
+    false
   }
 
   def exec(s: String): Unit = {

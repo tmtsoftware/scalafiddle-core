@@ -180,7 +180,7 @@ object Static {
             ),
             div(cls := "right")(
               div(cls := "logo")(
-                a(href := "javascript:null", id := "editLink", target := "_blank", img(src := logoSrc))
+                a(href := "javascript:void(0);", id := "editLink", target := "_blank", img(src := logoSrc))
               )
             )
           ),
