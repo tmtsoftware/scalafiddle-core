@@ -4,11 +4,10 @@ import java.util.Properties
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
+import upickle.default._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
-
-import upickle.default._
 
 object Config {
   protected val config = ConfigFactory.load().getConfig("fiddle")
@@ -36,8 +35,10 @@ object Config {
   val version    = versionProps.getProperty("version")
   val aceVersion = versionProps.getProperty("aceVersion")
 
-  val logoLight = config.getString("logoLight")
-  val logoDark  = config.getString("logoDark")
+  val logoLight   = config.getString("logoLight")
+  val logoLight2x = config.getString("logoLight2x")
+  val logoDark    = config.getString("logoDark")
+  val logoDark2x  = config.getString("logoDark2x")
 
   val extJS       = config.getStringList("extJS").asScala
   val extCSS      = config.getStringList("extCSS").asScala

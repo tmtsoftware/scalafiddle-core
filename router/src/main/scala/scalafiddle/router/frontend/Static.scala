@@ -50,9 +50,12 @@ object Static {
     // apply layout parameters
     val responsiveWidth = Try(paramMap.getOrElse("responsiveWidth", "640").toInt).getOrElse(640)
     val customStyle     = paramMap.getOrElse("style", "")
-    val (themeCSS, logoSrc) = paramMap.get("theme") match {
-      case Some("dark") => ("/styles-dark.css", Config.logoDark)
-      case _            => ("/styles-light.css", Config.logoLight)
+    val (themeCSS, logo) = paramMap.get("theme") match {
+      case Some("dark") =>
+        ("/styles-dark.css", img(src := Config.logoDark, attr("srcset") := s"${Config.logoDark} 1x,${Config.logoDark2x} 2x"))
+      case _ =>
+        ("/styles-light.css",
+         img(src := Config.logoLight, attr("srcset") := s"${Config.logoLight} 1x,${Config.logoLight2x} 2x"))
     }
     val fullOpt = paramMap.contains("fullOpt")
     val passive = paramMap.contains("passive")
@@ -180,7 +183,7 @@ object Static {
             ),
             div(cls := "right")(
               div(cls := "logo")(
-                a(href := "javascript:void(0);", id := "editLink", target := "_blank", img(src := logoSrc))
+                a(href := "javascript:void(0);", id := "editLink", target := "_blank", logo)
               )
             )
           ),
