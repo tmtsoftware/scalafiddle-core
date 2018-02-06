@@ -8,6 +8,7 @@ import upickle.default._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
+import scalafiddle.shared.ExtLib
 
 object Config {
   protected val config = ConfigFactory.load().getConfig("fiddle")
@@ -26,9 +27,12 @@ object Config {
 
   val scalaVersions       = read[Seq[String]](config.getString("scalaVersions"))
   val defaultScalaVersion = config.getString("defaultScalaVersion")
-  val defaultLibs         = read[Map[String, Seq[String]]](config.getString("defaultLibs"))
-  val extLibs             = read[Map[String, String]](config.getString("extLibs"))
-  val refreshLibraries    = FiniteDuration(config.getDuration("refreshLibraries").toMillis, TimeUnit.MILLISECONDS)
+
+  val defaultLibs = read[Map[String, Set[String]]](config.getString("defaultLibs")).map {
+    case (k, v) => k -> v.map(ExtLib(_))
+  }
+  val extLibsUrl       = config.getString("extLibsUrl")
+  val refreshLibraries = FiniteDuration(config.getDuration("refreshLibraries").toMillis, TimeUnit.MILLISECONDS)
 
   val corsOrigins = config.getStringList("corsOrigins").asScala
 
