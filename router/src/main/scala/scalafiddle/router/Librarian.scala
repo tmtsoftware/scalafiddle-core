@@ -1,5 +1,6 @@
 package scalafiddle.router
 
+import org.slf4j.LoggerFactory
 import upickle.Js
 import upickle.default._
 
@@ -43,6 +44,9 @@ object Librarian {
       libraries: Seq[LibraryDef]
   )
 
+  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
+  val repoRE    = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
+
   def loadLibraries(data: String): Map[String, Set[ExtLib]] = {
     val libGroups = read[Seq[LibraryGroup]](data)
     (for {
@@ -50,13 +54,20 @@ object Librarian {
       lib        <- group.libraries
       versionDef <- lib.versions
     } yield {
-      versionDef.scalaVersions.map {
-        _ -> ExtLib(
-          versionDef.organization.getOrElse(lib.organization),
-          versionDef.artifact.getOrElse(lib.artifact),
-          versionDef.version,
-          lib.compileTimeOnly
-        )
+      versionDef.scalaVersions.flatMap { scalaVersion =>
+        val extraDeps = versionDef.extraDeps.map {
+          case repoSJSRE(grp, artifact, version) =>
+            scalaVersion -> ExtLib(grp, artifact, version, compileTimeOnly = false)
+          case repoRE(grp, artifact, version) =>
+            scalaVersion -> ExtLib(grp, artifact, version, compileTimeOnly = true)
+        }
+        Seq(
+          scalaVersion -> ExtLib(
+            versionDef.organization.getOrElse(lib.organization),
+            versionDef.artifact.getOrElse(lib.artifact),
+            versionDef.version,
+            lib.compileTimeOnly
+          )) ++ extraDeps
       }
     }).flatten.groupBy(_._1).map { case (version, libs) => version -> libs.map(_._2).toSet }
   }
