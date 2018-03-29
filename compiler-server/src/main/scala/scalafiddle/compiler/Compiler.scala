@@ -11,29 +11,30 @@ import scala.reflect.io
 import scala.tools.nsc.Settings
 import scala.tools.nsc.reporters.StoreReporter
 import scalafiddle.compiler.cache.{AutoCompleteCache, CompilerCache, LinkerCache}
-import scalafiddle.shared.ExtLib
+import scalafiddle.shared.{CSSLib, ExtLib, JSLib}
 
 /**
   * Handles the interaction between scala-js-fiddle and
   * scalac/scalajs-tools to compile and optimize code submitted by users.
   */
 class Compiler(libManager: LibraryManager, code: String) { self =>
-  val log               = LoggerFactory.getLogger(getClass)
-  val sjsLogger         = new Log4jLogger()
-  val blacklist         = Set("<init>")
-  val dependencyRE      = """ *// \$FiddleDependency (.+)""".r
-  private val codeLines = code.replaceAll("\r", "").split('\n')
-  val extLibDefs = codeLines.collect {
+  private val log          = LoggerFactory.getLogger(getClass)
+  private val sjsLogger    = new Log4jLogger()
+  private val blacklist    = Set("<init>")
+  private val dependencyRE = """ *// \$FiddleDependency (.+)""".r
+  private val codeLines    = code.replaceAll("\r", "").split('\n')
+  private val extLibDefs = codeLines.collect {
     case dependencyRE(dep) => dep
   }.toSet
 
-  lazy val extLibs = {
+  private lazy val extLibs = {
     val userLibs = extLibDefs
       .map(lib => ExtLib(lib))
-      .collect {
-        case lib if libManager.depLibs.contains(lib) => lib
-        case lib                                     => throw new IllegalArgumentException(s"Library $lib is not allowed")
-      }
+      .map(
+        extLib =>
+          libManager.depLibs
+            .find(_.sameAs(extLib))
+            .getOrElse(throw new IllegalArgumentException(s"Library $extLib is not allowed")))
       .toList
 
     log.debug(s"Full dependencies: $userLibs")
@@ -43,7 +44,7 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
   /**
     * Converts a bunch of bytes into Scalac's weird VirtualFile class
     */
-  def makeFile(src: Array[Byte]) = {
+  private def makeFile(src: Array[Byte]) = {
     val singleFile = new io.VirtualFile("ScalaFiddle.scala")
     val output     = singleFile.output
     output.write(src)
@@ -91,7 +92,7 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
     val compiler = CompilerCache.getOrUpdate(
       extLibs, {
         val settings = new Settings
-        settings.processArgumentString("-Ydebug -Ypartial-unification")
+        settings.processArgumentString("-Ydebug -Ypartial-unification -Ylog-classpath")
         GlobalInitCompat.initGlobal(settings, new StoreReporter, libManager.compilerLibraries(extLibs))
       }
     )
@@ -173,9 +174,12 @@ class Compiler(libManager: LibraryManager, code: String) { self =>
     output
   }
 
-  def getLog = sjsLogger.logLines
+  def getExtDeps: (List[JSLib], List[CSSLib]) =
+    (ExtLib.resolveLibs(extLibs.toList, _.jsLibs.toList), ExtLib.resolveLibs(extLibs.toList, _.cssLibs.toList))
 
-  def getInternalLog = sjsLogger.internalLogLines
+  def getLog: Vector[String] = sjsLogger.logLines
+
+  def getInternalLog: Vector[String] = sjsLogger.internalLogLines
 
   class Log4jLogger(minLevel: Level = Level.Debug) extends Logger {
     var logLines         = Vector.empty[String]

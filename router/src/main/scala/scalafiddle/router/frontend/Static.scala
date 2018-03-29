@@ -270,14 +270,43 @@ object Static {
               |      panel.innerHTML = msg.data;
               |      break;
               |    case "code":
-              |      try {
-              |        eval(msg.data);
-              |        eval("var sf = ScalaFiddle;if(typeof sf === 'function' && typeof sf().main === 'function') sf().main();");
-              |      } catch(ex) {
-              |        panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '\n' + ex.stack + '</pre>')
-              |      } finally {
-              |        e.source.postMessage("evalCompleted", "*");
-              |      }
+              |      var jsDeps = msg.data.jsDeps;
+              |      var cssDeps = msg.data.cssDeps;
+              |      var code = msg.data.code;
+              |      cssDeps.forEach(function(dep) {
+              |        var el = document.createElement("link");
+              |        el.setAttribute("rel", "stylesheet");
+              |        el.setAttribute("href", dep);
+              |        document.head.appendChild(el);
+              |      });
+              |      var loads = jsDeps.reduce(function(prom, dep) {
+              |        return prom.then(function() {
+              |          return new Promise(function(resolve, reject) {
+              |            console.log("Loading JS lib " + dep);
+              |            var el = document.createElement("script");
+              |            el.setAttribute("type", "text/javascript");
+              |            el.setAttribute("src", dep);
+              |            el.onerror = function(e) {
+              |              console.error("Error loading JavaScript " + dep + ": ", e);
+              |              resolve(dep);
+              |            }
+              |            el.onload = function() {
+              |              resolve(dep);
+              |            }
+              |            document.body.appendChild(el);
+              |          });
+              |        })
+              |      }, Promise.resolve());
+              |      loads.then(function() {
+              |        try {
+              |          eval(code);
+              |          eval("var sf = ScalaFiddle;if(typeof sf === 'function' && typeof sf().main === 'function') sf().main();");
+              |        } catch(ex) {
+              |          panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '\n' + ex.stack + '</pre>')
+              |        } finally {
+              |          e.source.postMessage("evalCompleted", "*");
+              |        }
+              |      });
               |      break;
               |  }
               |});

@@ -33,8 +33,13 @@ trait CompilerResponse
 
 case class EditorAnnotation(row: Int, col: Int, text: Seq[String], tpe: String)
 
-case class CompilationResponse(jsCode: Option[String], annotations: Seq[EditorAnnotation], log: String)
-    extends CompilerResponse
+case class CompilationResponse(
+    jsCode: Option[String],
+    jsDeps: Seq[String],
+    cssDeps: Seq[String],
+    annotations: Seq[EditorAnnotation],
+    log: String
+) extends CompilerResponse
     with CompilerMessage
 
 case class CompletionResponse(completions: List[(String, String)]) extends CompilerResponse with CompilerMessage

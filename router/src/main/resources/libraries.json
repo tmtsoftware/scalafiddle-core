@@ -1,5 +1,84 @@
 [
-  "org.scala-js %%% scalajs-dom % 0.9.2",
-  "com.lihaoyi %%% upickle % 0.4.3",
-  "com.lihaoyi %%% scalatags % 0.6.5"
+  {
+    "group": "Web",
+    "libraries": [
+      {
+        "name": "Scala.js React",
+        "organization": "com.github.japgolly.scalajs-react",
+        "artifact": "core",
+        "doc": "japgolly/scalajs-react",
+        "versions": [
+          {
+            "version": "1.2.0",
+            "scalaVersions": ["2.11", "2.12"],
+            "jsDeps": [
+              "react % 16.2.0 % https://unpkg.com/react@16/umd/react.development.js",
+              "react-dom % 16.2.0 % https://unpkg.com/react-dom@16/umd/react-dom.development.js"
+            ]
+          },
+          {
+            "version": "1.1.1",
+            "scalaVersions": ["2.11", "2.12"],
+            "extraDeps": [
+              "com.github.japgolly.scalajs-react %%% extra % 1.1.1"
+            ],
+            "jsDeps": [
+              "react % 15.6.1 % https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react-with-addons.min.js",
+              "react-dom % 15.6.1 % https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react-dom.min.js"
+            ]
+          }
+        ],
+        "compileTimeOnly": false
+      },
+      {
+        "name": "Scala.js React Components",
+        "organization": "com.olvind",
+        "artifact": "scalajs-react-components",
+        "doc": "chandu0101/scalajs-react-components",
+        "versions": [
+          {
+            "version": "1.0.0-M2",
+            "scalaVersions": ["2.11", "2.12"],
+            "extraDeps": [
+            ],
+            "jsDeps": [
+              "react % 15.6.1 % https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react-with-addons.min.js",
+              "react-dom % 15.6.1 % https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react-dom.min.js"
+            ],
+            "cssDeps": [
+              "semantic-ui % 2.2.4 % https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.12/semantic.min.css"
+            ]
+          }
+        ],
+        "compileTimeOnly": false
+      },
+      {
+        "name": "Diode",
+        "organization": "io.suzaku",
+        "artifact": "diode",
+        "doc": "https://diode.suzaku.io",
+        "versions": [
+          {
+            "version": "1.1.3",
+            "scalaVersions": ["2.11", "2.12"]
+          },
+          {
+            "version": "1.1.2",
+            "scalaVersions": ["2.11", "2.12"]
+          },
+          {
+            "version": "1.1.0",
+            "organization": "me.chrons",
+            "scalaVersions": ["2.11", "2.12"]
+          },
+          {
+            "version": "1.0.0",
+            "organization": "me.chrons",
+            "scalaVersions": ["2.11"]
+          }
+        ],
+        "compileTimeOnly": false
+      }
+      ]
+  }
 ]

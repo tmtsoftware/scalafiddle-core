@@ -1,10 +1,8 @@
 package scalafiddle.router
 
-import org.slf4j.LoggerFactory
+import scalafiddle.shared._
 import upickle.Js
 import upickle.default._
-
-import scalafiddle.shared._
 
 object Librarian {
 
@@ -14,10 +12,24 @@ object Librarian {
       extraDeps: Seq[String],
       organization: Option[String],
       artifact: Option[String],
-      doc: Option[String]
+      doc: Option[String],
+      jsDeps: List[JSLib],
+      cssDeps: List[CSSLib]
   )
 
-  implicit val libraryVersionReader = upickle.default.Reader[LibraryVersion] {
+  private val depRE = """([^ %]+) *% *([^ %]+) *% *([^ %]+)""".r
+
+  private implicit val jsLibVersionReader: Reader[JSLib] = Reader[JSLib] {
+    case Js.Str(depRE(name, version, url)) =>
+      JSLib(name, version, url)
+  }
+
+  private implicit val cssLibVersionReader: Reader[CSSLib] = Reader[CSSLib] {
+    case Js.Str(depRE(name, version, url)) =>
+      CSSLib(name, version, url)
+  }
+
+  implicit val libraryVersionReader: Reader[LibraryVersion] = Reader[LibraryVersion] {
     case Js.Obj(valueSeq @ _*) =>
       val values = valueSeq.toMap
       LibraryVersion(
@@ -26,7 +38,9 @@ object Librarian {
         readJs[Seq[String]](values.getOrElse("extraDeps", Js.Arr())),
         values.get("organization").map(readJs[String]),
         values.get("artifact").map(readJs[String]),
-        values.get("doc").map(readJs[String])
+        values.get("doc").map(readJs[String]),
+        values.get("jsDeps").map(readJs[List[JSLib]]).getOrElse(Nil),
+        values.get("cssDeps").map(readJs[List[CSSLib]]).getOrElse(Nil)
       )
   }
 
@@ -44,8 +58,8 @@ object Librarian {
       libraries: Seq[LibraryDef]
   )
 
-  val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
-  val repoRE    = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
+  private val repoSJSRE = """([^ %]+) *%%% *([^ %]+) *% *([^ %]+)""".r
+  private val repoRE    = """([^ %]+) *%% *([^ %]+) *% *([^ %]+)""".r
 
   def loadLibraries(data: String): Map[String, Set[ExtLib]] = {
     val libGroups = read[Seq[LibraryGroup]](data)
@@ -66,7 +80,9 @@ object Librarian {
             versionDef.organization.getOrElse(lib.organization),
             versionDef.artifact.getOrElse(lib.artifact),
             versionDef.version,
-            lib.compileTimeOnly
+            lib.compileTimeOnly,
+            versionDef.jsDeps,
+            versionDef.cssDeps
           )) ++ extraDeps
       }
     }).flatten.groupBy(_._1).map { case (version, libs) => version -> libs.map(_._2).toSet }

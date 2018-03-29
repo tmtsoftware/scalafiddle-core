@@ -46,6 +46,8 @@ trait EditorAnnotationJS extends js.Object {
 @js.native
 trait CompilationResponseJS extends js.Object {
   val jsCode: js.Array[String]
+  val jsDeps: js.Array[String]
+  val cssDeps: js.Array[String]
   val annotations: js.Array[EditorAnnotationJS]
   val log: String
 }
@@ -80,14 +82,7 @@ class Client(editURL: String) {
     false
   }
 
-  def exec(s: String): Unit = {
-    Client.clear()
-
-    showStatus("RUNNING")
-    js.timers.setTimeout(20) {
-      Client.sendFrameCmd("code", s)
-    }
-  }
+  def exec(s: String): Unit = {}
 
   val editor: Editor = new Editor(
     Seq(
@@ -150,6 +145,8 @@ class Client(editURL: String) {
     val r = js.JSON.parse(jsonStr).asInstanceOf[CompilationResponseJS]
     CompilationResponse(
       if (r.jsCode.isEmpty) None else Some(r.jsCode(0)),
+      r.jsDeps,
+      r.cssDeps,
       r.annotations.map { a =>
         EditorAnnotation(a.row, a.col, a.text, a.tpe)
       },
@@ -213,13 +210,24 @@ class Client(editURL: String) {
   }
 
   def performCompile(opt: String): Future[Unit] = {
+    import js.JSConverters._
+
     val cleared              = beginCompilation()
     val pendingCompileResult = compileServer(editor.code, opt)
     for {
       _         <- cleared
       jsCodeOpt <- processCompilationResponse(pendingCompileResult)
     } yield {
-      jsCodeOpt.foreach(exec)
+      jsCodeOpt.foreach {
+        case (code, jsDeps, cssDeps) =>
+          Client.clear()
+          showStatus("RUNNING")
+          js.timers.setTimeout(20) {
+            // pass compiled data to the iframe
+            val data = js.Dynamic.literal(code = code, jsDeps = jsDeps.toJSArray, cssDeps = cssDeps.toJSArray)
+            Client.sendFrameCmd("code", data)
+          }
+      }
     }
   }
 
@@ -329,7 +337,7 @@ class Client(editURL: String) {
     }
   }
 
-  def processCompilationResponse(res: Future[CompilationResponse]): Future[Option[String]] = {
+  def processCompilationResponse(res: Future[CompilationResponse]): Future[Option[(String, Seq[String], Seq[String])]] = {
     res
       .map { response =>
         endCompilation()
@@ -344,7 +352,7 @@ class Client(editURL: String) {
             .mkString("\n")
           showError(allErrors)
         }
-        response.jsCode
+        response.jsCode.map(code => (code, response.jsDeps, response.cssDeps))
       }
       .recover {
         case e: Exception =>
@@ -423,8 +431,9 @@ object Client {
     dom.console.error(s)
   }
 
-  def sendFrameCmd(cmd: String, data: String = "") = {
+  def sendFrameCmd(cmd: String, data: js.Any = "") = {
     val msg = js.Dynamic.literal(cmd = cmd, data = data)
+
     try {
       codeFrame.contentWindow.postMessage(msg, "*")
     } catch {

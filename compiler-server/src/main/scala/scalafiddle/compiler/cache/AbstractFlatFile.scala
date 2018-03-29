@@ -60,7 +60,7 @@ class AbstractFlatDir(val path: String, val children: ArrayBuffer[AbstractFile] 
 }
 
 class AbstractFlatJar(val flatJar: FlatJar, ffs: FlatFileSystem) {
-  val root = new AbstractFlatDir("", ArrayBuffer.empty)
+  val root = new AbstractFlatDir(flatJar.name, ArrayBuffer.empty)
   val dirs = mutable.HashMap[String, AbstractFlatDir]("" -> root)
 
   build()

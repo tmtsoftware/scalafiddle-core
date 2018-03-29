@@ -107,7 +107,8 @@ class CompilerManager extends Actor with ActorLogging {
     // check that all libs are supported
     val versionLibs = currentLibs.getOrElse(scalaVersion, Set.empty)
     log.debug(s"Libraries:\n$versionLibs")
-    libs.foreach(lib => if (!versionLibs.contains(lib)) throw new IllegalArgumentException(s"Library $lib is not supported"))
+    libs.foreach(lib =>
+      if (!versionLibs.exists(_.sameAs(lib))) throw new IllegalArgumentException(s"Library $lib is not supported"))
     // select the best available compiler server based on:
     // 1) time of last activity
     // 2) set of libraries

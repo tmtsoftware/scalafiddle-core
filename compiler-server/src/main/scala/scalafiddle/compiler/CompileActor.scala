@@ -93,6 +93,8 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
                 compilationFailCounter.increment()
                 sendOut(
                   CompilationResponse(None,
+                                      Nil,
+                                      Nil,
                                       Seq(EditorAnnotation(0, 0, e.getMessage +: compiler.getLog, "ERROR")),
                                       compiler.getLog.mkString("\n")))
             }
@@ -153,7 +155,9 @@ class CompileActor(out: ActorRef, manager: ActorRef) extends Actor with ActorLog
     if (logSpam.nonEmpty)
       log.debug(s"Compiler errors: $logSpam")
 
-    CompilationResponse(res.map(processor), parseErrors(logSpam), logSpam)
+    val (jsDeps, cssDeps) = compiler.getExtDeps
+    log.debug(s"External dependencies: JS = $jsDeps, CSS = $cssDeps")
+    CompilationResponse(res.map(processor), jsDeps.map(_.url), cssDeps.map(_.url), parseErrors(logSpam), logSpam)
   }
 
   override def postStop(): Unit = {

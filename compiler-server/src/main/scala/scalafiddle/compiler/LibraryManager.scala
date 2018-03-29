@@ -46,6 +46,7 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
   val log     = LoggerFactory.getLogger(getClass)
   val timeout = 60.seconds
 
+  //log.debug(s"Libraries: ${depLibs.map(lib => s"${lib.toString}/${lib.jsLibs}/${lib.cssLibs}").mkString("\n")}")
   val baseLibs = Seq(
     s"/scala-library-${Config.scalaVersion}.jar",
     s"/scala-reflect-${Config.scalaVersion}.jar",
@@ -99,10 +100,10 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
     val results = Task
       .gatherUnordered(libs.map { lib =>
         val dep = lib match {
-          case ExtLib(group, artifact, version, false) =>
-            Dependency(Module(group, artifact + sjsVersion), lib.version, exclusions = exclusions)
-          case ExtLib(group, artifact, version, true) =>
-            Dependency(Module(group, s"${artifact}_${Config.scalaMainVersion}"), lib.version, exclusions = exclusions)
+          case ExtLib(group, artifact, version, false, _, _) =>
+            Dependency(Module(group, artifact + sjsVersion), version, exclusions = exclusions)
+          case ExtLib(group, artifact, version, true, _, _) =>
+            Dependency(Module(group, s"${artifact}_${Config.scalaMainVersion}"), version, exclusions = exclusions)
         }
         val start = Resolution(Set(dep))
         val fetch = Fetch.from(repositories, Cache.fetch())
@@ -124,7 +125,7 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
 
     val jars =
       Task.gatherUnordered(depArts.map(da => Cache.file(da._2).map(f => (da._1, f.toPath)).run)).unsafePerformSync.collect {
-        case \/-((dep, path)) if path.toString.endsWith("jar") =>
+        case \/-((dep, path)) if path.toString.endsWith("jar") && dep.attributes.isEmpty =>
           (dep, path.toString, new FileInputStream(path.toFile))
         case -\/(error) =>
           throw new Exception(s"Unable to load a library: ${error.describe}")
@@ -218,7 +219,9 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
   }
 
   def compilerLibraries(extLibs: Set[ExtLib]): Seq[AbstractFile] = {
-    commonLibraries4compiler ++ deps(extLibs).map(dep => dependency4compiler(dep))
+    val libs = commonLibraries4compiler ++ deps(extLibs).map(dep => dependency4compiler(dep))
+    log.debug(s"Compiler libraries: ${libs.map(_.path)}")
+    libs
   }
 
   val irCache      = new IRFileCache
