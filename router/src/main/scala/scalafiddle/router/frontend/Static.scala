@@ -300,7 +300,7 @@ object Static {
               |      loads.then(function() {
               |        try {
               |          eval(code);
-              |          eval("var sf = ScalaFiddle;if(typeof sf === 'function' && typeof sf().main === 'function') sf().main();");
+              |          eval("var sf = ScalaFiddle;if(typeof sf === 'function') { if(typeof sf().main === 'function') sf().main() } else if(typeof sf.main === 'function') sf.main()");
               |        } catch(ex) {
               |          panel.insertAdjacentHTML('beforeend', '<pre class="error">ERROR: ' + ex.message + '\n' + ex.stack + '</pre>')
               |        } finally {

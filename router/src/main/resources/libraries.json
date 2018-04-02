@@ -11,9 +11,12 @@
           {
             "version": "1.2.0",
             "scalaVersions": ["2.11", "2.12"],
+            "extraDeps": [
+              "com.github.japgolly.scalajs-react %%% extra % 1.2.0"
+            ],
             "jsDeps": [
-              "react % 16.2.0 % https://unpkg.com/react@16/umd/react.development.js",
-              "react-dom % 16.2.0 % https://unpkg.com/react-dom@16/umd/react-dom.development.js"
+              "react % 16.3.0 % https://cdnjs.cloudflare.com/ajax/libs/react/16.3.0/umd/react.development.js",
+              "react-dom % 16.3.0 % https://cdnjs.cloudflare.com/ajax/libs/react-dom/16.3.0/umd/react-dom.development.js"
             ]
           },
           {
@@ -31,7 +34,7 @@
         "compileTimeOnly": false
       },
       {
-        "name": "Scala.js React Components",
+        "name": "React Components",
         "organization": "com.olvind",
         "artifact": "scalajs-react-components",
         "doc": "chandu0101/scalajs-react-components",
@@ -47,6 +50,22 @@
             ],
             "cssDeps": [
               "semantic-ui % 2.2.4 % https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.12/semantic.min.css"
+            ]
+          }
+        ],
+        "compileTimeOnly": false
+      },
+      {
+        "name": "D3",
+        "organization": "org.singlespaced",
+        "artifact": "scalajs-d3",
+        "doc": "spaced/scala-js-d3",
+        "versions": [
+          {
+            "version": "0.3.4",
+            "scalaVersions": ["2.11", "2.12"],
+            "jsDeps": [
+              "d3js % 3.5.17 % https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"
             ]
           }
         ],

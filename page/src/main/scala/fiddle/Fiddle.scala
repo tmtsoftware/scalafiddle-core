@@ -38,11 +38,11 @@ object Fiddle {
   def println(ss: Any) = {
     ss match {
       case null =>
-        print(div(cls := "", "null"))
+        print(div(cls := "monospace", "null"))
       case m: Modifier @unchecked =>
         print(div(m))
       case _ =>
-        print(div(ss.toString))
+        print(div(cls := "monospace", ss.toString))
     }
   }
 

@@ -202,6 +202,9 @@ select {
     padding-top: 0.2em;
     box-sizing: border-box;
     font-size: 14px;
+}
+
+.monospace {
     font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
     text-rendering: optimizeLegibility;
     white-space: pre;
@@ -211,6 +214,12 @@ body, pre {
     overflow: hidden;
     background-color: #ffffff;
     color: #878787;
+}
+
+pre {
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, source-code-pro, monospace;
+    text-rendering: optimizeLegibility;
+    white-space: pre;
 }
 
 pre.error {
