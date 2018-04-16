@@ -89,7 +89,8 @@ class LibraryManager(val depLibs: Seq[ExtLib]) {
 
     val repositories = Seq(
       Cache.ivy2Local,
-      MavenRepository("https://repo1.maven.org/maven2")
+      MavenRepository("https://repo1.maven.org/maven2"),
+      MavenRepository(s"file:/${sys.props("user.home")}/.coursier/cache/v1/https/jitpack.io")
     )
     val exclusions = Set(
       ("org.scala-lang", "scala-reflect"),
